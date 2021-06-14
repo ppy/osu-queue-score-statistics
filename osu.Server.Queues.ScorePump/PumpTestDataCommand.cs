@@ -8,12 +8,12 @@ using osu.Server.Queues.ScoreStatisticsProcessor;
 
 namespace osu.Server.Queues.ScorePump
 {
-    [Command("test", "Pumps test scores")]
+    [Command("test", Description = "Pumps test scores")]
     public class PumpTestDataCommand : ScorePump
     {
-        public int OnExecute()
+        public int OnExecute(CancellationToken cancellationToken)
         {
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 // TODO: push meaningful scores.
                 var scoreItem = new ScoreItem();
@@ -22,6 +22,8 @@ namespace osu.Server.Queues.ScorePump
                 Queue.PushToQueue(scoreItem);
                 Thread.Sleep(200);
             }
+
+            return 0;
         }
     }
 }
