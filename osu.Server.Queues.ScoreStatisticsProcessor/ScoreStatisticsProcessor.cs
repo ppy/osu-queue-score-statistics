@@ -17,7 +17,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         {
             using (var db = GetDatabaseConnection())
             {
-                Console.WriteLine("Processing score {item}");
+                Console.WriteLine($"Processing score {item}");
                 //db.Execute("UPDATE osu_user_stats SET playcount = playcount + 1 WHERE user_id = @user_id", item);
             }
         }

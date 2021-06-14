@@ -1,26 +1,20 @@
-﻿using System;
-using System.Threading;
-using osu.Server.Queues.ScoreStatisticsProcessor;
+﻿using McMaster.Extensions.CommandLineUtils;
 
 namespace osu.Server.Queues.ScorePump
 {
+    [Command]
+    [Subcommand(typeof(PumpTestDataCommand))]
     public class Program
     {
         public static void Main(string[] args)
         {
-            var pumpQueue = new ScoreStatisticsProcessor.ScoreStatisticsProcessor();
+            CommandLineApplication.Execute<Program>(args);
+        }
 
-            // TODO: add operational modes with cli arguments
-
-            while (true)
-            {
-                // TODO: push meaningful scores.
-                var scoreItem = new ScoreItem();
-                Console.WriteLine($"Pumping {scoreItem}");
-
-                pumpQueue.PushToQueue(scoreItem);
-                Thread.Sleep(200);
-            }
+        public int OnExecute(CommandLineApplication app)
+        {
+            app.ShowHelp();
+            return 1;
         }
     }
 }
