@@ -8,20 +8,41 @@ using osu.Server.Queues.ScoreStatisticsProcessor;
 
 namespace osu.Server.Queues.ScorePump
 {
-    [Command("all", "Pumps test scores")]
+    [Command("all", Description = "Pumps all completed scores")]
     public class PumpAllScores : ScorePump
     {
-        public int OnExecute()
+        public int OnExecute(CancellationToken cancellationToken)
         {
             using (var db = Queue.GetDatabaseConnection())
-            while (true)
             {
-                var scoreItem = new ScoreItem();
-                Console.WriteLine($"Pumping {scoreItem}");
+                using (var cmd = db.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT * FROM solo_scores";
 
-                Queue.PushToQueue(scoreItem);
-                Thread.Sleep(200);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            if (cancellationToken.IsCancellationRequested)
+                                break;
+
+                            // TODO: handle failed / retry cases.
+
+                            var score = new ScoreItem
+                            {
+                                score_id = reader.GetInt64("id"),
+                                user_id = reader.GetInt64("user_id"),
+                                beatmap_id = reader.GetInt64("beatmap_id"),
+                            };
+
+                            Console.WriteLine($"Pumping {score}");
+                            Queue.PushToQueue(score);
+                        }
+                    }
+                }
             }
+
+            return 0;
         }
     }
 }

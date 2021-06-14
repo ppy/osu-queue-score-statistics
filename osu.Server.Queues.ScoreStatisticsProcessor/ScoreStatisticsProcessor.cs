@@ -15,7 +15,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         protected override void ProcessResult(ScoreItem item)
         {
-            using (var db = GetDatabaseConnection())
+            using (GetDatabaseConnection())
             {
                 Console.WriteLine($"Processing score {item}");
                 //db.Execute("UPDATE osu_user_stats SET playcount = playcount + 1 WHERE user_id = @user_id", item);
