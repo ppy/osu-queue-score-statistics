@@ -9,11 +9,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     public class ScoreItem : QueueItem
     {
-        public long score_id { get; set; }
+        public long id { get; set; }
         public long user_id { get; set; }
         public long beatmap_id { get; set; }
         public bool passed { get; set; }
 
-        public override string ToString() => $"score_id: {score_id} user_id: {user_id}";
+        public override string ToString() => $"score_id: {id} user_id: {user_id}";
     }
 }
