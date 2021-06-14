@@ -10,9 +10,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
     public class ScoreItem : QueueItem
     {
         public long score_id { get; set; }
+        public long user_id { get; set; }
+        public long beatmap_id { get; set; }
+        public bool passed { get; set; }
 
-        public bool high { get; set; }
-
-        public override string ToString() => $"score_id: {score_id} high: {high}";
+        public override string ToString() => $"score_id: {score_id} user_id: {user_id}";
     }
 }
