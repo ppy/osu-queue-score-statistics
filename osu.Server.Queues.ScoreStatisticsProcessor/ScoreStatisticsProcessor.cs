@@ -18,17 +18,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         {
             using (var db = GetDatabaseConnection())
             {
-                if (item.processed)
+                if (item.ruleset_id > 0)
                 {
-                    Console.WriteLine($"Item {item} already processed");
-                    // if required, we can rollback any previous version of processing then reapply with the latest.
+                    Console.WriteLine($"Item {item} is for an unsupported ruleset");
                     return;
+                }
+
+                if (item.processed_at != null)
+                {
+                    Console.WriteLine($"Item {item} already processed, rolling back before reapplying");
+
+                    // if required, we can rollback any previous version of processing then reapply with the latest.
+                    db.Execute("UPDATE osu_user_stats SET playcount = playcount - 1 WHERE user_id = @user_id", item);
                 }
 
                 Console.WriteLine($"Processing score {item}");
 
                 db.Execute("UPDATE osu_user_stats SET playcount = playcount + 1 WHERE user_id = @user_id", item);
-                db.Execute("UPDATE solo_scores SET processed = 1 WHERE id = @id", item);
+                db.Execute("UPDATE solo_scores SET processed_at = NOW() WHERE id = @id", item);
             }
         }
     }
