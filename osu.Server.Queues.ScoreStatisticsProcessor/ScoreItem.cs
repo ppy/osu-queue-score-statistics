@@ -13,6 +13,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         public long user_id { get; set; }
         public long beatmap_id { get; set; }
         public bool passed { get; set; }
+        public bool processed { get; set; }
 
         public override string ToString() => $"score_id: {id} user_id: {user_id}";
     }
