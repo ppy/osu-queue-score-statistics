@@ -15,11 +15,20 @@ namespace osu.Server.Queues.ScorePump
         [Option("--start_id")]
         public long StartId { get; set; }
 
+        [Option("--user_id")]
+        public long UserId { get; set; }
+
         public int OnExecute(CancellationToken cancellationToken)
         {
             using (var db = Queue.GetDatabaseConnection())
             {
-                var scores = db.Query<ScoreItem>("SELECT * FROM solo_scores WHERE id > @StartId", new { startId = StartId }, buffered: false);
+                string query = "SELECT * FROM solo_scores WHERE id >= @StartId";
+
+                if (UserId > 0)
+                    query += " AND user_id = @UserId";
+
+                Console.WriteLine($"Querying with \"{query}\"");
+                var scores = db.Query<ScoreItem>(query, this, buffered: false);
 
                 foreach (var score in scores)
                 {
