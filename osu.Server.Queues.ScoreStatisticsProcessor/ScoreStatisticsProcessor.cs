@@ -6,7 +6,7 @@ using osu.Server.QueueProcessor;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
-    internal class ScoreStatisticsProcessor : QueueProcessor<ScoreItem>
+    public class ScoreStatisticsProcessor : QueueProcessor<ScoreItem>
     {
         public ScoreStatisticsProcessor()
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
