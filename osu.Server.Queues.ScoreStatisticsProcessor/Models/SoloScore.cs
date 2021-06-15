@@ -23,6 +23,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public int ruleset_id { get; set; }
         public bool passed { get; set; }
 
+        public DateTimeOffset? ended_at { get; set; }
+
         public Dictionary<HitResult, int> statistics { get; set; } = new Dictionary<HitResult, int>();
     }
 
