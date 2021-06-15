@@ -14,6 +14,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
     public class ScoreStatisticsProcessor : QueueProcessor<ScoreItem>
     {
+        /// <summary>
+        /// version 1: basic playcount
+        /// version 2: total score, hit statistics
+        /// </summary>
         public const int VERSION = 2;
 
         private readonly List<IProcessor> processors = new List<IProcessor>();
