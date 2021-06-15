@@ -99,6 +99,34 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestTotalScoreIncrease()
+        {
+            waitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            processor.PushToQueue(CreateTestScore());
+            waitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 100000, cts.Token);
+
+            processor.PushToQueue(CreateTestScore());
+            waitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 200000, cts.Token);
+        }
+
+        [Fact]
+        public void TestTotalScoreReprocessDoesntIncrease()
+        {
+            var score = CreateTestScore();
+
+            waitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 100000, cts.Token);
+
+            score.MarkProcessed();
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 100000, cts.Token);
+        }
+
+        [Fact]
         public void TestHitStatisticsIncrease()
         {
             waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
@@ -158,6 +186,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     user_id = 2,
                     beatmap_id = 81,
                     ruleset_id = rulesetId,
+                    total_score = 100000,
                     statistics =
                     {
                         { HitResult.Perfect, 5 }

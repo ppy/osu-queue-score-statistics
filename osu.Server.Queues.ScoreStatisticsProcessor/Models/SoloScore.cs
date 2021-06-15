@@ -18,10 +18,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     public class SoloScore
     {
         public long id { get; set; }
+
         public int user_id { get; set; }
+
         public int beatmap_id { get; set; }
+
         public int ruleset_id { get; set; }
+
         public bool passed { get; set; }
+
+        public int total_score { get; set; }
 
         public DateTimeOffset? ended_at { get; set; }
 
