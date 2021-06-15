@@ -28,7 +28,7 @@ namespace osu.Server.Queues.ScorePump
                     query += " AND user_id = @UserId";
 
                 Console.WriteLine($"Querying with \"{query}\"");
-                var scores = db.Query<ScoreItem>(query, this, buffered: false);
+                var scores = db.Query<SoloScore>(query, this, buffered: false);
 
                 foreach (var score in scores)
                 {
@@ -36,7 +36,7 @@ namespace osu.Server.Queues.ScorePump
                         break;
 
                     Console.WriteLine($"Pumping {score}");
-                    Queue.PushToQueue(score);
+                    Queue.PushToQueue(new ScoreItem { Score = score });
                 }
             }
 

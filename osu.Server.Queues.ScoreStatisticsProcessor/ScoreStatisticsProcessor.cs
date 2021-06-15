@@ -14,24 +14,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         public ScoreStatisticsProcessor()
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
         {
+            SqlMapper.AddTypeHandler(new StatisticsTypeHandler());
         }
 
-        protected override void ProcessResult(ScoreItem score)
+        protected override void ProcessResult(ScoreItem item)
         {
             try
             {
                 using (var db = GetDatabaseConnection())
                 using (var transaction = db.BeginTransaction())
                 {
-                    if (score.ruleset_id > 3)
-                    {
-                        Console.WriteLine($"Item {score} is for an unsupported ruleset {score.ruleset_id}");
-                        return;
-                    }
+                    var score = item.Score;
 
                     var userStats = getUserStats(score, db, transaction);
 
-                    if (score.processed_at != null)
+                    if (item.processed_at != null)
                     {
                         Console.WriteLine($"Item {score} already processed, rolling back before reapplying");
 
@@ -55,11 +52,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             }
         }
 
-        private static UserStats getUserStats(ScoreItem score, MySqlConnection db, MySqlTransaction transaction)
+        private static UserStats getUserStats(SoloScore score, MySqlConnection db, MySqlTransaction transaction)
         {
             switch (score.ruleset_id)
             {
                 default:
+                    throw new ArgumentException($"Item {score} is for an unsupported ruleset {score.ruleset_id}");
+
                 case 0:
                     return getUserStats<UserStatsOsu>(score, db, transaction);
 
@@ -99,7 +98,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             }
         }
 
-        private static T getUserStats<T>(ScoreItem score, MySqlConnection db, MySqlTransaction transaction)
+        private static T getUserStats<T>(SoloScore score, MySqlConnection db, MySqlTransaction transaction)
             where T : UserStats, new()
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);

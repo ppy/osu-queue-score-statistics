@@ -8,16 +8,15 @@ using osu.Server.QueueProcessor;
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
+    [Serializable]
     public class ScoreItem : QueueItem
     {
-        public long id { get; set; }
-        public long user_id { get; set; }
-        public long beatmap_id { get; set; }
-        public int ruleset_id { get; set; }
-        public bool passed { get; set; }
-
+        // TODO: these may be best moved to their own table / storage
         public DateTimeOffset? processed_at { get; set; }
+        public byte? processed_version { get; set; }
 
-        public override string ToString() => $"score_id: {id} user_id: {user_id}";
+        public SoloScore Score;
+
+        public override string ToString() => $"score_id: {Score.id} user_id: {Score.user_id}";
     }
 }
