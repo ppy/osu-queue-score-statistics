@@ -60,6 +60,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             catch (Exception e)
             {
                 Console.WriteLine(e.ToString());
+                throw;
             }
         }
 
