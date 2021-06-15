@@ -16,7 +16,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
     {
         /// <summary>
         /// version 1: basic playcount
-        /// version 2: total score, hit statistics
+        /// version 2: total score, hit statistics, beatmap playcount, monthly playcount, max combo
         /// </summary>
         public const int VERSION = 2;
 
