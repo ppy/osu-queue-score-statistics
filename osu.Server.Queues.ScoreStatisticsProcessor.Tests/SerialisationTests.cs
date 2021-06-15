@@ -41,6 +41,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestMissingHitStatisticsDoesntResultInNullDictionary()
+        {
+            using (var db = processor.GetDatabaseConnection())
+            {
+                var score = StatisticsUpdateTests.CreateTestScore().Score;
+
+                score.statistics = null;
+
+                db.Insert(score);
+
+                var retrieved = db.QueryFirst<SoloScore>("SELECT * FROM solo_scores");
+
+                Assert.NotNull(retrieved.statistics);
+            }
+        }
+
+        [Fact]
         public void TestSoloScoreSerialisation()
         {
             using (var db = processor.GetDatabaseConnection())
