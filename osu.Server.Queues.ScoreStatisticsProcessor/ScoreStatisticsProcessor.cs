@@ -17,6 +17,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
         {
             SqlMapper.AddTypeHandler(new StatisticsTypeHandler());
+            DapperExtensions.InstallDateTimeOffsetMapper();
         }
 
         protected override void ProcessResult(ScoreItem item)
