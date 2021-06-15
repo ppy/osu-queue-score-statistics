@@ -3,6 +3,8 @@
 
 using System;
 using Dapper;
+using Dapper.Contrib.Extensions;
+using MySqlConnector;
 using osu.Server.QueueProcessor;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
@@ -14,76 +16,108 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         {
         }
 
-        protected override void ProcessResult(ScoreItem item)
+        protected override void ProcessResult(ScoreItem score)
         {
-            using (var db = GetDatabaseConnection())
-            using (var transaction = db.BeginTransaction())
+            try
             {
-                if (item.ruleset_id > 3)
+                using (var db = GetDatabaseConnection())
+                using (var transaction = db.BeginTransaction())
                 {
-                    Console.WriteLine($"Item {item} is for an unsupported ruleset {item.ruleset_id}");
-                    return;
+                    if (score.ruleset_id > 3)
+                    {
+                        Console.WriteLine($"Item {score} is for an unsupported ruleset {score.ruleset_id}");
+                        return;
+                    }
+
+                    var userStats = getUserStats(score, db, transaction);
+
+                    if (score.processed_at != null)
+                    {
+                        Console.WriteLine($"Item {score} already processed, rolling back before reapplying");
+
+                        // if required, we can rollback any previous version of processing then reapply with the latest.
+                        userStats.playcount--;
+                    }
+
+                    userStats.playcount++;
+
+                    updateUserStats(userStats, db, transaction);
+
+                    // eventually this will (likely) not be a thing, as we will be reading directly from the queue and not worrying about a database store.
+                    db.Execute("UPDATE solo_scores SET processed_at = NOW() WHERE id = @id", score, transaction);
+
+                    transaction.Commit();
                 }
-
-                if (item.processed_at != null)
-                {
-                    Console.WriteLine($"Item {item} already processed, rolling back before reapplying");
-
-                    // if required, we can rollback any previous version of processing then reapply with the latest.
-                    db.Execute("UPDATE osu_user_stats SET playcount = playcount - 1 WHERE user_id = @user_id", item, transaction);
-                }
-
-                var dbInfo = getRulesetSpecifics(item.ruleset_id);
-
-                db.Execute($"INSERT INTO {dbInfo.UserStatsTable} "
-                           + "(user_id, count300, count100, count50, countMiss, accuracy_total, accuracy_count, accuracy, playcount, ranked_score, total_score, x_rank_count, xh_rank_count, s_rank_count, sh_rank_count, a_rank_count, `rank`, level, replay_popularity, fail_count, exit_count, max_combo, country_acronym, rank_score, rank_score_index, accuracy_new, last_update, last_played, total_seconds_played) "
-                           + "VALUES (@user_id, DEFAULT, DEFAULT, DEFAULT, DEFAULT, 0, 0, 0, 1, 0, 0, 0, DEFAULT, 0, DEFAULT, 0, 0, 0, DEFAULT, DEFAULT, DEFAULT, DEFAULT, DEFAULT, 0, 0, 0, DEFAULT, DEFAULT, DEFAULT) "
-                           + "ON DUPLICATE KEY UPDATE playcount = playcount + 1", item, transaction);
-
-                // eventually this will (likely) not be a thing, as we will be reading directly from the queue and not worrying about a database store.
-                db.Execute("UPDATE solo_scores SET processed_at = NOW() WHERE id = @id", item, transaction);
-
-                transaction.Commit();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
             }
         }
 
-        private static RulesetDatabaseInfo getRulesetSpecifics(int rulesetId)
+        private static UserStats getUserStats(ScoreItem score, MySqlConnection db, MySqlTransaction transaction)
         {
-            switch (rulesetId)
+            switch (score.ruleset_id)
             {
                 default:
                 case 0:
-                    return new RulesetDatabaseInfo(0, "osu", false);
+                    return getUserStats<UserStatsOsu>(score, db, transaction);
 
                 case 1:
-                    return new RulesetDatabaseInfo(1, "taiko", true);
+                    return getUserStats<UserStatsTaiko>(score, db, transaction);
 
                 case 2:
-                    return new RulesetDatabaseInfo(2, "fruits", true);
+                    return getUserStats<UserStatsCatch>(score, db, transaction);
 
                 case 3:
-                    return new RulesetDatabaseInfo(3, "mania", true);
+                    return getUserStats<UserStatsMania>(score, db, transaction);
             }
         }
 
-        private class RulesetDatabaseInfo
+        /// <summary>
+        /// Update stats in database with the correct generic type, because dapper is stupid.
+        /// </summary>
+        private static void updateUserStats(UserStats stats, MySqlConnection db, MySqlTransaction transaction)
         {
-            public readonly string ScoreTable;
-            public readonly string HighScoreTable;
-            public readonly string LeadersTable;
-            public readonly string UserStatsTable;
-            public readonly string ReplayTable;
-
-            public RulesetDatabaseInfo(int rulesetId, string rulesetIdentifier, bool legacySuffix)
+            switch (stats)
             {
-                string tableSuffix = legacySuffix ? $"_{rulesetIdentifier}" : string.Empty;
+                case UserStatsOsu userStatsOsu:
+                    db.Update(userStatsOsu, transaction);
+                    break;
 
-                ScoreTable = $"`osu`.`osu_scores{tableSuffix}`";
-                HighScoreTable = $"`osu`.`{ScoreTable}_high`";
-                LeadersTable = $"`osu`.`osu_leaders{tableSuffix}`";
-                UserStatsTable = $"`osu`.`osu_user_stats{tableSuffix}`";
-                ReplayTable = $"`osu`.`osu_replays{tableSuffix}`";
+                case UserStatsTaiko userStatsTaiko:
+                    db.Update(userStatsTaiko, transaction);
+                    break;
+
+                case UserStatsCatch userStatsCatch:
+                    db.Update(userStatsCatch, transaction);
+                    break;
+
+                case UserStatsMania userStatsMania:
+                    db.Update(userStatsMania, transaction);
+                    break;
             }
+        }
+
+        private static T getUserStats<T>(ScoreItem score, MySqlConnection db, MySqlTransaction transaction)
+            where T : UserStats, new()
+        {
+            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+
+            // for simplicity, let's ensure the row already exists as a separate step.
+            var userStats = db.QuerySingleOrDefault<T>($"SELECT * FROM {dbInfo.UserStatsTable} WHERE user_id = @user_id", score, transaction);
+
+            if (userStats == null)
+            {
+                userStats = new T
+                {
+                    user_id = score.user_id
+                };
+
+                db.Insert(userStats, transaction);
+            }
+
+            return userStats;
         }
     }
 }
