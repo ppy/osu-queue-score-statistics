@@ -38,6 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                            + "VALUES (@user_id, DEFAULT, DEFAULT, DEFAULT, DEFAULT, 0, 0, 0, 1, 0, 0, 0, DEFAULT, 0, DEFAULT, 0, 0, 0, DEFAULT, DEFAULT, DEFAULT, DEFAULT, DEFAULT, 0, 0, 0, DEFAULT, DEFAULT, DEFAULT) "
                            + "ON DUPLICATE KEY UPDATE playcount = playcount + 1", item, transaction);
 
+                // eventually this will (likely) not be a thing, as we will be reading directly from the queue and not worrying about a database store.
                 db.Execute("UPDATE solo_scores SET processed_at = NOW() WHERE id = @id", item, transaction);
 
                 transaction.Commit();
