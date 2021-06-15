@@ -60,6 +60,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestProcessingSameScoreTwiceRaceCondition()
+        {
+            waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            var score = CreateTestScore();
+
+            processor.PushToQueue(score);
+            processor.PushToQueue(score);
+            processor.PushToQueue(score);
+            processor.PushToQueue(score);
+            processor.PushToQueue(score);
+
+            waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, cts.Token);
+
+            waitForTotalProcessed(5, cts.Token);
+
+            // check only one score was counted, even though many were pushed.
+            waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, cts.Token);
+        }
+
+        [Fact]
         public void TestPlaycountReprocessDoesntIncrease()
         {
             var score = CreateTestScore();
@@ -144,6 +165,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     passed = true
                 }
             };
+        }
+
+        private void waitForTotalProcessed(int count, CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if (processor.TotalProcessed == count)
+                    return;
+
+                Thread.Sleep(50);
+            }
+
+            throw new XunitException("All scores were not successfully processed");
         }
 
         private void waitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken)
