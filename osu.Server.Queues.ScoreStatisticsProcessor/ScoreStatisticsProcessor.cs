@@ -49,6 +49,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     {
                         var userStats = GetUserStats(score, conn, transaction);
 
+                        if (userStats == null)
+                            // ruleset could be invalid
+                            // TODO: add check in client and server to not submit unsupported rulesets
+                            return;
+
                         // if required, we can rollback any previous version of processing then reapply with the latest.
                         if (item.ProcessHistory != null)
                         {
@@ -106,7 +111,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             switch (score.ruleset_id)
             {
                 default:
-                    throw new ArgumentException($"Item {score} is for an unsupported ruleset {score.ruleset_id}");
+                    Console.WriteLine($"Item {score} is for an unsupported ruleset {score.ruleset_id}");
+                    return null;
 
                 case 0:
                     return getUserStats<UserStatsOsu>(score, db, transaction);
