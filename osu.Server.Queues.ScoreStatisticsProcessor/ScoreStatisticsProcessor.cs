@@ -5,13 +5,14 @@ using System;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
+using osu.Game.Rulesets.Scoring;
 using osu.Server.QueueProcessor;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
     public class ScoreStatisticsProcessor : QueueProcessor<ScoreItem>
     {
-        public const int VERSION = 1;
+        public const int VERSION = 2;
 
         public ScoreStatisticsProcessor()
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
@@ -40,9 +41,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                         if (version >= 1)
                             userStats.playcount--;
+
+                        if (version >= 2)
+                            adjustStatisticsFromScore(score, userStats, true);
                     }
 
                     userStats.playcount++;
+
+                    adjustStatisticsFromScore(score, userStats);
 
                     updateUserStats(userStats, db, transaction);
 
@@ -54,6 +60,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             catch (Exception e)
             {
                 Console.WriteLine(e.ToString());
+            }
+        }
+
+        private static void adjustStatisticsFromScore(SoloScore score, UserStats userStats, bool revert = false)
+        {
+            int multiplier = revert ? -1 : 1;
+
+            foreach (var (result, count) in score.statistics)
+            {
+                switch (result)
+                {
+                    case HitResult.Miss:
+                        userStats.countMiss += multiplier * count;
+                        break;
+
+                    case HitResult.Meh:
+                        userStats.count50 += multiplier * count;
+                        break;
+
+                    case HitResult.Ok:
+                    case HitResult.Good:
+                        userStats.count100 += multiplier * count;
+                        break;
+
+                    case HitResult.Great:
+                    case HitResult.Perfect:
+                        userStats.count300 += multiplier * count;
+                        break;
+                }
             }
         }
 

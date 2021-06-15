@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
@@ -59,7 +60,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestPlaycountReprocessSameScoreDoesntIncrease()
+        public void TestPlaycountReprocessDoesntIncrease()
         {
             var score = CreateTestScore();
 
@@ -75,6 +76,55 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, cts.Token);
         }
 
+        [Fact]
+        public void TestHitStatisticsIncrease()
+        {
+            waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            processor.PushToQueue(CreateTestScore());
+            waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, cts.Token);
+
+            processor.PushToQueue(CreateTestScore());
+            waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 10, cts.Token);
+        }
+
+        [Fact]
+        public void TestHitStatisticsReprocessOldVersionIncrease()
+        {
+            var score = CreateTestScore();
+
+            waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+            processor.PushToQueue(score);
+
+            waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, cts.Token);
+
+            score.MarkProcessed();
+
+            // intentionally set to an older version to make sure it doesn't revert hit statistics.
+            Debug.Assert(score.ProcessHistory != null);
+            score.ProcessHistory.processed_version = 1;
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 10, cts.Token);
+        }
+
+        [Fact]
+        public void TestHitStatisticsReprocessDoesntIncrease()
+        {
+            var score = CreateTestScore();
+
+            waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+            processor.PushToQueue(score);
+
+            waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, cts.Token);
+
+            // the score will be marked as processed (in the database) at this point, so should not increase the playcount if processed a second time.
+            score.MarkProcessed();
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, cts.Token);
+        }
+
         private static long scoreIDSource;
 
         public static ScoreItem CreateTestScore(int rulesetId = 0)
@@ -88,7 +138,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     ruleset_id = rulesetId,
                     statistics =
                     {
-                        { HitResult.Perfect, 300 }
+                        { HitResult.Perfect, 5 }
                     },
                     id = Interlocked.Increment(ref scoreIDSource),
                     passed = true
