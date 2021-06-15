@@ -25,10 +25,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Query<int>("SELECT * FROM test_database");
 
                 db.Execute("TRUNCATE TABLE osu_user_stats");
+                db.Execute("TRUNCATE TABLE osu_user_stats_mania");
                 db.Execute("TRUNCATE TABLE solo_scores");
             }
 
             Task.Run(() => processor.Run(cts.Token), cts.Token);
+        }
+
+        [Fact]
+        public void TestPlaycountIncreaseMania()
+        {
+            var score = new ScoreItem
+            {
+                user_id = 2,
+                beatmap_id = 81,
+                ruleset_id = 3,
+                id = 1,
+                passed = true
+            };
+
+            waitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", (int?)null, cts.Token);
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", 1, cts.Token);
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", 2, cts.Token);
         }
 
         [Fact]

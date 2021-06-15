@@ -13,7 +13,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         public long id { get; set; }
         public long user_id { get; set; }
         public long beatmap_id { get; set; }
-        public short ruleset_id { get; set; }
+        public int ruleset_id { get; set; }
         public bool passed { get; set; }
 
         public DateTimeOffset? processed_at { get; set; }
