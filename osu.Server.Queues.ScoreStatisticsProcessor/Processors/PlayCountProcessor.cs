@@ -20,6 +20,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             {
                 userStats.playcount--;
                 adjustMonthlyPlaycount(score, conn, transaction, true);
+                adjustUserBeatmapPlaycount(score, conn, transaction, true);
             }
         }
 
@@ -27,10 +28,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             userStats.playcount++;
             adjustMonthlyPlaycount(score, conn, transaction);
+            adjustUserBeatmapPlaycount(score, conn, transaction);
         }
 
         public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
+        }
+
+        private static void adjustUserBeatmapPlaycount(SoloScore score, MySqlConnection conn, MySqlTransaction transaction, bool revert = false)
+        {
+            conn.Execute("INSERT INTO osu_user_beatmap_playcount (beatmap_id, user_id, playcount) VALUES (@beatmap_id, @user_id, @add) ON DUPLICATE KEY UPDATE playcount = GREATEST(0, playcount + @adjust)", new
+            {
+                score.beatmap_id,
+                score.user_id,
+                add = revert ? 0 : 1,
+                adjust = revert ? -1 : 1,
+            }, transaction);
         }
 
         private static void adjustMonthlyPlaycount(SoloScore score, MySqlConnection conn, MySqlTransaction transaction, bool revert = false)
