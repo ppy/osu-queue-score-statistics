@@ -19,9 +19,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         public override string ToString() => $"score_id: {Score.id} user_id: {Score.user_id}";
 
-        public void MarkProcessed()
-        {
-            ProcessHistory = new ProcessHistory(Score.id, ScoreStatisticsProcessor.VERSION);
-        }
+        public void MarkProcessed() =>
+            ProcessHistory = new ProcessHistory
+            {
+                id = Score.id,
+                processed_version = ScoreStatisticsProcessor.VERSION
+            };
     }
 }

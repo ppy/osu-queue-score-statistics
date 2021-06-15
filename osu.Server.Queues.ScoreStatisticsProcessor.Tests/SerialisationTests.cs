@@ -1,7 +1,6 @@
 using Dapper;
 using Dapper.Contrib.Extensions;
 using DeepEqual.Syntax;
-using osu.Game.Rulesets.Scoring;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
@@ -21,30 +20,34 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Query<int>("SELECT * FROM test_database");
 
                 db.Execute("TRUNCATE TABLE solo_scores");
+                db.Execute("TRUNCATE TABLE solo_scores_process_history");
+            }
+        }
+
+        [Fact]
+        public void TestProcessHistorySerialisation()
+        {
+            using (var db = processor.GetDatabaseConnection())
+            {
+                var score = StatisticsUpdateTests.CreateTestScore();
+
+                score.MarkProcessed();
+
+                db.Insert(score.ProcessHistory);
+
+                db.QueryFirst<ProcessHistory>("SELECT * FROM solo_scores_process_history").ShouldDeepEqual(score.ProcessHistory);
             }
         }
 
         [Fact]
         public void TestSoloScoreSerialisation()
         {
-            var score = new SoloScore
-            {
-                user_id = 2,
-                beatmap_id = 81,
-                ruleset_id = 3,
-                id = 1,
-                statistics =
-                {
-                    { HitResult.Perfect, 300 }
-                },
-                passed = true,
-            };
-
             using (var db = processor.GetDatabaseConnection())
             {
+                var score = StatisticsUpdateTests.CreateTestScore().Score;
+
                 db.Insert(score);
-                var retrieved = db.QueryFirst<SoloScore>("SELECT * FROM solo_scores");
-                score.ShouldDeepEqual(retrieved);
+                db.QueryFirst<SoloScore>("SELECT * FROM solo_scores").ShouldDeepEqual(score);
             }
         }
     }

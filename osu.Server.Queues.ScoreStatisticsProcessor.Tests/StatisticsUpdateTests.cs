@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
+using osu.Game.Rulesets.Scoring;
 using Xunit;
 using Xunit.Sdk;
 
@@ -38,10 +39,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             waitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", (int?)null, cts.Token);
 
-            processor.PushToQueue(createTestScore(3));
+            processor.PushToQueue(CreateTestScore(3));
             waitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", 1, cts.Token);
 
-            processor.PushToQueue(createTestScore(3));
+            processor.PushToQueue(CreateTestScore(3));
             waitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", 2, cts.Token);
         }
 
@@ -50,17 +51,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
 
-            processor.PushToQueue(createTestScore());
+            processor.PushToQueue(CreateTestScore());
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, cts.Token);
 
-            processor.PushToQueue(createTestScore());
+            processor.PushToQueue(CreateTestScore());
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 2, cts.Token);
         }
 
         [Fact]
         public void TestPlaycountReprocessSameScoreDoesntIncrease()
         {
-            var score = createTestScore();
+            var score = CreateTestScore();
 
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
 
@@ -76,7 +77,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private static long scoreIDSource;
 
-        private static ScoreItem createTestScore(int rulesetId = 0)
+        public static ScoreItem CreateTestScore(int rulesetId = 0)
         {
             return new ScoreItem
             {
@@ -85,6 +86,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     user_id = 2,
                     beatmap_id = 81,
                     ruleset_id = rulesetId,
+                    statistics =
+                    {
+                        { HitResult.Perfect, 300 }
+                    },
                     id = Interlocked.Increment(ref scoreIDSource),
                     passed = true
                 }
