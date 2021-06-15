@@ -7,13 +7,13 @@ using Xunit.Sdk;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
-    public class InputOnlyQueueTests : IDisposable
+    public class StatisticsUpdateTests : IDisposable
     {
         private readonly ScoreStatisticsProcessor processor;
 
         private readonly CancellationTokenSource cts = new CancellationTokenSource(10000);
 
-        public InputOnlyQueueTests()
+        public StatisticsUpdateTests()
         {
             processor = new ScoreStatisticsProcessor();
             processor.ClearQueue();
@@ -37,11 +37,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             var score = new ScoreItem
             {
-                user_id = 2,
-                beatmap_id = 81,
-                ruleset_id = 3,
-                id = 1,
-                passed = true
+                Score = new SoloScore
+                {
+                    user_id = 2,
+                    beatmap_id = 81,
+                    ruleset_id = 3,
+                    id = 1,
+                    passed = true
+                }
             };
 
             waitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", (int?)null, cts.Token);
@@ -58,11 +61,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             var score = new ScoreItem
             {
-                user_id = 2,
-                beatmap_id = 81,
-                ruleset_id = 0,
-                id = 1,
-                passed = true
+                Score = new SoloScore
+                {
+                    user_id = 2,
+                    beatmap_id = 81,
+                    ruleset_id = 0,
+                    id = 1,
+                    passed = true
+                }
             };
 
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
@@ -79,11 +85,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             var score = new ScoreItem
             {
-                user_id = 2,
-                beatmap_id = 81,
-                ruleset_id = 0,
-                id = 1,
-                passed = true
+                Score = new SoloScore
+                {
+                    user_id = 2,
+                    beatmap_id = 81,
+                    ruleset_id = 0,
+                    id = 1,
+                    passed = true
+                }
             };
 
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
