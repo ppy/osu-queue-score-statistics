@@ -30,7 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 {
                     var score = item.Score;
 
-                    var userStats = getUserStats(score, db, transaction);
+                    var userStats = GetUserStats(score, db, transaction);
 
                     if (item.ProcessHistory != null)
                     {
@@ -104,7 +104,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 db.Insert(item.ProcessHistory, transaction);
         }
 
-        private static UserStats getUserStats(SoloScore score, MySqlConnection db, MySqlTransaction transaction)
+        /// <summary>
+        /// Retrieve user stats for a user based on a score context.
+        /// Creates a new entry if the user does not yet have one.
+        /// </summary>
+        /// <param name="score">The score to use for the user and ruleset lookup.</param>
+        /// <param name="db">The database connection.</param>
+        /// <param name="transaction">The database transaction, if one exists.</param>
+        /// <returns>The retrieved user stats.</returns>
+        /// <exception cref="ArgumentException"></exception>
+        public static UserStats GetUserStats(SoloScore score, MySqlConnection db, MySqlTransaction transaction = null)
         {
             switch (score.ruleset_id)
             {
@@ -123,6 +132,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 case 3:
                     return getUserStats<UserStatsMania>(score, db, transaction);
             }
+        }
+
+        private static T getUserStats<T>(SoloScore score, MySqlConnection db, MySqlTransaction transaction = null)
+            where T : UserStats, new()
+        {
+            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+
+            // for simplicity, let's ensure the row already exists as a separate step.
+            var userStats = db.QuerySingleOrDefault<T>($"SELECT * FROM {dbInfo.UserStatsTable} WHERE user_id = @user_id", score, transaction);
+
+            if (userStats == null)
+            {
+                userStats = new T
+                {
+                    user_id = score.user_id
+                };
+
+                db.Insert(userStats, transaction);
+            }
+
+            return userStats;
         }
 
         /// <summary>
@@ -148,27 +178,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     db.Update(userStatsMania, transaction);
                     break;
             }
-        }
-
-        private static T getUserStats<T>(SoloScore score, MySqlConnection db, MySqlTransaction transaction)
-            where T : UserStats, new()
-        {
-            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
-
-            // for simplicity, let's ensure the row already exists as a separate step.
-            var userStats = db.QuerySingleOrDefault<T>($"SELECT * FROM {dbInfo.UserStatsTable} WHERE user_id = @user_id", score, transaction);
-
-            if (userStats == null)
-            {
-                userStats = new T
-                {
-                    user_id = score.user_id
-                };
-
-                db.Insert(userStats, transaction);
-            }
-
-            return userStats;
         }
     }
 }
