@@ -35,8 +35,16 @@ namespace osu.Server.Queues.ScorePump
                     if (cancellationToken.IsCancellationRequested)
                         break;
 
+                    // attach any previous processing information
+                    var history = db.QuerySingleOrDefault<ProcessHistory>("SELECT * FROM solo_scores_process_history WHERE id = @id", score);
+
                     Console.WriteLine($"Pumping {score}");
-                    Queue.PushToQueue(new ScoreItem { Score = score });
+
+                    Queue.PushToQueue(new ScoreItem
+                    {
+                        Score = score,
+                        ProcessHistory = history
+                    });
                 }
             }
 

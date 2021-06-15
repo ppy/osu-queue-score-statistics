@@ -3,6 +3,7 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+using JetBrains.Annotations;
 using osu.Server.QueueProcessor;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
@@ -11,12 +12,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
     [Serializable]
     public class ScoreItem : QueueItem
     {
-        // TODO: these may be best moved to their own table / storage
-        public DateTimeOffset? processed_at { get; set; }
-        public byte? processed_version { get; set; }
+        [CanBeNull]
+        public ProcessHistory ProcessHistory;
 
         public SoloScore Score;
 
         public override string ToString() => $"score_id: {Score.id} user_id: {Score.user_id}";
+
+        public void MarkProcessed()
+        {
+            ProcessHistory = new ProcessHistory(Score.id, ScoreStatisticsProcessor.VERSION);
+        }
     }
 }

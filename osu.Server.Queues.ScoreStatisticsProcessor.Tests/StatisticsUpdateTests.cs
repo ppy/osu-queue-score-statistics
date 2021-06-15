@@ -27,6 +27,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_stats");
                 db.Execute("TRUNCATE TABLE osu_user_stats_mania");
                 db.Execute("TRUNCATE TABLE solo_scores");
+                db.Execute("TRUNCATE TABLE solo_scores_process_history");
             }
 
             Task.Run(() => processor.Run(cts.Token), cts.Token);
@@ -35,76 +36,59 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestPlaycountIncreaseMania()
         {
-            var score = new ScoreItem
-            {
-                Score = new SoloScore
-                {
-                    user_id = 2,
-                    beatmap_id = 81,
-                    ruleset_id = 3,
-                    id = 1,
-                    passed = true
-                }
-            };
-
             waitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", (int?)null, cts.Token);
 
-            processor.PushToQueue(score);
+            processor.PushToQueue(createTestScore(3));
             waitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", 1, cts.Token);
 
-            processor.PushToQueue(score);
+            processor.PushToQueue(createTestScore(3));
             waitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", 2, cts.Token);
         }
 
         [Fact]
         public void TestPlaycountIncrease()
         {
-            var score = new ScoreItem
-            {
-                Score = new SoloScore
-                {
-                    user_id = 2,
-                    beatmap_id = 81,
-                    ruleset_id = 0,
-                    id = 1,
-                    passed = true
-                }
-            };
-
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
 
-            processor.PushToQueue(score);
+            processor.PushToQueue(createTestScore());
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, cts.Token);
 
-            processor.PushToQueue(score);
+            processor.PushToQueue(createTestScore());
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 2, cts.Token);
         }
 
         [Fact]
         public void TestPlaycountReprocessSameScoreDoesntIncrease()
         {
-            var score = new ScoreItem
-            {
-                Score = new SoloScore
-                {
-                    user_id = 2,
-                    beatmap_id = 81,
-                    ruleset_id = 0,
-                    id = 1,
-                    passed = true
-                }
-            };
+            var score = createTestScore();
 
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
 
             processor.PushToQueue(score);
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, cts.Token);
 
-            // marking as processed should stop the playcount from being increased a second time.
-            score.processed_at = DateTimeOffset.Now;
+            // the score will be marked as processed (in the database) at this point, so should not increase the playcount if processed a second time.
+            score.MarkProcessed();
 
             processor.PushToQueue(score);
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, cts.Token);
+        }
+
+        private static long scoreIDSource;
+
+        private static ScoreItem createTestScore(int rulesetId = 0)
+        {
+            return new ScoreItem
+            {
+                Score = new SoloScore
+                {
+                    user_id = 2,
+                    beatmap_id = 81,
+                    ruleset_id = rulesetId,
+                    id = Interlocked.Increment(ref scoreIDSource),
+                    passed = true
+                }
+            };
         }
 
         private void waitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken)
@@ -123,7 +107,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 }
             }
 
-            throw new XunitException($"Database criteria was not met ({sql}: {expected} != {lastValue})");
+            throw new XunitException($"Database criteria was not met ({sql}: expected {expected} != actual {lastValue})");
         }
 
 #pragma warning disable CA1816

@@ -11,6 +11,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
     public class ScoreStatisticsProcessor : QueueProcessor<ScoreItem>
     {
+        public const int VERSION = 1;
+
         public ScoreStatisticsProcessor()
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
         {
@@ -28,20 +30,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                     var userStats = getUserStats(score, db, transaction);
 
-                    if (item.processed_at != null)
+                    if (item.ProcessHistory != null)
                     {
                         Console.WriteLine($"Item {score} already processed, rolling back before reapplying");
 
                         // if required, we can rollback any previous version of processing then reapply with the latest.
-                        userStats.playcount--;
+                        byte version = item.ProcessHistory.processed_version;
+
+                        if (version >= 1)
+                            userStats.playcount--;
                     }
 
                     userStats.playcount++;
 
                     updateUserStats(userStats, db, transaction);
 
-                    // eventually this will (likely) not be a thing, as we will be reading directly from the queue and not worrying about a database store.
-                    db.Execute("UPDATE solo_scores SET processed_at = NOW() WHERE id = @id", score, transaction);
+                    updateHistoryEntry(item, db, transaction);
 
                     transaction.Commit();
                 }
@@ -50,6 +54,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             {
                 Console.WriteLine(e.ToString());
             }
+        }
+
+        private static void updateHistoryEntry(ScoreItem item, MySqlConnection db, MySqlTransaction transaction)
+        {
+            bool hadHistory = item.ProcessHistory != null;
+
+            item.MarkProcessed();
+
+            if (hadHistory)
+                db.Update(item.ProcessHistory, transaction);
+            else
+                db.Insert(item.ProcessHistory, transaction);
         }
 
         private static UserStats getUserStats(SoloScore score, MySqlConnection db, MySqlTransaction transaction)
