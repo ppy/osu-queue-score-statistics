@@ -29,6 +29,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 db.Execute("TRUNCATE TABLE osu_user_stats");
                 db.Execute("TRUNCATE TABLE osu_user_stats_mania");
+                db.Execute("TRUNCATE TABLE osu_user_month_playcount");
                 db.Execute("TRUNCATE TABLE solo_scores");
                 db.Execute("TRUNCATE TABLE solo_scores_process_history");
             }
@@ -96,6 +97,37 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             processor.PushToQueue(score);
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, cts.Token);
+        }
+
+        [Fact]
+        public void TestMonthlyPlaycountIncrease()
+        {
+            waitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, cts.Token);
+
+            processor.PushToQueue(CreateTestScore());
+            waitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '2002'", 1, cts.Token);
+
+            processor.PushToQueue(CreateTestScore());
+            waitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '2002'", 2, cts.Token);
+            waitForDatabaseState("SELECT COUNT(*) FROM osu_user_month_playcount WHERE user_id = 2", 1, cts.Token);
+        }
+
+        [Fact]
+        public void TestMonthlyPlaycountReprocessDoesntIncrease()
+        {
+            var score = CreateTestScore();
+
+            waitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, cts.Token);
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '2002'", 1, cts.Token);
+
+            // the score will be marked as processed (in the database) at this point, so should not increase the playcount if processed a second time.
+            score.MarkProcessed();
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '2002'", 1, cts.Token);
+            waitForDatabaseState("SELECT COUNT(*) FROM osu_user_month_playcount WHERE user_id = 2", 1, cts.Token);
         }
 
         [Fact]
@@ -186,7 +218,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     user_id = 2,
                     beatmap_id = 81,
                     ruleset_id = rulesetId,
-                    started_at = DateTimeOffset.UtcNow,
+                    started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
                     total_score = 100000,
                     statistics =
                     {

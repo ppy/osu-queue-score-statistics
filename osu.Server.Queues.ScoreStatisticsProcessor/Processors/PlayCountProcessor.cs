@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -16,16 +17,31 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (previousVersion >= 1)
+            {
                 userStats.playcount--;
+                adjustMonthlyPlaycount(score, conn, transaction, true);
+            }
         }
 
         public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
             userStats.playcount++;
+            adjustMonthlyPlaycount(score, conn, transaction);
         }
 
         public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
+        }
+
+        private static void adjustMonthlyPlaycount(SoloScore score, MySqlConnection conn, MySqlTransaction transaction, bool revert = false)
+        {
+            conn.Execute("INSERT INTO osu_user_month_playcount (`year_month`, user_id, playcount) VALUES (@yearmonth, @user_id, @add) ON DUPLICATE KEY UPDATE playcount = GREATEST(0, playcount + @adjust)", new
+            {
+                yearmonth = score.started_at.ToString("yyMM"),
+                score.user_id,
+                add = revert ? 0 : 1,
+                adjust = revert ? -1 : 1,
+            }, transaction);
         }
     }
 }
