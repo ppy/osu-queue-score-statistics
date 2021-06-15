@@ -29,6 +29,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public int total_score { get; set; }
 
+        public DateTimeOffset started_at { get; set; }
+
         public DateTimeOffset? ended_at { get; set; }
 
         public Dictionary<HitResult, int> statistics { get; set; } = new Dictionary<HitResult, int>();

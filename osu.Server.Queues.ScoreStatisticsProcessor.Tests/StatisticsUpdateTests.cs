@@ -186,6 +186,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     user_id = 2,
                     beatmap_id = 81,
                     ruleset_id = rulesetId,
+                    started_at = DateTimeOffset.UtcNow,
                     total_score = 100000,
                     statistics =
                     {
