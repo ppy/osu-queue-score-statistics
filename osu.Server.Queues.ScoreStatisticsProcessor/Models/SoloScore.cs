@@ -37,6 +37,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public DateTimeOffset? ended_at { get; set; }
 
         public Dictionary<HitResult, int> statistics { get; set; } = new Dictionary<HitResult, int>();
+
+        public override string ToString() => $"score_id: {id} user_id: {user_id}";
     }
 
     internal class StatisticsTypeHandler : SqlMapper.TypeHandler<Dictionary<HitResult, int>>

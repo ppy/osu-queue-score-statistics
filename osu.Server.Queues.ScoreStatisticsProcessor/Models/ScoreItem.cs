@@ -17,13 +17,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public SoloScore Score;
 
-        public override string ToString() => $"score_id: {Score.id} user_id: {Score.user_id}";
-
         public void MarkProcessed() =>
             ProcessHistory = new ProcessHistory
             {
                 id = Score.id,
                 processed_version = ScoreStatisticsProcessor.VERSION
             };
+
+        public override string ToString() => Score.ToString();
     }
 }
