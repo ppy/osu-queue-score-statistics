@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using osu.Game.Rulesets.Scoring;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
 using Xunit.Sdk;
 

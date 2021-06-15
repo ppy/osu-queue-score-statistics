@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 using osu.Server.QueueProcessor;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]

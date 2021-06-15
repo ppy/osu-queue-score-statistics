@@ -4,7 +4,7 @@
 using System;
 using System.Threading;
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.Queues.ScoreStatisticsProcessor;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScorePump
 {

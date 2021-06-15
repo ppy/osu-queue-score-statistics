@@ -1,6 +1,7 @@
 using Dapper;
 using Dapper.Contrib.Extensions;
 using DeepEqual.Syntax;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests

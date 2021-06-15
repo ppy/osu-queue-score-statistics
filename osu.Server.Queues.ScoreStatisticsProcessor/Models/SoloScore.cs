@@ -10,7 +10,7 @@ using Dapper.Contrib.Extensions;
 using Newtonsoft.Json;
 using osu.Game.Rulesets.Scoring;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
