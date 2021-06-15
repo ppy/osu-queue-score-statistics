@@ -20,6 +20,7 @@ namespace osu.Server.Queues.ScorePump
 
         public int OnExecute(CancellationToken cancellationToken)
         {
+            using (var dbMainQuery = Queue.GetDatabaseConnection())
             using (var db = Queue.GetDatabaseConnection())
             {
                 string query = "SELECT * FROM solo_scores WHERE id >= @StartId";
@@ -28,7 +29,7 @@ namespace osu.Server.Queues.ScorePump
                     query += " AND user_id = @UserId";
 
                 Console.WriteLine($"Querying with \"{query}\"");
-                var scores = db.Query<SoloScore>(query, this, buffered: false);
+                var scores = dbMainQuery.Query<SoloScore>(query, this, buffered: false);
 
                 foreach (var score in scores)
                 {
