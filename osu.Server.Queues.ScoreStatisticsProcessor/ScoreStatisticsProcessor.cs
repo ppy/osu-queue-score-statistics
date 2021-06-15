@@ -2,10 +2,11 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
-using osu.Game.Rulesets.Scoring;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -15,82 +16,59 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
     {
         public const int VERSION = 2;
 
+        private readonly List<IProcessor> processors = new List<IProcessor>();
+
         public ScoreStatisticsProcessor()
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
         {
             SqlMapper.AddTypeHandler(new StatisticsTypeHandler());
             DapperExtensions.InstallDateTimeOffsetMapper();
+
+            // add each processor automagically.
+            foreach (var t in typeof(ScoreStatisticsProcessor).Assembly.GetTypes().Where(t => !t.IsInterface && typeof(IProcessor).IsAssignableFrom(t)))
+                processors.Add(Activator.CreateInstance(t) as IProcessor);
         }
 
         protected override void ProcessResult(ScoreItem item)
         {
             try
             {
-                using (var db = GetDatabaseConnection())
-                using (var transaction = db.BeginTransaction())
+                using (var conn = GetDatabaseConnection())
                 {
                     var score = item.Score;
 
-                    var userStats = GetUserStats(score, db, transaction);
-
-                    if (item.ProcessHistory != null)
+                    using (var transaction = conn.BeginTransaction()) // TODO: some pieces probably want to be run outside of the transaction to reduce contention (ie. beatmap playcount updates)...
                     {
-                        Console.WriteLine($"Item {score} already processed, rolling back before reapplying");
+                        var userStats = GetUserStats(score, conn, transaction);
 
                         // if required, we can rollback any previous version of processing then reapply with the latest.
-                        byte version = item.ProcessHistory.processed_version;
+                        if (item.ProcessHistory != null)
+                        {
+                            byte version = item.ProcessHistory.processed_version;
 
-                        if (version >= 1)
-                            userStats.playcount--;
+                            Console.WriteLine($"Item {score} already processed (v{version}), rolling back before reapplying");
 
-                        if (version >= 2)
-                            adjustStatisticsFromScore(score, userStats, true);
+                            foreach (var p in processors)
+                                p.RevertFromUserStats(score, userStats, version, conn, transaction);
+                        }
+
+                        foreach (var p in processors)
+                            p.ApplyToUserStats(score, userStats, conn, transaction);
+
+                        updateUserStats(userStats, conn, transaction);
+                        updateHistoryEntry(item, conn, transaction);
+
+                        transaction.Commit();
                     }
 
-                    userStats.playcount++;
-
-                    adjustStatisticsFromScore(score, userStats);
-
-                    updateUserStats(userStats, db, transaction);
-
-                    updateHistoryEntry(item, db, transaction);
-
-                    transaction.Commit();
+                    foreach (var p in processors)
+                        p.ApplyGlobal(score, conn);
                 }
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.ToString());
                 throw;
-            }
-        }
-
-        private static void adjustStatisticsFromScore(SoloScore score, UserStats userStats, bool revert = false)
-        {
-            int multiplier = revert ? -1 : 1;
-
-            foreach (var (result, count) in score.statistics)
-            {
-                switch (result)
-                {
-                    case HitResult.Miss:
-                        userStats.countMiss += multiplier * count;
-                        break;
-
-                    case HitResult.Meh:
-                        userStats.count50 += multiplier * count;
-                        break;
-
-                    case HitResult.Ok:
-                    case HitResult.Good:
-                        userStats.count100 += multiplier * count;
-                        break;
-
-                    case HitResult.Great:
-                    case HitResult.Perfect:
-                        userStats.count300 += multiplier * count;
-                        break;
-                }
             }
         }
 
