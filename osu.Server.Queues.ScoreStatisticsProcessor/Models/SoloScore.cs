@@ -29,6 +29,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public int total_score { get; set; }
 
+        // TODO: probably want to update this column to match user stats (short)?
+        public int max_combo { get; set; }
+
         public DateTimeOffset started_at { get; set; }
 
         public DateTimeOffset? ended_at { get; set; }

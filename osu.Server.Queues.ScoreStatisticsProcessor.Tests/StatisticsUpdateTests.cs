@@ -101,6 +101,36 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestMaxComboIncrease()
+        {
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            processor.PushToQueue(CreateTestScore());
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
+
+            var score = CreateTestScore();
+            score.Score.max_combo++;
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1338, cts.Token);
+        }
+
+        [Fact]
+        public void TestMaxComboDoesntIncreaseIfLower()
+        {
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            processor.PushToQueue(CreateTestScore());
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
+
+            var score = CreateTestScore();
+            score.Score.max_combo--;
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
+        }
+
+        [Fact]
         public void TestUserBeatmapPlaycountIncrease()
         {
             waitForDatabaseState("SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = 172", (int?)null, cts.Token);
@@ -249,6 +279,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     beatmap_id = 172,
                     ruleset_id = rulesetId,
                     started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
+                    max_combo = 1337,
                     total_score = 100000,
                     statistics =
                     {
