@@ -60,8 +60,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         {
                             byte version = item.ProcessHistory.processed_version;
 
-                            Console.WriteLine($"Item {score} already processed (v{version}), rolling back before reapplying");
-
                             foreach (var p in processors)
                                 p.RevertFromUserStats(score, userStats, version, conn, transaction);
                         }
