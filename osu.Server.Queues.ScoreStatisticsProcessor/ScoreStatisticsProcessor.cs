@@ -17,8 +17,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <summary>
         /// version 1: basic playcount
         /// version 2: total score, hit statistics, beatmap playcount, monthly playcount, max combo
+        /// version 3: fixed incorrect revert condition for beatmap/monthly playcount
         /// </summary>
-        public const int VERSION = 2;
+        public const int VERSION = 3;
 
         private readonly List<IProcessor> processors = new List<IProcessor>();
 

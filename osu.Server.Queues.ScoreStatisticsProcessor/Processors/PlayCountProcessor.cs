@@ -17,8 +17,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (previousVersion >= 1)
-            {
                 userStats.playcount--;
+
+            if (previousVersion >= 3)
+            {
                 adjustMonthlyPlaycount(score, conn, transaction, true);
                 adjustUserBeatmapPlaycount(score, conn, transaction, true);
             }

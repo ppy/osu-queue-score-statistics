@@ -172,6 +172,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT COUNT(*) FROM osu_user_month_playcount WHERE user_id = 2", 1, cts.Token);
         }
 
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        public void TestMonthlyPlaycountReprocessOldVersionIncrease(int version)
+        {
+            var score = CreateTestScore();
+
+            waitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, cts.Token);
+            processor.PushToQueue(score);
+
+            score.MarkProcessed();
+
+            // check reprocessing results in increase.
+            Debug.Assert(score.ProcessHistory != null);
+            score.ProcessHistory.processed_version = (byte)version;
+
+            processor.PushToQueue(score);
+            waitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '2002'", 2, cts.Token);
+        }
+
         [Fact]
         public void TestMonthlyPlaycountReprocessDoesntIncrease()
         {
