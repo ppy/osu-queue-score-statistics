@@ -291,24 +291,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         public static ScoreItem CreateTestScore(int rulesetId = 0)
         {
-            return new ScoreItem
+            return new ScoreItem(new SoloScore
             {
-                Score = new SoloScore
+                user_id = 2,
+                beatmap_id = 172,
+                ruleset_id = rulesetId,
+                started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
+                max_combo = 1337,
+                total_score = 100000,
+                statistics =
                 {
-                    user_id = 2,
-                    beatmap_id = 172,
-                    ruleset_id = rulesetId,
-                    started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
-                    max_combo = 1337,
-                    total_score = 100000,
-                    statistics =
-                    {
-                        { HitResult.Perfect, 5 }
-                    },
-                    id = Interlocked.Increment(ref scoreIDSource),
-                    passed = true
-                }
-            };
+                    { HitResult.Perfect, 5 }
+                },
+                id = Interlocked.Increment(ref scoreIDSource),
+                passed = true
+            });
         }
 
         private void waitForTotalProcessed(int count, CancellationToken cancellationToken)
@@ -326,14 +323,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private void waitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken)
         {
-            T lastValue = default;
+            T lastValue = default!;
 
             using (var db = processor.GetDatabaseConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     lastValue = db.QueryFirstOrDefault<T>(sql);
-                    if (lastValue.Equals(expected))
+                    if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;
 
                     Thread.Sleep(50);

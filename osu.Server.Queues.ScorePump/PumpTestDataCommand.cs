@@ -16,7 +16,7 @@ namespace osu.Server.Queues.ScorePump
             while (!cancellationToken.IsCancellationRequested)
             {
                 // TODO: push meaningful scores.
-                var scoreItem = new ScoreItem();
+                var scoreItem = new ScoreItem(new SoloScore());
                 Console.WriteLine($"Pumping {scoreItem}");
 
                 Queue.PushToQueue(scoreItem);

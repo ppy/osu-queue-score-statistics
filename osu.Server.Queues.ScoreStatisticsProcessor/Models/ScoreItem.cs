@@ -3,7 +3,6 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
-using JetBrains.Annotations;
 using osu.Server.QueueProcessor;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
@@ -12,10 +11,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     [Serializable]
     public class ScoreItem : QueueItem
     {
-        [CanBeNull]
-        public ProcessHistory ProcessHistory;
+        public ProcessHistory? ProcessHistory;
 
         public SoloScore Score;
+
+        public ScoreItem(SoloScore score, ProcessHistory? history = null)
+        {
+            Score = score;
+            ProcessHistory = history;
+        }
 
         public void MarkProcessed() =>
             ProcessHistory = new ProcessHistory

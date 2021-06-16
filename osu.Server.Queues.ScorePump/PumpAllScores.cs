@@ -40,12 +40,7 @@ namespace osu.Server.Queues.ScorePump
                     var history = db.QuerySingleOrDefault<ProcessHistory>("SELECT * FROM solo_scores_process_history WHERE id = @id", score);
 
                     Console.WriteLine($"Pumping {score}");
-
-                    Queue.PushToQueue(new ScoreItem
-                    {
-                        Score = score,
-                        ProcessHistory = history
-                    });
+                    Queue.PushToQueue(new ScoreItem(score, history));
                 }
             }
 

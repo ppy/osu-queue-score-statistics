@@ -41,14 +41,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public override string ToString() => $"score_id: {id} user_id: {user_id}";
     }
 
-    internal class StatisticsTypeHandler : SqlMapper.TypeHandler<Dictionary<HitResult, int>>
+    internal class StatisticsTypeHandler : SqlMapper.TypeHandler<Dictionary<HitResult, int>?>
     {
-        public override Dictionary<HitResult, int> Parse(object value)
+        public override Dictionary<HitResult, int> Parse(object? value)
         {
-            return JsonConvert.DeserializeObject<Dictionary<HitResult, int>>(value.ToString());
+            return JsonConvert.DeserializeObject<Dictionary<HitResult, int>>(value?.ToString() ?? string.Empty) ?? new Dictionary<HitResult, int>();
         }
 
-        public override void SetValue(IDbDataParameter parameter, Dictionary<HitResult, int> value)
+        public override void SetValue(IDbDataParameter parameter, Dictionary<HitResult, int>? value)
         {
             parameter.Value = value == null ? DBNull.Value : JsonConvert.SerializeObject(value);
             parameter.DbType = DbType.String;

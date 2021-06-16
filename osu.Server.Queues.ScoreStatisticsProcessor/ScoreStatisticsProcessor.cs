@@ -31,7 +31,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
             // add each processor automagically.
             foreach (var t in typeof(ScoreStatisticsProcessor).Assembly.GetTypes().Where(t => !t.IsInterface && typeof(IProcessor).IsAssignableFrom(t)))
-                processors.Add(Activator.CreateInstance(t) as IProcessor);
+            {
+                if (Activator.CreateInstance(t) is IProcessor processor)
+                    processors.Add(processor);
+            }
         }
 
         protected override void ProcessResult(ScoreItem item)
@@ -103,9 +106,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <param name="score">The score to use for the user and ruleset lookup.</param>
         /// <param name="db">The database connection.</param>
         /// <param name="transaction">The database transaction, if one exists.</param>
-        /// <returns>The retrieved user stats.</returns>
-        /// <exception cref="ArgumentException"></exception>
-        public static UserStats GetUserStats(SoloScore score, MySqlConnection db, MySqlTransaction transaction = null)
+        /// <returns>The retrieved user stats. Null if the ruleset or user was not valid.</returns>
+        public static UserStats? GetUserStats(SoloScore score, MySqlConnection db, MySqlTransaction? transaction = null)
         {
             switch (score.ruleset_id)
             {
@@ -127,7 +129,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             }
         }
 
-        private static T getUserStats<T>(SoloScore score, MySqlConnection db, MySqlTransaction transaction = null)
+        private static T getUserStats<T>(SoloScore score, MySqlConnection db, MySqlTransaction? transaction = null)
             where T : UserStats, new()
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);

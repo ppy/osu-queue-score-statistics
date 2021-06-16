@@ -47,7 +47,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 var score = StatisticsUpdateTests.CreateTestScore().Score;
 
-                score.statistics = null;
+                // intentionally simulating a database null.
+                score.statistics = null!;
 
                 db.Insert(score);
 
