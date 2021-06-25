@@ -15,8 +15,8 @@ namespace osu.Server.Queues.ScorePump
         [Option("--start_id")]
         public long StartId { get; set; }
 
-        [Option("--user_id")]
-        public long UserId { get; set; }
+        [Option("--sql", Description = "Specify a custom query to limit the scope of pumping")]
+        public string? CustomQuery { get; set; }
 
         public int OnExecute(CancellationToken cancellationToken)
         {
@@ -25,8 +25,8 @@ namespace osu.Server.Queues.ScorePump
             {
                 string query = "SELECT * FROM solo_scores WHERE id >= @StartId";
 
-                if (UserId > 0)
-                    query += " AND user_id = @UserId";
+                if (!string.IsNullOrEmpty(CustomQuery))
+                    query += $" AND {CustomQuery}";
 
                 Console.WriteLine($"Querying with \"{query}\"");
                 var scores = dbMainQuery.Query<SoloScore>(query, this, buffered: false);
