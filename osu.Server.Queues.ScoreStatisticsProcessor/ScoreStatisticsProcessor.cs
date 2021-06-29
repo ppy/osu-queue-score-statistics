@@ -27,6 +27,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
         {
             SqlMapper.AddTypeHandler(new StatisticsTypeHandler());
+            SqlMapper.AddTypeHandler(new ModsTypeHandler());
+
             DapperExtensions.InstallDateTimeOffsetMapper();
 
             // add each processor automagically.
