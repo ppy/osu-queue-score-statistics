@@ -24,7 +24,7 @@ namespace osu.Server.Queues.ScorePump
             {
                 dbMainQuery.Execute("TRUNCATE TABLE solo_scores_v2");
 
-                string query = "SELECT * FROM solo_scores WHERE id >= @StartId";
+                const string query = "SELECT * FROM solo_scores WHERE id >= @StartId";
 
                 Console.WriteLine($"Querying with \"{query}\"");
                 var scores = dbMainQuery.Query<SoloScore>(query, this, buffered: false);
