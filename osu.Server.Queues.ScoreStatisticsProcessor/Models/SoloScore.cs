@@ -39,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public int max_combo { get; set; }
 
         // TODO: this crap is required due to not being handled by DapperExtensions.Insert (see https://stackoverflow.com/questions/45942111/insert-enum-as-string-using-dapper-contrib)
-        public string rank { get; set; }
+        public string rank { get; set; } = "D";
 
         [JsonConverter(typeof(StringEnumConverter))]
         [Computed]
