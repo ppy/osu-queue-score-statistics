@@ -22,7 +22,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public int ruleset_id { get; set; }
 
-        // TODO: this should be the json content
         public string data { get; set; } = string.Empty;
 
         [JsonIgnore]

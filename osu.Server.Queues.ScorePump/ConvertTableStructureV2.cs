@@ -39,8 +39,6 @@ namespace osu.Server.Queues.ScorePump
 
                     var data = score.Serialize();
 
-                    Console.WriteLine(data);
-
                     SoloScoreV2 scorev2 = new SoloScoreV2
                     {
                         id = score.id,
