@@ -292,27 +292,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         public static ScoreItem CreateTestScore(int rulesetId = 0)
         {
-            return new ScoreItem(new SoloScore
+            var row = new SoloScore
             {
                 id = Interlocked.Increment(ref scoreIDSource),
                 user_id = 2,
                 beatmap_id = 172,
                 ruleset_id = rulesetId,
-                ScoreInfo =
-                {
-                    started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
-                    max_combo = 1337,
-                    total_score = 100000,
-                    rank = ScoreRank.S,
-                    statistics =
-                    {
-                        { HitResult.Perfect, 5 }
-                    },
-                    passed = true
-                },
                 created_at = DateTimeOffset.Now,
                 updated_at = DateTimeOffset.Now,
-            });
+            };
+
+            SoloScoreInfo scoreInfo = new SoloScoreInfo()
+            {
+                user_id = row.user_id,
+                beatmap_id = row.beatmap_id,
+                ruleset_id = row.ruleset_id,
+                started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
+                max_combo = 1337,
+                total_score = 100000,
+                rank = ScoreRank.S,
+                statistics =
+                {
+                    { HitResult.Perfect, 5 }
+                },
+                passed = true
+            };
+
+            row.ScoreInfo = scoreInfo;
+
+            return new ScoreItem(row);
         }
 
         private void waitForTotalProcessed(int count, CancellationToken cancellationToken)
@@ -334,7 +342,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             using (var db = processor.GetDatabaseConnection())
             {
-                while (!cancellationToken.IsCancellationRequested)
+                while (true)
                 {
                     lastValue = db.QueryFirstOrDefault<T>(sql);
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
