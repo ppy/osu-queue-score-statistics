@@ -23,11 +23,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public int ruleset_id { get; set; }
 
-        public string data { get; set; } = string.Empty;
+        public string data
+        {
+            get => ScoreInfo.Serialize();
+            set => ScoreInfo = value.Deserialize<SoloScoreInfo>();
+        }
 
-        public SoloScoreInfo ScoreInfo => scoreInfo ??= data.Deserialize<SoloScoreInfo>();
-
-        private SoloScoreInfo? scoreInfo;
+        public SoloScoreInfo ScoreInfo = new SoloScoreInfo();
 
         [JsonIgnore]
         public DateTimeOffset created_at { get; set; }
