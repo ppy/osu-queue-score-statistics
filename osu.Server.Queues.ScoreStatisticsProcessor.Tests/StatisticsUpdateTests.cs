@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
 using Xunit.Sdk;
@@ -299,6 +300,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
                 max_combo = 1337,
                 total_score = 100000,
+                rank_enum = ScoreRank.D,
                 statistics =
                 {
                     { HitResult.Perfect, 5 }

@@ -38,8 +38,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         // TODO: probably want to update this column to match user stats (short)?
         public int max_combo { get; set; }
 
+        // TODO: this crap is required due to not being handled by DapperExtensions.Insert (see https://stackoverflow.com/questions/45942111/insert-enum-as-string-using-dapper-contrib)
+        public string rank { get; set; }
+
         [JsonConverter(typeof(StringEnumConverter))]
-        public ScoreRank rank { get; set; }
+        [Computed]
+        public ScoreRank rank_enum
+        {
+            get => Enum.Parse<ScoreRank>(rank);
+            set => rank = value.ToString();
+        }
 
         public DateTimeOffset started_at { get; set; }
 
