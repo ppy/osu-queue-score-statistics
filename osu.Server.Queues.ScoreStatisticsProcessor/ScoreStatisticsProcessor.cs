@@ -47,10 +47,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 {
                     var score = item.Score;
 
-                    // TODO: don't count scores which don't have an ended_at value set.
-                    // this should only be done once osu! is updated to actually report retries and failures.
-                    // also needs consideration in the score pump.
-
                     using (var transaction = conn.BeginTransaction())
                     {
                         var userStats = GetUserStats(score, conn, transaction);
