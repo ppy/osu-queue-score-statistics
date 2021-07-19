@@ -18,8 +18,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// version 1: basic playcount
         /// version 2: total score, hit statistics, beatmap playcount, monthly playcount, max combo
         /// version 3: fixed incorrect revert condition for beatmap/monthly playcount
+        /// version 4: uses SoloScore"V2" (moving all content to json data block)
         /// </summary>
-        public const int VERSION = 3;
+        public const int VERSION = 4;
 
         private readonly List<IProcessor> processors = new List<IProcessor>();
 
@@ -45,7 +46,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             {
                 using (var conn = GetDatabaseConnection())
                 {
-                    var score = item.Score;
+                    var scoreRow = item.Score;
+                    var score = scoreRow.ScoreInfo;
 
                     // TODO: don't count scores which don't have an ended_at value set.
                     // this should only be done once osu! is updated to actually report retries and failures.
@@ -109,7 +111,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <param name="db">The database connection.</param>
         /// <param name="transaction">The database transaction, if one exists.</param>
         /// <returns>The retrieved user stats. Null if the ruleset or user was not valid.</returns>
-        public static UserStats? GetUserStats(SoloScore score, MySqlConnection db, MySqlTransaction? transaction = null)
+        public static UserStats? GetUserStats(SoloScoreInfo score, MySqlConnection db, MySqlTransaction? transaction = null)
         {
             switch (score.ruleset_id)
             {
@@ -131,7 +133,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             }
         }
 
-        private static T getUserStats<T>(SoloScore score, MySqlConnection db, MySqlTransaction? transaction = null)
+        private static T getUserStats<T>(SoloScoreInfo score, MySqlConnection db, MySqlTransaction? transaction = null)
             where T : UserStats, new()
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);

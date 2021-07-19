@@ -13,18 +13,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class TotalScoreProcessor : IProcessor
     {
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (previousVersion >= 2)
                 userStats.total_score -= score.total_score;
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
             userStats.total_score += score.total_score;
         }
 
-        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
         }
     }

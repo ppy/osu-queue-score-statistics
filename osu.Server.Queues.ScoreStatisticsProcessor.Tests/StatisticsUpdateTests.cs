@@ -110,7 +110,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
 
             var score = CreateTestScore();
-            score.Score.max_combo++;
+            score.Score.ScoreInfo.max_combo++;
 
             processor.PushToQueue(score);
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1338, cts.Token);
@@ -125,7 +125,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
 
             var score = CreateTestScore();
-            score.Score.max_combo--;
+            score.Score.ScoreInfo.max_combo--;
 
             processor.PushToQueue(score);
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
@@ -294,21 +294,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             return new ScoreItem(new SoloScore
             {
+                id = Interlocked.Increment(ref scoreIDSource),
                 user_id = 2,
                 beatmap_id = 172,
                 ruleset_id = rulesetId,
-                started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
-                max_combo = 1337,
-                total_score = 100000,
-                rank_enum = ScoreRank.D,
-                statistics =
+                ScoreInfo =
                 {
-                    { HitResult.Perfect, 5 }
+                    started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
+                    max_combo = 1337,
+                    total_score = 100000,
+                    rank = ScoreRank.S,
+                    statistics =
+                    {
+                        { HitResult.Perfect, 5 }
+                    },
+                    passed = true
                 },
-                id = Interlocked.Increment(ref scoreIDSource),
                 created_at = DateTimeOffset.Now,
                 updated_at = DateTimeOffset.Now,
-                passed = true
             });
         }
 

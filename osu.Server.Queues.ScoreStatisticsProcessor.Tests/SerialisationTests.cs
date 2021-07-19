@@ -48,13 +48,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 var score = StatisticsUpdateTests.CreateTestScore().Score;
 
                 // intentionally simulating a database null.
-                score.statistics = null!;
+                score.ScoreInfo.statistics = null!;
 
                 db.Insert(score);
 
                 var retrieved = db.QueryFirst<SoloScore>("SELECT * FROM solo_scores");
 
-                Assert.NotNull(retrieved.statistics);
+                Assert.NotNull(retrieved.ScoreInfo.statistics);
             }
         }
 
@@ -70,7 +70,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 var retrieved = db.QueryFirst<SoloScore>("SELECT * FROM solo_scores");
 
                 // ignore time values for now until we can figure how to test without precision issues.
-                retrieved.started_at = score.started_at;
                 retrieved.created_at = score.created_at;
                 retrieved.updated_at = score.updated_at;
 

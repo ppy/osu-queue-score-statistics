@@ -14,18 +14,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class MaxComboProcessor : IProcessor
     {
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             // TODO: this will require access to stable scores to be implemented correctly.
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
             // TODO: assert the user's score is not higher than the max combo for the beatmap.
             userStats.max_combo = (short)Math.Max(userStats.max_combo, score.max_combo);
         }
 
-        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
         }
     }
