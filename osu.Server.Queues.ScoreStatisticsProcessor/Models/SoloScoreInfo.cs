@@ -3,9 +3,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics.CodeAnalysis;
-using Dapper;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using osu.Game.IO.Serialization;
@@ -57,33 +55,5 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         [JsonIgnore]
         public DateTimeOffset? deleted_at { get; set; }
-    }
-
-    internal class ModsTypeHandler : SqlMapper.TypeHandler<List<APIMod>>
-    {
-        public override List<APIMod> Parse(object? value)
-        {
-            return JsonConvert.DeserializeObject<List<APIMod>>(value?.ToString() ?? string.Empty) ?? new List<APIMod>();
-        }
-
-        public override void SetValue(IDbDataParameter parameter, List<APIMod>? value)
-        {
-            parameter.Value = value == null ? DBNull.Value : JsonConvert.SerializeObject(value);
-            parameter.DbType = DbType.String;
-        }
-    }
-
-    internal class StatisticsTypeHandler : SqlMapper.TypeHandler<Dictionary<HitResult, int>?>
-    {
-        public override Dictionary<HitResult, int> Parse(object? value)
-        {
-            return JsonConvert.DeserializeObject<Dictionary<HitResult, int>>(value?.ToString() ?? string.Empty) ?? new Dictionary<HitResult, int>();
-        }
-
-        public override void SetValue(IDbDataParameter parameter, Dictionary<HitResult, int>? value)
-        {
-            parameter.Value = value == null ? DBNull.Value : JsonConvert.SerializeObject(value);
-            parameter.DbType = DbType.String;
-        }
     }
 }
