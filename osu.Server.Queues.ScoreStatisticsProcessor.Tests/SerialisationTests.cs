@@ -20,7 +20,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 // will throw if not on test database.
                 db.Query<int>("SELECT * FROM test_database");
 
-                db.Execute("TRUNCATE TABLE solo_scores");
+                db.Execute("TRUNCATE TABLE solo_scores_v2");
                 db.Execute("TRUNCATE TABLE solo_scores_process_history");
             }
         }
@@ -52,7 +52,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 db.Insert(score);
 
-                var retrieved = db.QueryFirst<SoloScore>("SELECT * FROM solo_scores");
+                var retrieved = db.QueryFirst<SoloScore>("SELECT * FROM solo_scores_v2");
 
                 Assert.NotNull(retrieved.ScoreInfo.statistics);
             }
@@ -67,7 +67,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 db.Insert(score);
 
-                var retrieved = db.QueryFirst<SoloScore>("SELECT * FROM solo_scores");
+                var retrieved = db.QueryFirst<SoloScore>("SELECT * FROM solo_scores_v2");
 
                 // ignore time values for now until we can figure how to test without precision issues.
                 retrieved.created_at = score.created_at;
