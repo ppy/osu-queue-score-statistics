@@ -304,6 +304,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     { HitResult.Perfect, 5 }
                 },
                 id = Interlocked.Increment(ref scoreIDSource),
+                created_at = DateTimeOffset.Now,
+                updated_at = DateTimeOffset.Now,
                 passed = true
             });
         }
