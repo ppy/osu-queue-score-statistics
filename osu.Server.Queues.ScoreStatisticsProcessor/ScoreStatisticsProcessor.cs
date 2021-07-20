@@ -46,10 +46,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     var scoreRow = item.Score;
                     var score = scoreRow.ScoreInfo;
 
-                    // TODO: don't count scores which don't have an ended_at value set.
-                    // this should only be done once osu! is updated to actually report retries and failures.
-                    // also needs consideration in the score pump.
-
                     using (var transaction = conn.BeginTransaction())
                     {
                         var userStats = GetUserStats(score, conn, transaction);
@@ -136,7 +132,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
 
             // for simplicity, let's ensure the row already exists as a separate step.
-            var userStats = db.QuerySingleOrDefault<T>($"SELECT * FROM {dbInfo.UserStatsTable} WHERE user_id = @user_id", score, transaction);
+            var userStats = db.QuerySingleOrDefault<T>($"SELECT * FROM {dbInfo.UserStatsTable} WHERE user_id = @user_id FOR UPDATE", score, transaction);
 
             if (userStats == null)
             {
