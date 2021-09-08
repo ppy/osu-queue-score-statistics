@@ -26,7 +26,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public string data
         {
             get => ScoreInfo.Serialize();
-            set => ScoreInfo = value.Deserialize<SoloScoreInfo>();
+            set
+            {
+                ScoreInfo = value.Deserialize<SoloScoreInfo>();
+
+                ScoreInfo.id = id;
+                ScoreInfo.beatmap_id = beatmap_id;
+                ScoreInfo.user_id = user_id;
+                ScoreInfo.ruleset_id = ruleset_id;
+            }
         }
 
         public SoloScoreInfo ScoreInfo = new SoloScoreInfo();

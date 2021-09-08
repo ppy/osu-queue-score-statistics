@@ -304,6 +304,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var scoreInfo = new SoloScoreInfo
             {
+                id = row.id,
                 user_id = row.user_id,
                 beatmap_id = row.beatmap_id,
                 ruleset_id = row.ruleset_id,
