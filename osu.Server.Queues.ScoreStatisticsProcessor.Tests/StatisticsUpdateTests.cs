@@ -302,7 +302,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 updated_at = DateTimeOffset.Now,
             };
 
-            SoloScoreInfo scoreInfo = new SoloScoreInfo()
+            var scoreInfo = new SoloScoreInfo
             {
                 user_id = row.user_id,
                 beatmap_id = row.beatmap_id,
@@ -338,21 +338,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private void waitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken)
         {
-            T lastValue = default!;
-
             using (var db = processor.GetDatabaseConnection())
             {
                 while (true)
                 {
-                    lastValue = db.QueryFirstOrDefault<T>(sql);
+                    var lastValue = db.QueryFirstOrDefault<T>(sql);
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;
 
                     Thread.Sleep(50);
                 }
             }
-
-            throw new XunitException($"Database criteria was not met ({sql}: expected {expected} != actual {lastValue})");
         }
 
 #pragma warning disable CA1816
