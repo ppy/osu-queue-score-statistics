@@ -28,11 +28,11 @@ namespace osu.Server.Queues.ScorePump
         public int OnExecute(CancellationToken cancellationToken)
         {
             if (StartId.HasValue)
-                lastId = StartId.Value;
+                lastId = StartId.Value - 1;
             else
             {
                 using (var db = Queue.GetDatabaseConnection())
-                    lastId = db.QuerySingle<long>("SELECT MAX(id) FROM solo_scores_process_history") + 1;
+                    lastId = db.QuerySingle<long>("SELECT MAX(id) FROM solo_scores_process_history");
             }
 
             while (true)
@@ -42,7 +42,7 @@ namespace osu.Server.Queues.ScorePump
 
                 using (var db = Queue.GetDatabaseConnection())
                 {
-                    var scores = db.Query<SoloScore>("SELECT * FROM solo_scores WHERE id >= @lastId LIMIT @count_per_run", new
+                    var scores = db.Query<SoloScore>("SELECT * FROM solo_scores WHERE id > @lastId LIMIT @count_per_run", new
                     {
                         lastId,
                         count_per_run
@@ -52,6 +52,8 @@ namespace osu.Server.Queues.ScorePump
 
                     foreach (var score in scores)
                     {
+                        lastId = score.id;
+
                         if (cancellationToken.IsCancellationRequested)
                             break;
 
@@ -61,12 +63,11 @@ namespace osu.Server.Queues.ScorePump
 
                         // attach any previous processing information
                         // this should never be the case, and should probably be removed eventually.
-                        var history = db.QuerySingleOrDefault<ProcessHistory>("SELECT * FROM solo_scores_process_history WHERE id = @id", score);
+                        var history = db.QuerySingleOrDefault<ProcessHistory>("SELECT * FROM solo_scores_process_history WHERE id = @id", new { score.id });
 
                         Console.WriteLine($"Pumping {score}");
                         Queue.PushToQueue(new ScoreItem(score, history));
 
-                        lastId = score.id;
                         processed++;
                     }
 
