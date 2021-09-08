@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
-using osu.Game.IO.Serialization;
 using osu.Game.Online.API;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
@@ -15,7 +14,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    public class SoloScoreInfo : IJsonSerializable // TODO: hopefully combine with client-side ScoreInfo class.
+    public class SoloScoreInfo // TODO: hopefully combine with client-side ScoreInfo class.
     {
         public long id { get; set; }
 
