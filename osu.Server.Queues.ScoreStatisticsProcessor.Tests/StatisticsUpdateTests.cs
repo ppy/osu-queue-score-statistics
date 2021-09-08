@@ -32,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_stats_mania");
                 db.Execute("TRUNCATE TABLE osu_user_beatmap_playcount");
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
-                db.Execute("TRUNCATE TABLE solo_scores");
+                db.Execute("TRUNCATE TABLE solo_scores_v2");
                 db.Execute("TRUNCATE TABLE solo_scores_process_history");
             }
 
@@ -110,7 +110,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
 
             var score = CreateTestScore();
-            score.Score.max_combo++;
+            score.Score.ScoreInfo.max_combo++;
 
             processor.PushToQueue(score);
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1338, cts.Token);
@@ -125,7 +125,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
 
             var score = CreateTestScore();
-            score.Score.max_combo--;
+            score.Score.ScoreInfo.max_combo--;
 
             processor.PushToQueue(score);
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
@@ -292,24 +292,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         public static ScoreItem CreateTestScore(int rulesetId = 0)
         {
-            return new ScoreItem(new SoloScore
+            var row = new SoloScore
             {
+                id = Interlocked.Increment(ref scoreIDSource),
                 user_id = 2,
                 beatmap_id = 172,
                 ruleset_id = rulesetId,
+                created_at = DateTimeOffset.Now,
+                updated_at = DateTimeOffset.Now,
+            };
+
+            SoloScoreInfo scoreInfo = new SoloScoreInfo()
+            {
+                user_id = row.user_id,
+                beatmap_id = row.beatmap_id,
+                ruleset_id = row.ruleset_id,
                 started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
                 max_combo = 1337,
                 total_score = 100000,
-                rank_enum = ScoreRank.D,
+                rank = ScoreRank.S,
                 statistics =
                 {
                     { HitResult.Perfect, 5 }
                 },
-                id = Interlocked.Increment(ref scoreIDSource),
-                created_at = DateTimeOffset.Now,
-                updated_at = DateTimeOffset.Now,
                 passed = true
-            });
+            };
+
+            row.ScoreInfo = scoreInfo;
+
+            return new ScoreItem(row);
         }
 
         private void waitForTotalProcessed(int count, CancellationToken cancellationToken)
@@ -331,7 +342,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             using (var db = processor.GetDatabaseConnection())
             {
-                while (!cancellationToken.IsCancellationRequested)
+                while (true)
                 {
                     lastValue = db.QueryFirstOrDefault<T>(sql);
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)

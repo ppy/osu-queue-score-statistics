@@ -2,25 +2,19 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics.CodeAnalysis;
-using Dapper;
 using Dapper.Contrib.Extensions;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 using osu.Game.IO.Serialization;
-using osu.Game.Online.API;
-using osu.Game.Rulesets.Scoring;
-using osu.Game.Scoring;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table("solo_scores")]
-    public class SoloScore : IJsonSerializable
+    [Table("solo_scores_v2")] // TODO: remove after osu-web has updated to this format.
+    public class SoloScore
     {
+        [ExplicitKey]
         public long id { get; set; }
 
         public int user_id { get; set; }
@@ -29,35 +23,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public int ruleset_id { get; set; }
 
-        public bool passed { get; set; }
-
-        public int total_score { get; set; }
-
-        public double accuracy { get; set; }
-
-        // TODO: probably want to update this column to match user stats (short)?
-        public int max_combo { get; set; }
-
-        // TODO: this crap is required due to not being handled by DapperExtensions.Insert (see https://stackoverflow.com/questions/45942111/insert-enum-as-string-using-dapper-contrib)
-        public string rank { get; set; } = "D";
-
-        [JsonConverter(typeof(StringEnumConverter))]
-        [Computed]
-        public ScoreRank rank_enum
+        public string data
         {
-            get => Enum.Parse<ScoreRank>(rank);
-            set => rank = value.ToString();
+            get => ScoreInfo.Serialize();
+            set => ScoreInfo = value.Deserialize<SoloScoreInfo>();
         }
 
-        public DateTimeOffset started_at { get; set; }
-
-        public DateTimeOffset? ended_at { get; set; }
-
-        public List<APIMod> mods { get; set; } = new List<APIMod>();
-
-        public Dictionary<HitResult, int> statistics { get; set; } = new Dictionary<HitResult, int>();
-
-        public override string ToString() => $"score_id: {id} user_id: {user_id}";
+        public SoloScoreInfo ScoreInfo = new SoloScoreInfo();
 
         [JsonIgnore]
         public DateTimeOffset created_at { get; set; }
@@ -67,33 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         [JsonIgnore]
         public DateTimeOffset? deleted_at { get; set; }
-    }
 
-    internal class ModsTypeHandler : SqlMapper.TypeHandler<List<APIMod>>
-    {
-        public override List<APIMod> Parse(object? value)
-        {
-            return JsonConvert.DeserializeObject<List<APIMod>>(value?.ToString() ?? string.Empty) ?? new List<APIMod>();
-        }
-
-        public override void SetValue(IDbDataParameter parameter, List<APIMod>? value)
-        {
-            parameter.Value = value == null ? DBNull.Value : JsonConvert.SerializeObject(value);
-            parameter.DbType = DbType.String;
-        }
-    }
-
-    internal class StatisticsTypeHandler : SqlMapper.TypeHandler<Dictionary<HitResult, int>?>
-    {
-        public override Dictionary<HitResult, int> Parse(object? value)
-        {
-            return JsonConvert.DeserializeObject<Dictionary<HitResult, int>>(value?.ToString() ?? string.Empty) ?? new Dictionary<HitResult, int>();
-        }
-
-        public override void SetValue(IDbDataParameter parameter, Dictionary<HitResult, int>? value)
-        {
-            parameter.Value = value == null ? DBNull.Value : JsonConvert.SerializeObject(value);
-            parameter.DbType = DbType.String;
-        }
+        public override string ToString() => $"score_id: {id} user_id: {user_id}";
     }
 }

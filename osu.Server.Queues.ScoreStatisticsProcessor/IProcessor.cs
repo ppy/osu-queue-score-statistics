@@ -8,9 +8,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
     public interface IProcessor
     {
-        void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction);
+        void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction);
 
-        void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction);
+        void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction);
 
         /// <summary>
         /// Adjust any global statistics outside of the user transaction.
@@ -18,6 +18,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// </summary>
         /// <param name="score">The user's score.</param>
         /// <param name="conn">The database connection.</param>
-        void ApplyGlobal(SoloScore score, MySqlConnection conn);
+        void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn);
     }
 }

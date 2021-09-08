@@ -5,7 +5,6 @@ namespace osu.Server.Queues.ScorePump
     [Command]
     [Subcommand(typeof(PumpTestDataCommand))]
     [Subcommand(typeof(PumpAllScores))]
-    [Subcommand(typeof(ConvertTableStructureV2))]
     [Subcommand(typeof(WatchNewScores))]
     [Subcommand(typeof(ClearQueue))]
     public class Program
