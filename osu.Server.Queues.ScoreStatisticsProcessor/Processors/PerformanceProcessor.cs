@@ -54,7 +54,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             var performanceCalculator = ruleset.CreatePerformanceCalculator(difficultyAttributes, scoreInfo);
             var performance = performanceCalculator.Calculate();
 
-            conn.Execute("INSERT INTO solo_scores_v2_performance (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
+            conn.Execute("INSERT INTO solo_scores_performance (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
             {
                 ScoreId = score.id,
                 Pp = performance
