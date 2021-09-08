@@ -26,7 +26,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         SpeedStrain = databasedAttribs[3].value,
                         OverallDifficulty = databasedAttribs[5].value,
                         ApproachRate = databasedAttribs[7].value,
-                        MaxCombo = Convert.ToInt32(databasedAttribs[9].value),
+                        MaxCombo = (int)databasedAttribs[9].value,
                         StarRating = databasedAttribs[11].value,
                         HitCircleCount = databasedBeatmap.countNormal,
                         SpinnerCount = databasedBeatmap.countSpinner,
@@ -35,7 +35,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 case 1:
                     return new TaikoDifficultyAttributes
                     {
-                        MaxCombo = Convert.ToInt32(databasedAttribs[9].value),
+                        MaxCombo = (int)databasedAttribs[9].value,
                         StarRating = databasedAttribs[11].value,
                         GreatHitWindow = databasedAttribs[13].value
                     };
@@ -45,7 +45,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     {
                         StarRating = databasedAttribs[1].value,
                         ApproachRate = databasedAttribs[7].value,
-                        MaxCombo = Convert.ToInt32(databasedAttribs[9].value)
+                        MaxCombo = (int)databasedAttribs[9].value
                     };
 
                 case 3:
