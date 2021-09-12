@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using osu.Game.Online.API;
+using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 
@@ -54,5 +55,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         [JsonIgnore]
         public DateTimeOffset? deleted_at { get; set; }
+
+        public ScoreInfo ToScoreInfo(Mod[] mods) => new ScoreInfo
+        {
+            UserID = user_id,
+            BeatmapInfoID = beatmap_id,
+            RulesetID = ruleset_id,
+            Passed = passed,
+            TotalScore = total_score,
+            Accuracy = accuracy,
+            MaxCombo = max_combo,
+            Rank = rank,
+            Mods = mods,
+            Statistics = statistics
+        };
     }
 }
