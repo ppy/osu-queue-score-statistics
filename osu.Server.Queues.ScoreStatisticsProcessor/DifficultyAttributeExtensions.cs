@@ -28,6 +28,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         ApproachRate = databasedAttribs[7].value,
                         MaxCombo = (int)databasedAttribs[9].value,
                         StarRating = databasedAttribs[11].value,
+                        FlashlightRating = databasedAttribs[17].value,
                         HitCircleCount = databasedBeatmap.countNormal,
                         SpinnerCount = databasedBeatmap.countSpinner,
                     };
@@ -72,6 +73,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     yield return (7, osu.ApproachRate);
                     yield return (9, osu.MaxCombo);
                     yield return (11, attributes.StarRating);
+                    yield return (17, osu.FlashlightRating);
 
                     break;
 
