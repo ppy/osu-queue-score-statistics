@@ -11,7 +11,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     public class ProcessHistory
     {
         [ExplicitKey]
-        public long id { get; set; }
+        public long score_id { get; set; }
 
         public byte processed_version { get; set; }
 

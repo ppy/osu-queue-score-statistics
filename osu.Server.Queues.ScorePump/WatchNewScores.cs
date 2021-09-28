@@ -32,7 +32,7 @@ namespace osu.Server.Queues.ScorePump
             else
             {
                 using (var db = Queue.GetDatabaseConnection())
-                    lastId = db.QuerySingle<long>("SELECT MAX(id) FROM solo_scores_process_history");
+                    lastId = db.QuerySingle<long>("SELECT MAX(score_id) FROM solo_scores_process_history");
             }
 
             while (true)
@@ -63,7 +63,7 @@ namespace osu.Server.Queues.ScorePump
 
                         // attach any previous processing information
                         // this should never be the case, and should probably be removed eventually.
-                        var history = db.QuerySingleOrDefault<ProcessHistory>("SELECT * FROM solo_scores_process_history WHERE id = @id", new { score.id });
+                        var history = db.QuerySingleOrDefault<ProcessHistory>("SELECT * FROM solo_scores_process_history WHERE score_id = @id", new { score.id });
 
                         Console.WriteLine($"Pumping {score}");
                         Queue.PushToQueue(new ScoreItem(score, history));
