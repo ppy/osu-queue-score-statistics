@@ -314,7 +314,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 rank = ScoreRank.S,
                 statistics =
                 {
-                    { HitResult.Perfect, 5 }
+                    { HitResult.Perfect, 5 },
+                    { HitResult.LargeBonus, 0 }
                 },
                 passed = true
             };

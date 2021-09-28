@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using DeepEqual.Syntax;
+using osu.Game.IO.Serialization;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
 
@@ -41,7 +43,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestSoloScoreSerialisation()
+        public void TestSoloScoreDirectSerialisation()
+        {
+            var score = StatisticsUpdateTests.CreateTestScore().Score;
+
+            var serialised = score.Serialize();
+            var deserialised = serialised.Deserialize<SoloScore>();
+
+            Debug.Assert(deserialised != null);
+
+            // ignore time values for now until we can figure how to test without precision issues.
+            deserialised.created_at = score.created_at;
+            deserialised.updated_at = score.updated_at;
+
+            deserialised.ShouldDeepEqual(score);
+        }
+
+        [Fact]
+        public void TestSoloScoreDatabaseSerialisation()
         {
             using (var db = processor.GetDatabaseConnection())
             {
