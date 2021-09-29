@@ -28,7 +28,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         ApproachRate = databasedAttribs[7].value,
                         MaxCombo = (int)databasedAttribs[9].value,
                         StarRating = databasedAttribs[11].value,
-                        FlashlightRating = databasedAttribs[17].value,
+                        FlashlightRating = databasedAttribs.GetValueOrDefault(17)?.value ?? 0,
                         HitCircleCount = databasedBeatmap.countNormal,
                         SpinnerCount = databasedBeatmap.countSpinner,
                     };
