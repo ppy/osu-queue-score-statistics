@@ -34,13 +34,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
             ScoreInfo scoreInfo = score.ToScoreInfo(mods);
 
-            // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
-            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods));
-
             var beatmap = conn.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
             {
                 BeatmapId = score.beatmap_id
             });
+
+            // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
+            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.ruleset_id != beatmap.playmode);
 
             var rawDifficultyAttribs = conn.Query<BeatmapDifficultyAttribute>(
                 "SELECT * FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId AND mods = @ModValue", new
