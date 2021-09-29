@@ -5,6 +5,8 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using Dapper.Contrib.Extensions;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Serialization;
 using osu.Game.IO.Serialization;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
@@ -25,10 +27,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public string data
         {
-            get => ScoreInfo.Serialize();
+            get => JsonConvert.SerializeObject(ScoreInfo);
             set
             {
-                ScoreInfo = value.Deserialize<SoloScoreInfo>();
+                var scoreInfo = JsonConvert.DeserializeObject<SoloScoreInfo>(value);
+
+                if (scoreInfo == null)
+                    return;
+
+                ScoreInfo = scoreInfo;
 
                 ScoreInfo.id = id;
                 ScoreInfo.beatmap_id = beatmap_id;
@@ -37,6 +44,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
             }
         }
 
+        [JsonIgnore]
         public SoloScoreInfo ScoreInfo = new SoloScoreInfo();
 
         [JsonIgnore]
