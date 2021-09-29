@@ -5,9 +5,6 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using Dapper.Contrib.Extensions;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
-using Newtonsoft.Json.Serialization;
-using osu.Game.IO.Serialization;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
