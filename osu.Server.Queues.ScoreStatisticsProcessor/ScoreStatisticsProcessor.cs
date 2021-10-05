@@ -9,6 +9,7 @@ using Dapper.Contrib.Extensions;
 using MySqlConnector;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
@@ -36,6 +37,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 if (Activator.CreateInstance(t) is IProcessor processor)
                     processors.Add(processor);
             }
+
+            // Added manually to ensure this processor runs last.
+            processors.Add(new UserTotalPerformanceProcessor());
         }
 
         protected override void ProcessResult(ScoreItem item)
