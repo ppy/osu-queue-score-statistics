@@ -30,7 +30,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     UserId = userStats.user_id
                 }, transaction);
 
-            var orderedItems =
+            // Group items by beatmap_id and extract the item from each group with maximum pp (for both pp and accuracy).
+            // Results are returned in pp-descending order.
+            var filteredItems =
                 items.Where(i => i.pp != null)
                      .GroupBy(i => i.beatmapId)
                      .Select(g =>
@@ -46,25 +48,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                      .OrderByDescending(i => i.Pp)
                      .ToArray();
 
-            // Diminishing sum.
+            // Build the diminishing sum
             double factor = 1;
             double totalPp = 0;
             double totalAccuracy = 0;
 
-            foreach (var item in orderedItems)
+            foreach (var item in filteredItems)
             {
                 totalPp += item.Pp * factor;
                 totalAccuracy += item.Accuracy * factor;
                 factor *= 0.95;
             }
 
-            // This weird factor is to keep legacy compatibility with the diminishing bonus of 0.25 by 0.9994 each score
-            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.9994, orderedItems.Length));
+            // This weird factor is to keep legacy compatibility with the diminishing bonus of 0.25 by 0.9994 each score.
+            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.9994, filteredItems.Length));
 
             // We want our accuracy to be normalized.
-            if (orderedItems.Length > 0)
-                // We want the percentage, not a factor in [0, 1], hence we divide 20 by 100
-                totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, orderedItems.Length)));
+            if (filteredItems.Length > 0)
+            {
+                // We want the percentage, not a factor in [0, 1], hence we divide 20 by 100.
+                totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, filteredItems.Length)));
+            }
 
             userStats.rank_score = (float)totalPp;
             userStats.accuracy_new = (float)totalAccuracy;
