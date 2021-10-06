@@ -26,10 +26,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-        }
-
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
-        {
             Ruleset ruleset = available_rulesets.Single(r => r.RulesetInfo.ID == score.ruleset_id);
             Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
             ScoreInfo scoreInfo = score.ToScoreInfo(mods);
@@ -37,7 +33,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             var beatmap = conn.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
             {
                 BeatmapId = score.beatmap_id
-            });
+            }, transaction);
 
             // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
             LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.ruleset_id != beatmap.playmode);
@@ -48,7 +44,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     BeatmapId = score.beatmap_id,
                     RulesetId = score.ruleset_id,
                     ModValue = (uint)legacyModValue
-                }).ToArray();
+                }, transaction).ToArray();
 
             var difficultyAttributes = rawDifficultyAttribs.ToDictionary(a => (int)a.attrib_id).Map(score.ruleset_id, beatmap);
             var performanceCalculator = ruleset.CreatePerformanceCalculator(difficultyAttributes, scoreInfo);
@@ -58,7 +54,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             {
                 ScoreId = score.id,
                 PP = performance
-            });
+            }, transaction);
+        }
+
+        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        {
         }
 
         private static List<Ruleset> getRulesets()
