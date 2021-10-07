@@ -15,7 +15,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
     public class PerformanceProcessorTests
     {
         [Fact]
-        public void OsuStableModsThatGivePpAreAllowed()
+        public void LegacyModsThatGivePpAreAllowed()
         {
             var mods = new Mod[]
             {
@@ -72,7 +72,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void OsuStableModsThatDoNotGivePpAreDisallowed()
+        public void LegacyModsThatDoNotGivePpAreDisallowed()
         {
             var mods = new Mod[]
             {
@@ -101,6 +101,62 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             foreach (var mod in mods)
                 Assert.False(PerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+        }
+
+        [Fact]
+        public void ModsThatDoNotGivePpAreDisallowed()
+        {
+            // Not an extensive list.
+            var mods = new Mod[]
+            {
+                new ModWindUp(),
+                new ModWindDown(),
+                // Osu
+                new OsuModDeflate(),
+                new OsuModApproachDifferent(),
+                new OsuModDifficultyAdjust(),
+                // Taiko
+                new TaikoModRandom(),
+                new TaikoModSwap(),
+                // Catch
+                new CatchModMirror(),
+                new CatchModFloatingFruits(),
+                new CatchModDifficultyAdjust(),
+                // Mania
+                new ManiaModInvert(),
+                new ManiaModConstantSpeed(),
+            };
+
+            foreach (var mod in mods)
+                Assert.False(PerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+        }
+
+        [Fact]
+        public void ModsThatGivePpAreAllowed()
+        {
+            // Not an extensive list.
+            var mods = new Mod[]
+            {
+                // Osu
+                new OsuModMuted(),
+                new OsuModClassic(),
+                new OsuModDaycore(),
+                // Taiko
+                new TaikoModMuted(),
+                new TaikoModClassic(),
+                new TaikoModDaycore(),
+                // Catch
+                new CatchModMuted(),
+                new CatchModClassic(),
+                new CatchModDaycore(),
+                // Mania
+                new ManiaModMuted(),
+                new ManiaModClassic(),
+                new ManiaModDaycore(),
+            };
+
+            foreach (var mod in mods)
+                Assert.True(PerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
         }
     }
 }
