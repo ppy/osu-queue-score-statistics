@@ -10,7 +10,9 @@ using Dapper;
 using MySqlConnector;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -45,6 +47,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private double computePerformance(Ruleset ruleset, Mod[] mods, ScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
         {
+            if (!AllModsValidForPerformance(mods))
+                return 0;
+
             var beatmap = conn.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
             {
                 BeatmapId = score.Beatmap.OnlineBeatmapID
@@ -64,6 +69,44 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             var difficultyAttributes = rawDifficultyAttribs.ToDictionary(a => (int)a.attrib_id).Map(score.RulesetID, beatmap);
             var performanceCalculator = ruleset.CreatePerformanceCalculator(difficultyAttributes, score);
             return performanceCalculator.Calculate();
+        }
+
+        /// <summary>
+        /// Checks whether all mods in a given array are valid to give PP for.
+        /// </summary>
+        public static bool AllModsValidForPerformance(Mod[] mods)
+        {
+            foreach (var m in mods)
+            {
+                switch (m)
+                {
+                    case ManiaModHardRock:
+                    case ManiaModKey1:
+                    case ManiaModKey2:
+                    case ManiaModKey3:
+                    case ManiaModKey10:
+                        return false;
+
+                    case ModEasy:
+                    case ModNoFail:
+                    case ModHalfTime:
+                    case ModSuddenDeath:
+                    case ModPerfect:
+                    case ModHardRock:
+                    case ModDoubleTime:
+                    case ModHidden:
+                    case ModFlashlight:
+                    case OsuModSpunOut:
+                    case ManiaKeyMod:
+                    case ManiaModMirror:
+                        continue;
+
+                    default:
+                        return false;
+                }
+            }
+
+            return true;
         }
 
         private static List<Ruleset> getRulesets()
