@@ -5,14 +5,22 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Reflection;
 using Dapper;
 using MySqlConnector;
-using osu.Game.Beatmaps.Legacy;
+using Newtonsoft.Json;
+using osu.Framework.IO.Network;
+using osu.Game.Online.API;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Catch.Difficulty;
+using osu.Game.Rulesets.Difficulty;
+using osu.Game.Rulesets.Mania.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
+using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -32,7 +40,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
             ScoreInfo scoreInfo = score.ToScoreInfo(mods);
 
-            double performance = computePerformance(ruleset, mods, scoreInfo, conn, transaction);
+            double performance = computePerformance(score, ruleset, mods, scoreInfo);
 
             conn.Execute("INSERT INTO solo_scores_performance (`score_id`, `pp`) VALUES (@ScoreId, @PP) ON DUPLICATE KEY UPDATE `pp` = @PP", new
             {
@@ -45,30 +53,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
         }
 
-        private double computePerformance(Ruleset ruleset, Mod[] mods, ScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
+        private double computePerformance(SoloScoreInfo rawScore, Ruleset ruleset, Mod[] mods, ScoreInfo score)
         {
             if (!AllModsValidForPerformance(mods))
                 return 0;
 
-            var beatmap = conn.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
-            {
-                BeatmapId = score.Beatmap.OnlineBeatmapID
-            }, transaction);
+            var attributes = queryAttributes(rawScore);
+            if (attributes == null)
+                return 0;
 
-            // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
-            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.RulesetID != beatmap.playmode);
-
-            var rawDifficultyAttribs = conn.Query<BeatmapDifficultyAttribute>(
-                "SELECT * FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId AND mods = @ModValue", new
-                {
-                    BeatmapId = score.Beatmap.OnlineBeatmapID,
-                    RulesetId = score.RulesetID,
-                    ModValue = (uint)legacyModValue
-                }, transaction).ToArray();
-
-            var difficultyAttributes = rawDifficultyAttribs.ToDictionary(a => (int)a.attrib_id).Map(score.RulesetID, beatmap);
-            var performanceCalculator = ruleset.CreatePerformanceCalculator(difficultyAttributes, score);
-            return performanceCalculator.Calculate();
+            return ruleset.CreatePerformanceCalculator(attributes, score)?.Calculate() ?? 0;
         }
 
         /// <summary>
@@ -111,6 +105,55 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             return true;
         }
 
+        private static DifficultyAttributes? queryAttributes(SoloScoreInfo score)
+        {
+            var req = new WebRequest(AppSettings.DIFFCALC_ENDPOINT)
+            {
+                Method = HttpMethod.Post,
+                ContentType = "application/json",
+                Timeout = int.MaxValue,
+                AllowInsecureRequests = true
+            };
+
+            req.AddRaw(JsonConvert.SerializeObject(new DifficultyAttributesRequestData
+            {
+                BeatmapId = score.beatmap_id,
+                RulesetId = score.ruleset_id,
+                Mods = score.mods
+            }));
+
+            DifficultyAttributes? attributes = null;
+
+            req.Finished += () =>
+            {
+                if (req.ResponseStream == null)
+                    return;
+
+                switch (score.ruleset_id)
+                {
+                    case 0:
+                        attributes = JsonConvert.DeserializeObject<OsuDifficultyAttributes>(req.GetResponseString()!);
+                        break;
+
+                    case 1:
+                        attributes = JsonConvert.DeserializeObject<TaikoDifficultyAttributes>(req.GetResponseString()!);
+                        break;
+
+                    case 2:
+                        attributes = JsonConvert.DeserializeObject<CatchDifficultyAttributes>(req.GetResponseString()!);
+                        break;
+
+                    case 3:
+                        attributes = JsonConvert.DeserializeObject<ManiaDifficultyAttributes>(req.GetResponseString()!);
+                        break;
+                }
+            };
+
+            req.Perform();
+
+            return attributes;
+        }
+
         private static List<Ruleset> getRulesets()
         {
             const string ruleset_library_prefix = "osu.Game.Rulesets";
@@ -132,6 +175,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
 
             return rulesetsToProcess;
+        }
+
+        private class DifficultyAttributesRequestData
+        {
+            [JsonProperty("beatmap_id")]
+            public int BeatmapId { get; set; }
+
+            [JsonProperty("ruleset_id")]
+            public int RulesetId { get; set; }
+
+            [JsonProperty("mods")]
+            public List<APIMod>? Mods { get; set; }
         }
     }
 }
