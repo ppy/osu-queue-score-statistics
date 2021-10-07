@@ -96,6 +96,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     case ModDoubleTime:
                     case ModHidden:
                     case ModFlashlight:
+                    case ModMuted:
+                    case ModClassic:
                     case OsuModSpunOut:
                     case ManiaKeyMod:
                     case ManiaModMirror:
