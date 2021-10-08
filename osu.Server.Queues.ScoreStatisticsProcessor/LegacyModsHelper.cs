@@ -9,12 +9,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
     {
         public static LegacyMods MaskRelevantMods(LegacyMods mods, bool isConvertedBeatmap)
         {
-            mods &= LegacyMods.DoubleTime | LegacyMods.HalfTime | LegacyMods.HardRock | LegacyMods.Easy;
+            LegacyMods relevantMods = LegacyMods.DoubleTime | LegacyMods.HalfTime | LegacyMods.HardRock | LegacyMods.Easy;
 
             if (isConvertedBeatmap)
-                mods &= keyMods;
+                relevantMods |= keyMods;
 
-            return mods;
+            return mods & relevantMods;
         }
 
         private static LegacyMods keyMods => LegacyMods.Key1 | LegacyMods.Key2 | LegacyMods.Key3 | LegacyMods.Key4 | LegacyMods.Key5 | LegacyMods.Key6 | LegacyMods.Key7 | LegacyMods.Key8
