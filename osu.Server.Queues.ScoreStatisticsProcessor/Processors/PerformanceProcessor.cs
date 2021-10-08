@@ -126,25 +126,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             req.Finished += () =>
             {
-                if (req.ResponseStream == null)
+                if (!(req.GetResponseString() is string responseJson))
                     return;
 
                 switch (score.ruleset_id)
                 {
                     case 0:
-                        attributes = JsonConvert.DeserializeObject<OsuDifficultyAttributes>(req.GetResponseString()!);
+                        attributes = JsonConvert.DeserializeObject<OsuDifficultyAttributes>(responseJson);
                         break;
 
                     case 1:
-                        attributes = JsonConvert.DeserializeObject<TaikoDifficultyAttributes>(req.GetResponseString()!);
+                        attributes = JsonConvert.DeserializeObject<TaikoDifficultyAttributes>(responseJson);
                         break;
 
                     case 2:
-                        attributes = JsonConvert.DeserializeObject<CatchDifficultyAttributes>(req.GetResponseString()!);
+                        attributes = JsonConvert.DeserializeObject<CatchDifficultyAttributes>(responseJson);
                         break;
 
                     case 3:
-                        attributes = JsonConvert.DeserializeObject<ManiaDifficultyAttributes>(req.GetResponseString()!);
+                        attributes = JsonConvert.DeserializeObject<ManiaDifficultyAttributes>(responseJson);
                         break;
                 }
             };
