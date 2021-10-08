@@ -10,11 +10,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <summary>
         /// The endpoint to query beatmap difficulties from.
         /// </summary>
-        public static readonly string DIFFCALC_ENDPOINT;
+        public static readonly string BEATMAP_DIFFICULTY_LOOKUP_CACHE_ENDPOINT;
 
         static AppSettings()
         {
-            DIFFCALC_ENDPOINT = Environment.GetEnvironmentVariable("DIFFCALC_ENDPOINT") ?? "http://localhost:5001/attributes";
+            BEATMAP_DIFFICULTY_LOOKUP_CACHE_ENDPOINT = Environment.GetEnvironmentVariable("BEATMAP_DIFFICULTY_LOOKUP_CACHE_ENDPOINT") ?? "http://localhost:5001/";
         }
     }
 }

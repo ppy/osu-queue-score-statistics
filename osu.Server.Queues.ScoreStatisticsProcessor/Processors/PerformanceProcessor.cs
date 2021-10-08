@@ -107,7 +107,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private static DifficultyAttributes? queryAttributes(SoloScoreInfo score)
         {
-            var req = new WebRequest(AppSettings.DIFFCALC_ENDPOINT)
+            var req = new WebRequest($"{AppSettings.BEATMAP_DIFFICULTY_LOOKUP_CACHE_ENDPOINT}attributes")
             {
                 Method = HttpMethod.Post,
                 ContentType = "application/json",
