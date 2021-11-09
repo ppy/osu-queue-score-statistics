@@ -52,7 +52,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             var beatmap = conn.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
             {
-                BeatmapId = score.Beatmap.OnlineBeatmapID
+                BeatmapId = score.BeatmapInfo.OnlineID
             }, transaction);
 
             // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
@@ -61,7 +61,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             var rawDifficultyAttribs = conn.Query<BeatmapDifficultyAttribute>(
                 "SELECT * FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId AND mods = @ModValue", new
                 {
-                    BeatmapId = score.Beatmap.OnlineBeatmapID,
+                    BeatmapId = score.BeatmapInfo.OnlineID,
                     RulesetId = score.RulesetID,
                     ModValue = (uint)legacyModValue
                 }, transaction).ToArray();
