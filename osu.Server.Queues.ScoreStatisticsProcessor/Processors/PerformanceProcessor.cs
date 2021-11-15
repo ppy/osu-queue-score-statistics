@@ -10,9 +10,14 @@ using Dapper;
 using MySqlConnector;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Catch.Difficulty;
+using osu.Game.Rulesets.Difficulty;
+using osu.Game.Rulesets.Mania.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
+using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -66,9 +71,40 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     ModValue = (uint)legacyModValue
                 }, transaction).ToArray();
 
-            var difficultyAttributes = rawDifficultyAttribs.ToDictionary(a => (int)a.attrib_id).Map(score.RulesetID, beatmap);
-            var performanceCalculator = ruleset.CreatePerformanceCalculator(difficultyAttributes, score);
-            return performanceCalculator.Calculate();
+            DifficultyAttributes attributes;
+
+            switch (score.RulesetID)
+            {
+                case 0:
+                    // Some attributes aren't databased because they're present in other tables.
+                    attributes = new OsuDifficultyAttributes
+                    {
+                        DrainRate = beatmap.diff_drain,
+                        HitCircleCount = beatmap.countNormal,
+                        SliderCount = beatmap.countSlider,
+                        SpinnerCount = beatmap.countSpinner
+                    };
+                    break;
+
+                case 1:
+                    attributes = new TaikoDifficultyAttributes();
+                    break;
+
+                case 2:
+                    attributes = new CatchDifficultyAttributes();
+                    break;
+
+                case 3:
+                    attributes = new ManiaDifficultyAttributes();
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Invalid ruleset: {score.RulesetID}");
+            }
+
+            attributes.FromDatabaseAttributes(rawDifficultyAttribs.ToDictionary(a => (int)a.attrib_id, e => (double)e.value));
+
+            return ruleset.CreatePerformanceCalculator(attributes, score)?.Calculate() ?? 0;
         }
 
         /// <summary>

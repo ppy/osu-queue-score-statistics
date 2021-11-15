@@ -15,6 +15,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         [ExplicitKey]
         public uint beatmap_id { get; set; }
 
+        public float diff_drain { get; set; }
         public ushort countTotal { get; set; }
         public ushort countNormal { get; set; }
         public ushort countSlider { get; set; }
