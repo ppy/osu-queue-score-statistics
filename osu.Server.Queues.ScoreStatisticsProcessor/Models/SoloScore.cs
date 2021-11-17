@@ -42,6 +42,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         }
 
         [JsonIgnore]
+        public bool preserve { get; set; }
+
+        [JsonIgnore]
         public SoloScoreInfo ScoreInfo = new SoloScoreInfo();
 
         [JsonIgnore]

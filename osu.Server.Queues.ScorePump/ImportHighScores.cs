@@ -67,6 +67,7 @@ namespace osu.Server.Queues.ScorePump
                         user_id = highScore.user_id,
                         beatmap_id = highScore.beatmap_id,
                         ruleset_id = RulesetId,
+                        preserve = true,
                         ScoreInfo = new SoloScoreInfo
                         {
                             id = highScore.score_id,
