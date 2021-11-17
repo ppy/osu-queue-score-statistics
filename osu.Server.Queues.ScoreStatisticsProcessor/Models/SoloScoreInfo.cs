@@ -61,7 +61,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         {
             OnlineScoreID = id,
             UserID = user_id,
-            BeatmapInfo = new BeatmapInfo { OnlineBeatmapID = beatmap_id },
+            BeatmapInfo = new BeatmapInfo { OnlineID = beatmap_id },
             RulesetID = ruleset_id,
             Passed = passed,
             TotalScore = total_score,

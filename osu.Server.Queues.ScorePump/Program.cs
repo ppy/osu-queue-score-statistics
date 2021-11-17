@@ -7,6 +7,7 @@ namespace osu.Server.Queues.ScorePump
     [Subcommand(typeof(PumpAllScores))]
     [Subcommand(typeof(WatchNewScores))]
     [Subcommand(typeof(ClearQueue))]
+    [Subcommand(typeof(ImportHighScores))]
     public class Program
     {
         public static void Main(string[] args)
