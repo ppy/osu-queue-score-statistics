@@ -59,7 +59,7 @@ namespace osu.Server.Queues.ScorePump
                     scoreInfo.SetCountMiss(highScore.countmiss);
                     scoreInfo.SetCountGeki(highScore.countgeki);
                     scoreInfo.SetCountKatu(highScore.countkatu);
-                    LegacyScoreDecoder.CalculateAccuracy(scoreInfo);
+                    LegacyScoreDecoder.PopulateAccuracy(scoreInfo);
 
                     // Convert to new score format
                     var soloScore = new SoloScore
