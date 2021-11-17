@@ -37,7 +37,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 string tableSuffix = legacySuffix ? $"_{rulesetIdentifier}" : string.Empty;
 
                 ScoreTable = $"`osu`.`osu_scores{tableSuffix}`";
-                HighScoreTable = $"`osu`.`{ScoreTable}_high`";
+                HighScoreTable = $"`osu`.`osu_scores{tableSuffix}_high`";
                 LeadersTable = $"`osu`.`osu_leaders{tableSuffix}`";
                 UserStatsTable = $"`osu`.`osu_user_stats{tableSuffix}`";
                 ReplayTable = $"`osu`.`osu_replays{tableSuffix}`";
