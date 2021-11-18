@@ -9,13 +9,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Dapper" Version="2.0.90" />
+        <PackageReference Include="Dapper" Version="2.0.123" />
         <PackageReference Include="Dapper.Contrib" Version="2.0.78" />
-        <PackageReference Include="ppy.osu.Game" Version="2021.907.0" />
-        <PackageReference Include="ppy.osu.Game.Rulesets.Catch" Version="2021.907.0" />
-        <PackageReference Include="ppy.osu.Game.Rulesets.Mania" Version="2021.907.0" />
-        <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="2021.907.0" />
-        <PackageReference Include="ppy.osu.Game.Rulesets.Taiko" Version="2021.907.0" />
+        <PackageReference Include="ppy.osu.Game" Version="2021.1113.0" />
+        <PackageReference Include="ppy.osu.Game.Rulesets.Catch" Version="2021.1113.0" />
+        <PackageReference Include="ppy.osu.Game.Rulesets.Mania" Version="2021.1113.0" />
+        <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="2021.1113.0" />
+        <PackageReference Include="ppy.osu.Game.Rulesets.Taiko" Version="2021.1113.0" />
         <PackageReference Include="ppy.osu.Server.OsuQueueProcessor" Version="2021.615.0" />
     </ItemGroup>
 
