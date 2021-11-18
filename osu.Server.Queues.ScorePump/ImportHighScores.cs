@@ -122,7 +122,7 @@ namespace osu.Server.Queues.ScorePump
             public float pp { get; set; }
             public bool replay { get; set; }
             public bool hidden { get; set; }
-            public string country_acronym { get; set; }
+            public string country_acronym { get; set; } = null!;
         }
     }
 }
