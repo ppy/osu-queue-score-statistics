@@ -26,7 +26,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public int ruleset_id { get; set; }
 
-        public int build_id { get; set; }
+        public int? build_id { get; set; }
 
         public bool passed { get; set; }
 
