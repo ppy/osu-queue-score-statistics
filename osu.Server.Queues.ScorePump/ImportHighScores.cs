@@ -91,9 +91,19 @@ namespace osu.Server.Queues.ScorePump
                     };
 
                     // Todo: Import highScore.hidden somehow?
-                    // Todo: Should we import pp into solo_scores_performance?
 
-                    db.Insert(soloScore);
+                    using (var transaction = db.BeginTransaction())
+                    {
+                        soloScore.id = db.Insert(soloScore, transaction);
+
+                        db.Execute("INSERT INTO solo_scores_performance (score_id, pp) VALUES (@ScoreId, @Pp)", new
+                        {
+                            ScoreId = soloScore.id,
+                            Pp = highScore.pp
+                        }, transaction);
+
+                        transaction.Commit();
+                    }
                 }
             }
 
