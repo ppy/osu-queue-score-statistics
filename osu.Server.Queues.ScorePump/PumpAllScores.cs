@@ -9,7 +9,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScorePump
 {
-    [Command("all", Description = "Pumps all completed scores")]
+    [Command("all", Description = "Pumps scores through the queue for reprocessing")]
     public class PumpAllScores : ScorePump
     {
         [Option("--start_id")]
@@ -29,7 +29,7 @@ namespace osu.Server.Queues.ScorePump
                     query += $" AND {CustomQuery}";
 
                 Console.WriteLine($"Querying with \"{query}\"");
-                var scores = dbMainQuery.Query<SoloScore>(query, this, buffered: false);
+                var scores = dbMainQuery.Query<SoloScore>(query, new { startId = StartId }, buffered: false);
 
                 foreach (var score in scores)
                 {

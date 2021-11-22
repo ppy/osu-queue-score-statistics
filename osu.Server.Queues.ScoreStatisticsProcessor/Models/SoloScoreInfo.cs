@@ -12,6 +12,8 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 
+#nullable enable
+
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
@@ -26,7 +28,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public int ruleset_id { get; set; }
 
-        public int build_id { get; set; }
+        public int? build_id { get; set; }
 
         public bool passed { get; set; }
 
