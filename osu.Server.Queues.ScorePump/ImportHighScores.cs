@@ -33,12 +33,12 @@ namespace osu.Server.Queues.ScorePump
             using (var db = Queue.GetDatabaseConnection())
             {
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
-                string tableName = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
-                string query = $"SELECT * FROM {tableName} WHERE score_id >= @StartId";
+                string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
+                string query = $"SELECT * FROM {highScoreTable} WHERE score_id >= @startId";
 
                 Console.WriteLine($"Querying with \"{query}\"");
 
-                var highScores = dbMainQuery.Query<HighScore>(query, this, buffered: false);
+                var highScores = dbMainQuery.Query<HighScore>(query, new { startId = StartId }, buffered: false);
 
                 foreach (var highScore in highScores)
                 {
@@ -96,10 +96,10 @@ namespace osu.Server.Queues.ScorePump
                     {
                         soloScore.id = db.Insert(soloScore, transaction);
 
-                        db.Execute("INSERT INTO solo_scores_performance (score_id, pp) VALUES (@ScoreId, @Pp)", new
+                        db.Execute("INSERT INTO solo_scores_performance (score_id, pp) VALUES (@scoreId, @pp)", new
                         {
-                            ScoreId = soloScore.id,
-                            Pp = highScore.pp
+                            scoreId = soloScore.id,
+                            highScore.pp
                         }, transaction);
 
                         transaction.Commit();
