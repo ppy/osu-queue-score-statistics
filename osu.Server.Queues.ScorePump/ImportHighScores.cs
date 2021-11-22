@@ -70,6 +70,7 @@ namespace osu.Server.Queues.ScorePump
                         preserve = true,
                         ScoreInfo = new SoloScoreInfo
                         {
+                            // TODO: this is going to conflict between rulesets and also against existing lazer scores. needs some thought before running against production.
                             id = highScore.score_id,
                             user_id = highScore.user_id,
                             beatmap_id = highScore.beatmap_id,
