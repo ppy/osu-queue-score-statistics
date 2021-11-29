@@ -98,7 +98,7 @@ namespace osu.Server.Queues.ScorePump
                         soloScore.id = db.Insert(soloScore, transaction);
 
                         // Update data to match the row ID.
-                        db.Execute("UPDATE solo_scores s SET s.data = JSON_SET(s.data, '$.id', s.id) WHERE s.id = @id", soloScore, transaction);
+                        db.Execute("UPDATE solo_scores s SET s.data = JSON_SET(s.data, '$.id', @id) WHERE s.id = @id", soloScore, transaction);
 
                         db.Execute("INSERT INTO solo_scores_performance (score_id, pp) VALUES (@scoreId, @pp)", new
                         {
