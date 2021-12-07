@@ -34,7 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             double performance = computePerformance(ruleset, mods, scoreInfo, conn, transaction);
 
-            conn.Execute("INSERT INTO solo_scores_performance (`score_id`, `pp`) VALUES (@ScoreId, @PP) ON DUPLICATE KEY UPDATE `pp` = @PP", new
+            conn.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @PP) ON DUPLICATE KEY UPDATE `pp` = @PP", new
             {
                 ScoreId = score.id,
                 PP = performance

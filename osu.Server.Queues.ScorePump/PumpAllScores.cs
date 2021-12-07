@@ -23,7 +23,7 @@ namespace osu.Server.Queues.ScorePump
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             using (var db = Queue.GetDatabaseConnection())
             {
-                string query = "SELECT * FROM solo_scores WHERE id >= @StartId";
+                string query = $"SELECT * FROM {SoloScore.TABLE_NAME} WHERE id >= @StartId";
 
                 if (!string.IsNullOrEmpty(CustomQuery))
                     query += $" AND {CustomQuery}";

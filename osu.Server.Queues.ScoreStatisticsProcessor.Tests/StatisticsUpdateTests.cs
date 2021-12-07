@@ -32,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_stats_mania");
                 db.Execute("TRUNCATE TABLE osu_user_beatmap_playcount");
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
-                db.Execute("TRUNCATE TABLE solo_scores");
+                db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
                 db.Execute("TRUNCATE TABLE solo_scores_process_history");
             }
 

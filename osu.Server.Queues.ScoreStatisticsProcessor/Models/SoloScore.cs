@@ -10,9 +10,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table("solo_scores")]
+    [Table(TABLE_NAME)]
     public class SoloScore
     {
+        public const string TABLE_NAME = "solo_scores";
+
         [ExplicitKey]
         public long id { get; set; }
 
