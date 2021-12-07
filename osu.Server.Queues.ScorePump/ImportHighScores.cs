@@ -18,7 +18,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScorePump
 {
-    [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into solo_scores.")]
+    [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo scores table.")]
     public class ImportHighScores : ScorePump
     {
         [Option(CommandOptionType.SingleValue)]
@@ -97,9 +97,9 @@ namespace osu.Server.Queues.ScorePump
                         soloScore.id = db.Insert(soloScore, transaction);
 
                         // Update data to match the row ID.
-                        db.Execute("UPDATE solo_scores s SET s.data = JSON_SET(s.data, '$.id', @id) WHERE s.id = @id", soloScore, transaction);
+                        db.Execute($"UPDATE {SoloScore.TABLE_NAME} s SET s.data = JSON_SET(s.data, '$.id', @id) WHERE s.id = @id", soloScore, transaction);
 
-                        db.Execute("INSERT INTO solo_scores_performance (score_id, pp) VALUES (@scoreId, @pp)", new
+                        db.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@scoreId, @pp)", new
                         {
                             scoreId = soloScore.id,
                             highScore.pp
