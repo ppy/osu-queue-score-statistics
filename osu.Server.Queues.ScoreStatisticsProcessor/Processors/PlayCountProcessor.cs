@@ -52,7 +52,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             conn.Execute("INSERT INTO osu_user_month_playcount (`year_month`, user_id, playcount) VALUES (@yearmonth, @user_id, @add) ON DUPLICATE KEY UPDATE playcount = GREATEST(0, playcount + @adjust)", new
             {
-                yearmonth = score.started_at.ToString("yyMM"),
+                yearmonth = score.started_at!.Value.ToString("yyMM"),
                 score.user_id,
                 add = revert ? 0 : 1,
                 adjust = revert ? -1 : 1,

@@ -42,7 +42,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         [JsonConverter(typeof(StringEnumConverter))]
         public ScoreRank rank { get; set; }
 
-        public DateTimeOffset started_at { get; set; }
+        public DateTimeOffset? started_at { get; set; }
 
         public DateTimeOffset? ended_at { get; set; }
 
