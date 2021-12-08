@@ -35,6 +35,8 @@ namespace osu.Server.Queues.ScorePump
 
         private const int scores_per_query = 10000;
 
+        private const int seconds_between_transactions = 2;
+
         public int OnExecute(CancellationToken cancellationToken)
         {
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
@@ -97,7 +99,6 @@ namespace osu.Server.Queues.ScorePump
                             statistics = statistics,
                         });
 
-
                         insertCommand.Transaction = transaction;
 
                         ulong insertId = (ulong)insertCommand.ExecuteScalar()!;
@@ -106,13 +107,13 @@ namespace osu.Server.Queues.ScorePump
 
                         long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
 
-                        if (lastCommitTimestamp != currentTimestamp)
+                        if (currentTimestamp - lastCommitTimestamp >= seconds_between_transactions)
                         {
                             transaction.Commit();
 
                             int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
 
-                            Console.WriteLine($"Written up to old:{highScore.score_id} new:{insertId} ({inserted}/s)");
+                            Console.WriteLine($"Written up to old:{highScore.score_id} new:{insertId} (+{inserted} {inserted / seconds_between_transactions}/s)");
 
                             transaction = db.BeginTransaction();
                             lastCommitTimestamp = currentTimestamp;
