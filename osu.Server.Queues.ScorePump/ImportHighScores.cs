@@ -78,7 +78,7 @@ namespace osu.Server.Queues.ScorePump
                             total_score = highScore.score,
                             accuracy = scoreInfo.Accuracy,
                             max_combo = highScore.maxcombo,
-                            rank = highScore.rank,
+                            rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
                             mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToList(),
                             statistics = scoreInfo.Statistics,
                             started_at = highScore.date,
@@ -122,7 +122,7 @@ namespace osu.Server.Queues.ScorePump
             public int user_id { get; set; }
             public int score { get; set; }
             public short maxcombo { get; set; }
-            public ScoreRank rank { get; set; }
+            public string rank { get; set; } = null!; // Actually a ScoreRank, but reading as a string for manual parsing.
             public short count50 { get; set; }
             public short count100 { get; set; }
             public short count300 { get; set; }
