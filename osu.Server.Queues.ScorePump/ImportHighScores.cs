@@ -71,8 +71,6 @@ namespace osu.Server.Queues.ScorePump
                             rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
                             mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToList(),
                             statistics = statistics,
-                            started_at = highScore.date,
-                            ended_at = highScore.date,
                         },
                         created_at = highScore.date,
                         updated_at = highScore.date,
