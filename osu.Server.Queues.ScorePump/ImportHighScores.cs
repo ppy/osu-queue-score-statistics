@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
@@ -11,6 +12,7 @@ using McMaster.Extensions.CommandLineUtils;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Online.API;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Server.Queues.ScoreStatisticsProcessor;
@@ -47,19 +49,7 @@ namespace osu.Server.Queues.ScorePump
 
                     Console.WriteLine($"Reading score {highScore.score_id}");
 
-                    // Only used to calculate accuracy and statistics.
-                    var scoreInfo = new ScoreInfo
-                    {
-                        Ruleset = ruleset.RulesetInfo,
-                        RulesetID = RulesetId,
-                    };
-                    scoreInfo.SetCount50(highScore.count50);
-                    scoreInfo.SetCount100(highScore.count100);
-                    scoreInfo.SetCount300(highScore.count300);
-                    scoreInfo.SetCountMiss(highScore.countmiss);
-                    scoreInfo.SetCountGeki(highScore.countgeki);
-                    scoreInfo.SetCountKatu(highScore.countkatu);
-                    LegacyScoreDecoder.PopulateAccuracy(scoreInfo);
+                    var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
 
                     // Convert to new score format
                     var soloScore = new SoloScore
@@ -76,11 +66,11 @@ namespace osu.Server.Queues.ScorePump
                             ruleset_id = RulesetId,
                             passed = true,
                             total_score = highScore.score,
-                            accuracy = scoreInfo.Accuracy,
+                            accuracy = accuracy,
                             max_combo = highScore.maxcombo,
                             rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
                             mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToList(),
-                            statistics = scoreInfo.Statistics,
+                            statistics = statistics,
                             started_at = highScore.date,
                             ended_at = highScore.date,
                             created_at = highScore.date,
@@ -108,6 +98,26 @@ namespace osu.Server.Queues.ScorePump
             }
 
             return 0;
+        }
+
+        private (double accuracy, Dictionary<HitResult, int> statistics) getAccuracyAndStatistics(Ruleset ruleset, HighScore highScore)
+        {
+            var scoreInfo = new ScoreInfo
+            {
+                Ruleset = ruleset.RulesetInfo,
+                RulesetID = RulesetId,
+            };
+
+            scoreInfo.SetCount50(highScore.count50);
+            scoreInfo.SetCount100(highScore.count100);
+            scoreInfo.SetCount300(highScore.count300);
+            scoreInfo.SetCountMiss(highScore.countmiss);
+            scoreInfo.SetCountGeki(highScore.countgeki);
+            scoreInfo.SetCountKatu(highScore.countkatu);
+
+            LegacyScoreDecoder.PopulateAccuracy(scoreInfo);
+
+            return (scoreInfo.Accuracy, scoreInfo.Statistics);
         }
 
         [SuppressMessage("ReSharper", "InconsistentNaming")]
