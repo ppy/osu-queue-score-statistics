@@ -73,8 +73,6 @@ namespace osu.Server.Queues.ScorePump
                             statistics = statistics,
                             started_at = highScore.date,
                             ended_at = highScore.date,
-                            created_at = highScore.date,
-                            updated_at = highScore.date
                         },
                         created_at = highScore.date,
                         updated_at = highScore.date,
