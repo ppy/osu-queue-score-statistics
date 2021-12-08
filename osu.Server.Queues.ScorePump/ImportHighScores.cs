@@ -100,8 +100,7 @@ namespace osu.Server.Queues.ScorePump
                         });
 
                         insertCommand.Transaction = transaction;
-
-                        ulong insertId = (ulong)insertCommand.ExecuteScalar()!;
+                        insertCommand.ExecuteNonQuery();
 
                         Interlocked.Increment(ref currentTransactionInsertCount);
 
@@ -113,7 +112,7 @@ namespace osu.Server.Queues.ScorePump
 
                             int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
 
-                            Console.WriteLine($"Written up to old:{highScore.score_id} new:{insertId} (+{inserted} {inserted / seconds_between_transactions}/s)");
+                            Console.WriteLine($"Written up to {highScore.score_id} (+{inserted} rows {inserted / seconds_between_transactions}/s)");
 
                             transaction = db.BeginTransaction();
                             lastCommitTimestamp = currentTimestamp;
