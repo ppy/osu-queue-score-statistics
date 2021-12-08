@@ -7,9 +7,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using Dapper;
-using Dapper.Contrib.Extensions;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
+using Newtonsoft.Json;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Online.API;
 using osu.Game.Rulesets;
@@ -45,14 +45,22 @@ namespace osu.Server.Queues.ScorePump
             {
                 var transaction = db.BeginTransaction();
 
-                var insertPPCommand = db.CreateCommand();
+                var insertCommand = db.CreateCommand();
 
-                insertPPCommand.CommandText = $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@insertId, @pp)";
+                insertCommand.CommandText =
+                    // main score insert
+                    $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) "
+                    + $"VALUES (@userId, @beatmapId, {RulesetId}, @data, 0, @date, @date);"
+                    // pp insert
+                    + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@@LAST_INSERT_ID, @pp);";
 
-                var insertPPScoreID = insertPPCommand.Parameters.Add("insertId", MySqlDbType.Int64);
-                var insertPPvalue = insertPPCommand.Parameters.Add("pp", MySqlDbType.Float);
+                var insertUserId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
+                var insertBeatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
+                var insertData = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
+                var insertDate = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
+                var insertPPvalue = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
 
-                insertPPCommand.Prepare();
+                insertCommand.Prepare();
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
@@ -70,38 +78,30 @@ namespace osu.Server.Queues.ScorePump
 
                         var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
 
-                        // Convert to new score format
-                        var soloScore = new SoloScore
+                        string data = JsonConvert.SerializeObject(new SoloScoreInfo
                         {
+                            // id will be written below in the UPDATE call.
                             user_id = highScore.user_id,
                             beatmap_id = highScore.beatmap_id,
                             ruleset_id = RulesetId,
-                            preserve = true,
-                            ScoreInfo = new SoloScoreInfo
-                            {
-                                // id will be written below in the UPDATE call.
-                                user_id = highScore.user_id,
-                                beatmap_id = highScore.beatmap_id,
-                                ruleset_id = RulesetId,
-                                passed = true,
-                                total_score = highScore.score,
-                                accuracy = accuracy,
-                                max_combo = highScore.maxcombo,
-                                rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
-                                mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToList(),
-                                statistics = statistics,
-                            },
-                            created_at = highScore.date,
-                            updated_at = highScore.date,
-                        };
+                            passed = true,
+                            total_score = highScore.score,
+                            accuracy = accuracy,
+                            max_combo = highScore.maxcombo,
+                            rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
+                            mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToList(),
+                            statistics = statistics,
+                        });
 
-                        long insertId = db.Insert(soloScore, transaction);
-
-                        insertPPScoreID.Value = insertId;
                         insertPPvalue.Value = highScore.pp;
-                        insertPPCommand.Transaction = transaction;
+                        insertUserId.Value = highScore.user_id;
+                        insertBeatmapId.Value = highScore.beatmap_id;
+                        insertData.Value = data;
+                        insertDate.Value = highScore.date;
 
-                        insertPPCommand.ExecuteNonQuery();
+                        insertCommand.Transaction = transaction;
+
+                        ulong insertId = (ulong)insertCommand.ExecuteScalar()!;
 
                         Interlocked.Increment(ref currentTransactionInsertCount);
 
