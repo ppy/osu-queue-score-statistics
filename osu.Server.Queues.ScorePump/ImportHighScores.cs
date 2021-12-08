@@ -32,75 +32,85 @@ namespace osu.Server.Queues.ScorePump
         [Option(CommandOptionType.SingleValue)]
         public long StartId { get; set; }
 
+        private const int scores_per_query = 10000;
+
         public int OnExecute(CancellationToken cancellationToken)
         {
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
+            string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
+
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             using (var db = Queue.GetDatabaseConnection())
             {
                 var transaction = db.BeginTransaction();
 
-                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
-                string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
-                string query = $"SELECT * FROM {highScoreTable} WHERE score_id >= @startId";
-
-                Console.WriteLine($"Querying with \"{query}\"");
-
-                var highScores = dbMainQuery.Query<HighScore>(query, new { startId = StartId }, buffered: false);
-
-                foreach (var highScore in highScores)
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    if (cancellationToken.IsCancellationRequested)
+                    Console.WriteLine($"Retrieving next {scores_per_query} scores starting from {StartId + 1}");
+
+                    var highScores = dbMainQuery.Query<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id > @startId LIMIT {scores_per_query}", new { startId = StartId });
+
+                    if (!highScores.Any())
                         break;
 
-                    var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
-
-                    // Convert to new score format
-                    var soloScore = new SoloScore
+                    foreach (var highScore in highScores)
                     {
-                        user_id = highScore.user_id,
-                        beatmap_id = highScore.beatmap_id,
-                        ruleset_id = RulesetId,
-                        preserve = true,
-                        ScoreInfo = new SoloScoreInfo
+                        if (cancellationToken.IsCancellationRequested)
+                            break;
+
+                        var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
+
+                        // Convert to new score format
+                        var soloScore = new SoloScore
                         {
-                            // id will be written below in the UPDATE call.
                             user_id = highScore.user_id,
                             beatmap_id = highScore.beatmap_id,
                             ruleset_id = RulesetId,
-                            passed = true,
-                            total_score = highScore.score,
-                            accuracy = accuracy,
-                            max_combo = highScore.maxcombo,
-                            rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
-                            mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToList(),
-                            statistics = statistics,
-                        },
-                        created_at = highScore.date,
-                        updated_at = highScore.date,
-                    };
+                            preserve = true,
+                            ScoreInfo = new SoloScoreInfo
+                            {
+                                // id will be written below in the UPDATE call.
+                                user_id = highScore.user_id,
+                                beatmap_id = highScore.beatmap_id,
+                                ruleset_id = RulesetId,
+                                passed = true,
+                                total_score = highScore.score,
+                                accuracy = accuracy,
+                                max_combo = highScore.maxcombo,
+                                rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
+                                mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToList(),
+                                statistics = statistics,
+                            },
+                            created_at = highScore.date,
+                            updated_at = highScore.date,
+                        };
 
-                    long insertId = db.Insert(soloScore, transaction);
+                        long insertId = db.Insert(soloScore, transaction);
 
-                    db.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@insertId, @pp)", new
-                    {
-                        insertId,
-                        highScore.pp
-                    }, transaction);
+                        db.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@insertId, @pp)", new
+                        {
+                            insertId,
+                            highScore.pp
+                        }, transaction);
 
-                    Interlocked.Increment(ref currentTransactionInsertCount);
+                        Interlocked.Increment(ref currentTransactionInsertCount);
 
-                    long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
 
-                    if (lastCommitTimestamp != currentTimestamp)
-                    {
-                        transaction.Commit();
+                        if (lastCommitTimestamp != currentTimestamp)
+                        {
+                            transaction.Commit();
 
-                        int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
+                            int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
 
-                        Console.WriteLine($"Written up to old:{highScore.score_id} new:{insertId} ({inserted}/s)");
+                            Console.WriteLine($"Written up to old:{highScore.score_id} new:{insertId} ({inserted}/s)");
 
-                        transaction = db.BeginTransaction();
-                        lastCommitTimestamp = currentTimestamp;
+                            transaction = db.BeginTransaction();
+                            lastCommitTimestamp = currentTimestamp;
+                        }
+
+                        // update StartId to allow the next bulk query to start from the correct location.
+                        StartId = highScore.score_id;
                     }
                 }
 
