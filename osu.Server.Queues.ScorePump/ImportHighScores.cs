@@ -23,6 +23,9 @@ namespace osu.Server.Queues.ScorePump
     [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo scores table.")]
     public class ImportHighScores : ScorePump
     {
+        private long lastCommitTimestamp;
+        private int currentTransactionInsertCount;
+
         [Option(CommandOptionType.SingleValue)]
         public int RulesetId { get; set; }
 
@@ -34,6 +37,8 @@ namespace osu.Server.Queues.ScorePump
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             using (var db = Queue.GetDatabaseConnection())
             {
+                var transaction = db.BeginTransaction();
+
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
                 string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
                 string query = $"SELECT * FROM {highScoreTable} WHERE score_id >= @startId";
@@ -46,8 +51,6 @@ namespace osu.Server.Queues.ScorePump
                 {
                     if (cancellationToken.IsCancellationRequested)
                         break;
-
-                    Console.WriteLine($"Reading score {highScore.score_id}");
 
                     var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
 
@@ -76,19 +79,32 @@ namespace osu.Server.Queues.ScorePump
                         updated_at = highScore.date,
                     };
 
-                    using (var transaction = db.BeginTransaction())
+                    long insertId = db.Insert(soloScore, transaction);
+
+                    db.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@insertId, @pp)", new
                     {
-                        long insertId = db.Insert(soloScore, transaction);
+                        insertId,
+                        highScore.pp
+                    }, transaction);
 
-                        db.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@insertId, @pp)", new
-                        {
-                            insertId,
-                            highScore.pp
-                        }, transaction);
+                    Interlocked.Increment(ref currentTransactionInsertCount);
 
+                    long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+
+                    if (lastCommitTimestamp != currentTimestamp)
+                    {
                         transaction.Commit();
+
+                        int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
+
+                        Console.WriteLine($"Written up to old:{highScore.score_id} new:{insertId} ({inserted}/s)");
+
+                        transaction = db.BeginTransaction();
+                        lastCommitTimestamp = currentTimestamp;
                     }
                 }
+
+                transaction.Commit();
             }
 
             return 0;
