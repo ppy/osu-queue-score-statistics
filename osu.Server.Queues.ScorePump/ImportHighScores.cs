@@ -52,7 +52,7 @@ namespace osu.Server.Queues.ScorePump
                 insertCommand.CommandText =
                     // main score insert
                     $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) "
-                    + $"VALUES (@userId, @beatmapId, {RulesetId}, @data, 0, @date, @date);"
+                    + $"VALUES (@userId, @beatmapId, {RulesetId}, @data, 1, @date, @date);"
                     // pp insert
                     + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@@LAST_INSERT_ID, @pp);";
 
