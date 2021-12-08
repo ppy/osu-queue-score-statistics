@@ -80,8 +80,6 @@ namespace osu.Server.Queues.ScorePump
                         updated_at = highScore.date,
                     };
 
-                    // Todo: Import highScore.hidden somehow?
-
                     using (var transaction = db.BeginTransaction())
                     {
                         long insertId = db.Insert(soloScore, transaction);
