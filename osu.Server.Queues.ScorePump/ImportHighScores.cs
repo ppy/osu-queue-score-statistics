@@ -7,8 +7,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using Dapper;
-using Dapper.Contrib.Extensions;
 using McMaster.Extensions.CommandLineUtils;
+using MySqlConnector;
+using Newtonsoft.Json;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Online.API;
 using osu.Game.Rulesets;
@@ -23,42 +24,67 @@ namespace osu.Server.Queues.ScorePump
     [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo scores table.")]
     public class ImportHighScores : ScorePump
     {
+        private long lastCommitTimestamp;
+        private int currentTransactionInsertCount;
+
         [Option(CommandOptionType.SingleValue)]
         public int RulesetId { get; set; }
 
         [Option(CommandOptionType.SingleValue)]
         public long StartId { get; set; }
 
+        private const int scores_per_query = 10000;
+
+        private const int seconds_between_transactions = 2;
+
         public int OnExecute(CancellationToken cancellationToken)
         {
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
+            string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
+
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             using (var db = Queue.GetDatabaseConnection())
             {
-                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
-                string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
-                string query = $"SELECT * FROM {highScoreTable} WHERE score_id >= @startId";
+                var transaction = db.BeginTransaction();
 
-                Console.WriteLine($"Querying with \"{query}\"");
+                var insertCommand = db.CreateCommand();
 
-                var highScores = dbMainQuery.Query<HighScore>(query, new { startId = StartId }, buffered: false);
+                insertCommand.CommandText =
+                    // main score insert
+                    $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) "
+                    + $"VALUES (@userId, @beatmapId, {RulesetId}, @data, 0, @date, @date);"
+                    // pp insert
+                    + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@@LAST_INSERT_ID, @pp);";
 
-                foreach (var highScore in highScores)
+                var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
+                var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
+                var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
+                var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
+                var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
+
+                insertCommand.Prepare();
+
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    if (cancellationToken.IsCancellationRequested)
+                    Console.WriteLine($"Retrieving next {scores_per_query} scores starting from {StartId + 1}");
+
+                    var highScores = dbMainQuery.Query<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id > @startId LIMIT {scores_per_query}", new { startId = StartId });
+
+                    if (!highScores.Any())
                         break;
 
-                    Console.WriteLine($"Reading score {highScore.score_id}");
-
-                    var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
-
-                    // Convert to new score format
-                    var soloScore = new SoloScore
+                    foreach (var highScore in highScores)
                     {
-                        user_id = highScore.user_id,
-                        beatmap_id = highScore.beatmap_id,
-                        ruleset_id = RulesetId,
-                        preserve = true,
-                        ScoreInfo = new SoloScoreInfo
+                        if (cancellationToken.IsCancellationRequested)
+                            break;
+
+                        var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
+
+                        pp.Value = highScore.pp;
+                        userId.Value = highScore.user_id;
+                        beatmapId.Value = highScore.beatmap_id;
+                        date.Value = highScore.date;
+                        data.Value = JsonConvert.SerializeObject(new SoloScoreInfo
                         {
                             // id will be written below in the UPDATE call.
                             user_id = highScore.user_id,
@@ -71,24 +97,33 @@ namespace osu.Server.Queues.ScorePump
                             rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
                             mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToList(),
                             statistics = statistics,
-                        },
-                        created_at = highScore.date,
-                        updated_at = highScore.date,
-                    };
+                        });
 
-                    using (var transaction = db.BeginTransaction())
-                    {
-                        long insertId = db.Insert(soloScore, transaction);
+                        insertCommand.Transaction = transaction;
+                        insertCommand.ExecuteNonQuery();
 
-                        db.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@insertId, @pp)", new
+                        Interlocked.Increment(ref currentTransactionInsertCount);
+
+                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+
+                        if (currentTimestamp - lastCommitTimestamp >= seconds_between_transactions)
                         {
-                            insertId,
-                            highScore.pp
-                        }, transaction);
+                            transaction.Commit();
 
-                        transaction.Commit();
+                            int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
+
+                            Console.WriteLine($"Written up to {highScore.score_id} (+{inserted} rows {inserted / seconds_between_transactions}/s)");
+
+                            transaction = db.BeginTransaction();
+                            lastCommitTimestamp = currentTimestamp;
+                        }
+
+                        // update StartId to allow the next bulk query to start from the correct location.
+                        StartId = highScore.score_id;
                     }
                 }
+
+                transaction.Commit();
             }
 
             return 0;
