@@ -9,6 +9,7 @@ using System.Threading;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using McMaster.Extensions.CommandLineUtils;
+using MySqlConnector;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Online.API;
 using osu.Game.Rulesets;
@@ -43,6 +44,15 @@ namespace osu.Server.Queues.ScorePump
             using (var db = Queue.GetDatabaseConnection())
             {
                 var transaction = db.BeginTransaction();
+
+                var insertPPCommand = db.CreateCommand();
+
+                insertPPCommand.CommandText = $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@insertId, @pp)";
+
+                var insertPPScoreID = insertPPCommand.Parameters.Add("insertId", MySqlDbType.Int64);
+                var insertPPvalue = insertPPCommand.Parameters.Add("pp", MySqlDbType.Float);
+
+                insertPPCommand.Prepare();
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
@@ -87,11 +97,11 @@ namespace osu.Server.Queues.ScorePump
 
                         long insertId = db.Insert(soloScore, transaction);
 
-                        db.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@insertId, @pp)", new
-                        {
-                            insertId,
-                            highScore.pp
-                        }, transaction);
+                        insertPPScoreID.Value = insertId;
+                        insertPPvalue.Value = highScore.pp;
+                        insertPPCommand.Transaction = transaction;
+
+                        insertPPCommand.ExecuteNonQuery();
 
                         Interlocked.Increment(ref currentTransactionInsertCount);
 
