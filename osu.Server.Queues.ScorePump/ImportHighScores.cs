@@ -94,14 +94,11 @@ namespace osu.Server.Queues.ScorePump
 
                     using (var transaction = db.BeginTransaction())
                     {
-                        soloScore.id = db.Insert(soloScore, transaction);
+                        long insertId = db.Insert(soloScore, transaction);
 
-                        // Update data to match the row ID.
-                        db.Execute($"UPDATE {SoloScore.TABLE_NAME} s SET s.data = JSON_SET(s.data, '$.id', @id) WHERE s.id = @id", soloScore, transaction);
-
-                        db.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@scoreId, @pp)", new
+                        db.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@insertId, @pp)", new
                         {
-                            scoreId = soloScore.id,
+                            insertId,
                             highScore.pp
                         }, transaction);
 
