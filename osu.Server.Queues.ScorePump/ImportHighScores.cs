@@ -54,11 +54,11 @@ namespace osu.Server.Queues.ScorePump
                     // pp insert
                     + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@@LAST_INSERT_ID, @pp);";
 
-                var insertUserId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
-                var insertBeatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
-                var insertData = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
-                var insertDate = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
-                var insertPPvalue = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
+                var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
+                var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
+                var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
+                var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
+                var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
 
                 insertCommand.Prepare();
 
@@ -78,7 +78,11 @@ namespace osu.Server.Queues.ScorePump
 
                         var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
 
-                        string data = JsonConvert.SerializeObject(new SoloScoreInfo
+                        pp.Value = highScore.pp;
+                        userId.Value = highScore.user_id;
+                        beatmapId.Value = highScore.beatmap_id;
+                        date.Value = highScore.date;
+                        data.Value = JsonConvert.SerializeObject(new SoloScoreInfo
                         {
                             // id will be written below in the UPDATE call.
                             user_id = highScore.user_id,
@@ -93,11 +97,6 @@ namespace osu.Server.Queues.ScorePump
                             statistics = statistics,
                         });
 
-                        insertPPvalue.Value = highScore.pp;
-                        insertUserId.Value = highScore.user_id;
-                        insertBeatmapId.Value = highScore.beatmap_id;
-                        insertData.Value = data;
-                        insertDate.Value = highScore.date;
 
                         insertCommand.Transaction = transaction;
 
