@@ -19,7 +19,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (previousVersion >= 6)
-                userStats.total_seconds_played -= getPlayLength(score, conn);
+                userStats.total_seconds_played -= getPlayLength(score, conn, transaction);
         }
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
@@ -27,20 +27,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (score.ended_at == null)
                 throw new InvalidOperationException("Attempting to increment play time when score was never finished.");
 
-            userStats.total_seconds_played += getPlayLength(score, conn);
+            userStats.total_seconds_played += getPlayLength(score, conn, transaction);
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
         }
 
-        private static int getPlayLength(SoloScoreInfo score, MySqlConnection conn)
+        private static int getPlayLength(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
         {
             Debug.Assert(score.started_at != null);
             Debug.Assert(score.ended_at != null);
 
             // to ensure sanity, first get the maximum time feasible from the beatmap's length
-            double totalLengthSeconds = conn.QueryFirstOrDefault("SELECT total_length FROM osu_beatmaps WHERE beatmap_id = @beatmap_id", score);
+            double totalLengthSeconds = conn.QueryFirstOrDefault<double>("SELECT total_length FROM osu_beatmaps WHERE beatmap_id = @beatmap_id", score, transaction);
 
             foreach (var mod in score.mods)
             {
