@@ -347,6 +347,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 while (true)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     var lastValue = db.QueryFirstOrDefault<T>(sql);
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;
