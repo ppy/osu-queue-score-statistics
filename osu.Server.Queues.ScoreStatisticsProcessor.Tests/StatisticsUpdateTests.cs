@@ -34,6 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
                 db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
                 db.Execute("TRUNCATE TABLE solo_scores_process_history");
+                db.Execute("TRUNCATE TABLE solo_scores_performance");
             }
 
             Task.Run(() => processor.Run(cts.Token), cts.Token);
@@ -302,13 +303,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 updated_at = DateTimeOffset.Now,
             };
 
+            var startTime = new DateTimeOffset(new DateTime(2020, 02, 05));
             var scoreInfo = new SoloScoreInfo
             {
                 id = row.id,
                 user_id = row.user_id,
                 beatmap_id = row.beatmap_id,
                 ruleset_id = row.ruleset_id,
-                started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
+                started_at = startTime,
+                ended_at = startTime + TimeSpan.FromSeconds(180),
                 max_combo = 1337,
                 total_score = 100000,
                 rank = ScoreRank.S,
