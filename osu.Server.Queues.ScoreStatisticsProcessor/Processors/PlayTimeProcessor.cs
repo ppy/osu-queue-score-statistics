@@ -40,15 +40,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             Debug.Assert(score.ended_at != null);
 
             // to ensure sanity, first get the maximum time feasible from the beatmap's length
-            int totalLengthSeconds = conn.QueryFirstOrDefault("SELECT total_length FROM osu_beatmaps WHERE beatmap_id = @beatmap_id", score);
+            double totalLengthSeconds = conn.QueryFirstOrDefault("SELECT total_length FROM osu_beatmaps WHERE beatmap_id = @beatmap_id", score);
 
-            // TODO: apply rate from mods.
+            foreach (var mod in score.mods)
+            {
+                if (mod.Settings.TryGetValue(@"speed_change", out var rate))
+                    totalLengthSeconds /= (double)rate;
+            }
 
             TimeSpan realTimePassed = score.ended_at.Value - score.started_at.Value;
 
             // TODO: better handle failed plays once we have incoming data.
 
-            return Math.Min(totalLengthSeconds, (int)realTimePassed.TotalSeconds);
+            return (int)Math.Min(totalLengthSeconds, realTimePassed.TotalSeconds);
         }
     }
 }
