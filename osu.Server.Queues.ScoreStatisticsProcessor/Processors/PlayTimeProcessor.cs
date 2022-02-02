@@ -3,9 +3,12 @@
 
 using System;
 using System.Diagnostics;
+using System.Linq;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Rulesets;
+using osu.Game.Rulesets.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
@@ -42,11 +45,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             // to ensure sanity, first get the maximum time feasible from the beatmap's length
             double totalLengthSeconds = conn.QueryFirstOrDefault<double>("SELECT total_length FROM osu_beatmaps WHERE beatmap_id = @beatmap_id", score, transaction);
 
-            foreach (var mod in score.mods)
-            {
-                if (mod.Settings.TryGetValue(@"speed_change", out var rate))
-                    totalLengthSeconds /= (double)rate;
-            }
+            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.ID == score.ruleset_id);
+
+            var rateAdjustMods = score.mods.Select(m => m.ToMod(ruleset)).OfType<ModRateAdjust>().ToArray();
+
+            foreach (var mod in rateAdjustMods)
+                totalLengthSeconds /= mod.SpeedChange.Value;
 
             TimeSpan realTimePassed = score.ended_at.Value - score.started_at.Value;
 

@@ -1,11 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Reflection;
 using Dapper;
 using MySqlConnector;
 using osu.Game.Beatmaps.Legacy;
@@ -20,15 +16,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
     public class PerformanceProcessor : IProcessor
     {
-        private static readonly List<Ruleset> available_rulesets = getRulesets();
-
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            Ruleset ruleset = available_rulesets.Single(r => r.RulesetInfo.ID == score.ruleset_id);
+            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.ID == score.ruleset_id);
             Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
             ScoreInfo scoreInfo = score.ToScoreInfo(mods);
 
@@ -109,29 +103,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
 
             return true;
-        }
-
-        private static List<Ruleset> getRulesets()
-        {
-            const string ruleset_library_prefix = "osu.Game.Rulesets";
-
-            var rulesetsToProcess = new List<Ruleset>();
-
-            foreach (string file in Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, $"{ruleset_library_prefix}.*.dll"))
-            {
-                try
-                {
-                    var assembly = Assembly.LoadFrom(file);
-                    Type type = assembly.GetTypes().First(t => t.IsPublic && t.IsSubclassOf(typeof(Ruleset)));
-                    rulesetsToProcess.Add((Ruleset)Activator.CreateInstance(type)!);
-                }
-                catch
-                {
-                    throw new Exception($"Failed to load ruleset ({file})");
-                }
-            }
-
-            return rulesetsToProcess;
         }
     }
 }
