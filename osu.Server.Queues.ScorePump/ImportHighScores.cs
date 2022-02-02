@@ -56,10 +56,10 @@ namespace osu.Server.Queues.ScorePump
                     // pp insert
                     + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@@LAST_INSERT_ID, @pp);"
                     // mapping insert
-                    + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({RulesetId}, @scoreId, @@LAST_INSERT_ID);";
+                    + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({RulesetId}, @oldScoreId, @@LAST_INSERT_ID);";
 
                 var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
-                var scoreId = insertCommand.Parameters.Add("scoreId", MySqlDbType.UInt32);
+                var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt32);
                 var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
                 var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
                 var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
@@ -85,7 +85,7 @@ namespace osu.Server.Queues.ScorePump
 
                         pp.Value = highScore.pp;
                         userId.Value = highScore.user_id;
-                        scoreId.Value = highScore.score_id;
+                        oldScoreId.Value = highScore.score_id;
                         beatmapId.Value = highScore.beatmap_id;
                         date.Value = highScore.date;
                         data.Value = JsonConvert.SerializeObject(new SoloScoreInfo
