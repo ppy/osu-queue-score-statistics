@@ -20,8 +20,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// version 3: fixed incorrect revert condition for beatmap/monthly playcount
         /// version 4: uses SoloScore"V2" (moving all content to json data block)
         /// version 5: added performance processor
+        /// version 6: added play time processor
         /// </summary>
-        public const int VERSION = 5;
+        public const int VERSION = 6;
 
         private readonly List<IProcessor> processors = new List<IProcessor>();
 
