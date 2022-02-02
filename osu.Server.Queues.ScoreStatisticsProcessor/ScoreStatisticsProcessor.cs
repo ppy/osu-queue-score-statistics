@@ -3,10 +3,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
+using osu.Game.Rulesets;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -20,8 +23,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// version 3: fixed incorrect revert condition for beatmap/monthly playcount
         /// version 4: uses SoloScore"V2" (moving all content to json data block)
         /// version 5: added performance processor
+        /// version 6: added play time processor
         /// </summary>
-        public const int VERSION = 5;
+        public const int VERSION = 6;
+
+        public static readonly List<Ruleset> AVAILABLE_RULESETS = getRulesets();
 
         private readonly List<IProcessor> processors = new List<IProcessor>();
 
@@ -171,6 +177,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     db.Update(userStatsMania, transaction);
                     break;
             }
+        }
+
+        private static List<Ruleset> getRulesets()
+        {
+            const string ruleset_library_prefix = "osu.Game.Rulesets";
+
+            var rulesetsToProcess = new List<Ruleset>();
+
+            foreach (string file in Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, $"{ruleset_library_prefix}.*.dll"))
+            {
+                try
+                {
+                    var assembly = Assembly.LoadFrom(file);
+                    Type type = assembly.GetTypes().First(t => t.IsPublic && t.IsSubclassOf(typeof(Ruleset)));
+                    rulesetsToProcess.Add((Ruleset)Activator.CreateInstance(type)!);
+                }
+                catch
+                {
+                    throw new Exception($"Failed to load ruleset ({file})");
+                }
+            }
+
+            return rulesetsToProcess;
         }
     }
 }

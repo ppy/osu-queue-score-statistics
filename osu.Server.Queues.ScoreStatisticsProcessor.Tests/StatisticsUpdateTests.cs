@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
+using osu.Game.Online.API;
+using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -34,6 +37,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
                 db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
                 db.Execute("TRUNCATE TABLE solo_scores_process_history");
+                db.Execute("TRUNCATE TABLE solo_scores_performance");
             }
 
             Task.Run(() => processor.Run(cts.Token), cts.Token);
@@ -61,6 +65,78 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             processor.PushToQueue(CreateTestScore());
             waitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 2, cts.Token);
+        }
+
+        [Fact]
+        public void TestPlayTimeIncrease()
+        {
+            waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            // Beatmap used in test score is 158 seconds.
+
+            var testScore = CreateTestScore();
+            testScore.Score.ScoreInfo.ended_at = testScore.Score.ScoreInfo.started_at + TimeSpan.FromSeconds(50);
+
+            processor.PushToQueue(testScore);
+            waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 50, cts.Token);
+
+            testScore = CreateTestScore();
+            testScore.Score.ScoreInfo.ended_at = testScore.Score.ScoreInfo.started_at + TimeSpan.FromSeconds(100);
+
+            processor.PushToQueue(testScore);
+            waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 150, cts.Token);
+        }
+
+        [Fact]
+        public void TestPlayTimeIncreaseHigherThanBeatmapLength()
+        {
+            waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            // Beatmap used in test score is 158 seconds.
+
+            var testScore = CreateTestScore();
+            testScore.Score.ScoreInfo.ended_at = testScore.Score.ScoreInfo.started_at + TimeSpan.FromSeconds(200);
+
+            processor.PushToQueue(testScore);
+            waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 158, cts.Token);
+        }
+
+        [Fact]
+        public void TestPlayTimeIncreaseHigherThanBeatmapLengthWithModApplication()
+        {
+            waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            // Beatmap used in test score is 158 seconds.
+            // Double time means this is reduced to 105 seconds.
+
+            var testScore = CreateTestScore();
+            testScore.Score.ScoreInfo.mods = new List<APIMod>
+            {
+                new APIMod(new OsuModDoubleTime()),
+            };
+            testScore.Score.ScoreInfo.ended_at = testScore.Score.ScoreInfo.started_at + TimeSpan.FromSeconds(200);
+
+            processor.PushToQueue(testScore);
+            waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 105, cts.Token);
+        }
+
+        [Fact]
+        public void TestPlayTimeIncreaseHigherThanBeatmapLengthWithModApplicationCustomRate()
+        {
+            waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            // Beatmap used in test score is 158 seconds.
+            // Double time with custom rate means this is reduced to 112 seconds.
+
+            var testScore = CreateTestScore();
+            testScore.Score.ScoreInfo.mods = new List<APIMod>
+            {
+                new APIMod(new OsuModDoubleTime { SpeedChange = { Value = 1.4 } }),
+            };
+            testScore.Score.ScoreInfo.ended_at = testScore.Score.ScoreInfo.started_at + TimeSpan.FromSeconds(200);
+
+            processor.PushToQueue(testScore);
+            waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 112, cts.Token);
         }
 
         [Fact]
@@ -302,13 +378,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 updated_at = DateTimeOffset.Now,
             };
 
+            var startTime = new DateTimeOffset(new DateTime(2020, 02, 05));
             var scoreInfo = new SoloScoreInfo
             {
                 id = row.id,
                 user_id = row.user_id,
                 beatmap_id = row.beatmap_id,
                 ruleset_id = row.ruleset_id,
-                started_at = new DateTimeOffset(new DateTime(2020, 02, 05)),
+                started_at = startTime,
+                ended_at = startTime + TimeSpan.FromSeconds(180),
                 max_combo = 1337,
                 total_score = 100000,
                 rank = ScoreRank.S,
@@ -344,6 +422,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 while (true)
                 {
+                    if (!Debugger.IsAttached)
+                        cancellationToken.ThrowIfCancellationRequested();
+
                     var lastValue = db.QueryFirstOrDefault<T>(sql);
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;
