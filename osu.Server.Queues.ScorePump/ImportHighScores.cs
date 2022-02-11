@@ -69,7 +69,7 @@ namespace osu.Server.Queues.ScorePump
 
                 var insertCommand = db.CreateCommand();
 
-                const int insert_size = 10;
+                const int insert_size = 20;
 
                 InsertParameters[] insertCommandParameters = new InsertParameters[insert_size];
 
@@ -96,7 +96,7 @@ namespace osu.Server.Queues.ScorePump
 
                 insertCommand.Prepare();
 
-                int currentCommandIndex = 0;
+                int currentCommandIndex = -1;
 
                 InsertParameters getNextInsertion()
                 {
@@ -105,7 +105,7 @@ namespace osu.Server.Queues.ScorePump
                         insertCommand.Transaction = transaction;
                         insertCommand.ExecuteNonQuery();
 
-                        Interlocked.Increment(ref currentTransactionInsertCount);
+                        Interlocked.Add(ref currentTransactionInsertCount, insert_size);
 
                         long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
 
@@ -144,6 +144,7 @@ namespace osu.Server.Queues.ScorePump
                         var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
 
                         var insertion = getNextInsertion();
+
                         insertion.PP.Value = highScore.pp;
                         insertion.UserId.Value = highScore.user_id;
                         insertion.OldScoreId.Value = highScore.score_id;
