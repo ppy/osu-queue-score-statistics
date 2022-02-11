@@ -55,7 +55,9 @@ namespace osu.Server.Queues.ScorePump
 
         private const int scores_per_query = 10000;
 
-        private const int seconds_between_transactions = 2;
+        private const int seconds_between_transactions = 1;
+
+        private const int insert_size = 100;
 
         public int OnExecute(CancellationToken cancellationToken)
         {
@@ -68,8 +70,6 @@ namespace osu.Server.Queues.ScorePump
                 var transaction = db.BeginTransaction();
 
                 var insertCommand = db.CreateCommand();
-
-                const int insert_size = 20;
 
                 InsertParameters[] insertCommandParameters = new InsertParameters[insert_size];
 
@@ -115,7 +115,7 @@ namespace osu.Server.Queues.ScorePump
 
                             int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
 
-                            Console.WriteLine($"Written up to {insertCommandParameters[currentCommandIndex].OldScoreId} (+{inserted} rows {inserted / seconds_between_transactions}/s)");
+                            Console.WriteLine($"Written up to {insertCommandParameters[currentCommandIndex].OldScoreId.Value} (+{inserted} rows {inserted / seconds_between_transactions}/s)");
 
                             transaction = db.BeginTransaction();
                             lastCommitTimestamp = currentTimestamp;
