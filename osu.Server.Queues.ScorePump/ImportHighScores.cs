@@ -21,6 +21,26 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScorePump
 {
+    internal class InsertParameters
+    {
+        public MySqlParameter UserId;
+        public MySqlParameter OldScoreId;
+        public MySqlParameter BeatmapId;
+        public MySqlParameter Data;
+        public MySqlParameter Date;
+        public MySqlParameter PP;
+
+        public InsertParameters(MySqlParameter userId, MySqlParameter oldScoreId, MySqlParameter beatmapId, MySqlParameter data, MySqlParameter date, MySqlParameter pp)
+        {
+            UserId = userId;
+            OldScoreId = oldScoreId;
+            BeatmapId = beatmapId;
+            Data = data;
+            Date = date;
+            PP = pp;
+        }
+    }
+
     [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo scores table.")]
     public class ImportHighScores : ScorePump
     {
@@ -49,23 +69,63 @@ namespace osu.Server.Queues.ScorePump
 
                 var insertCommand = db.CreateCommand();
 
-                insertCommand.CommandText =
-                    // main score insert
-                    $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) "
-                    + $"VALUES (@userId, @beatmapId, {RulesetId}, @data, 1, @date, @date);"
-                    // pp insert
-                    + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@@LAST_INSERT_ID, @pp);"
-                    // mapping insert
-                    + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({RulesetId}, @oldScoreId, @@LAST_INSERT_ID);";
+                const int insert_size = 10;
 
-                var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
-                var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt32);
-                var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
-                var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
-                var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
-                var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
+                InsertParameters[] insertCommandParameters = new InsertParameters[insert_size];
+
+                for (int i = 0; i < insert_size; i++)
+                {
+                    insertCommand.CommandText +=
+                        // main score insert
+                        $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) "
+                        + $"VALUES (@userId{i}, @beatmapId{i}, {RulesetId}, @data{i}, 1, @date{i}, @date{i});"
+                        // pp insert
+                        + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@@LAST_INSERT_ID, @pp{i});"
+                        // mapping insert
+                        + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({RulesetId}, @oldScoreId{i}, @@LAST_INSERT_ID);";
+
+                    insertCommandParameters[i] = new InsertParameters(
+                        insertCommand.Parameters.Add($"userId{i}", MySqlDbType.UInt32),
+                        insertCommand.Parameters.Add($"oldScoreId{i}", MySqlDbType.UInt32),
+                        insertCommand.Parameters.Add($"beatmapId{i}", MySqlDbType.UInt24),
+                        insertCommand.Parameters.Add($"data{i}", MySqlDbType.JSON),
+                        insertCommand.Parameters.Add($"date{i}", MySqlDbType.DateTime),
+                        insertCommand.Parameters.Add($"pp{i}", MySqlDbType.Float)
+                    );
+                }
 
                 insertCommand.Prepare();
+
+                int currentCommandIndex = 0;
+
+                InsertParameters getNextInsertion()
+                {
+                    if (currentCommandIndex == insert_size - 1)
+                    {
+                        insertCommand.Transaction = transaction;
+                        insertCommand.ExecuteNonQuery();
+
+                        Interlocked.Increment(ref currentTransactionInsertCount);
+
+                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+
+                        if (currentTimestamp - lastCommitTimestamp >= seconds_between_transactions)
+                        {
+                            transaction.Commit();
+
+                            int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
+
+                            Console.WriteLine($"Written up to {insertCommandParameters[currentCommandIndex].OldScoreId} (+{inserted} rows {inserted / seconds_between_transactions}/s)");
+
+                            transaction = db.BeginTransaction();
+                            lastCommitTimestamp = currentTimestamp;
+                        }
+                    }
+
+                    currentCommandIndex = (currentCommandIndex + 1) % insert_size;
+
+                    return insertCommandParameters[currentCommandIndex];
+                }
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
@@ -83,12 +143,13 @@ namespace osu.Server.Queues.ScorePump
 
                         var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
 
-                        pp.Value = highScore.pp;
-                        userId.Value = highScore.user_id;
-                        oldScoreId.Value = highScore.score_id;
-                        beatmapId.Value = highScore.beatmap_id;
-                        date.Value = highScore.date;
-                        data.Value = JsonConvert.SerializeObject(new SoloScoreInfo
+                        var insertion = getNextInsertion();
+                        insertion.PP.Value = highScore.pp;
+                        insertion.UserId.Value = highScore.user_id;
+                        insertion.OldScoreId.Value = highScore.score_id;
+                        insertion.BeatmapId.Value = highScore.beatmap_id;
+                        insertion.Date.Value = highScore.date;
+                        insertion.Data.Value = JsonConvert.SerializeObject(new SoloScoreInfo
                         {
                             // id will be written below in the UPDATE call.
                             user_id = highScore.user_id,
@@ -103,30 +164,12 @@ namespace osu.Server.Queues.ScorePump
                             statistics = statistics,
                         });
 
-                        insertCommand.Transaction = transaction;
-                        insertCommand.ExecuteNonQuery();
-
-                        Interlocked.Increment(ref currentTransactionInsertCount);
-
-                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-
-                        if (currentTimestamp - lastCommitTimestamp >= seconds_between_transactions)
-                        {
-                            transaction.Commit();
-
-                            int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
-
-                            Console.WriteLine($"Written up to {highScore.score_id} (+{inserted} rows {inserted / seconds_between_transactions}/s)");
-
-                            transaction = db.BeginTransaction();
-                            lastCommitTimestamp = currentTimestamp;
-                        }
-
                         // update StartId to allow the next bulk query to start from the correct location.
                         StartId = highScore.score_id;
                     }
                 }
 
+                // TODO: final insert needs to be run somehow...
                 transaction.Commit();
             }
 
