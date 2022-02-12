@@ -58,7 +58,7 @@ namespace osu.Server.Queues.ScorePump
 
         private const int seconds_between_transactions = 1;
 
-        private const int insert_size = 10;
+        private const int insert_size = 1;
 
         public int OnExecute(CancellationToken cancellationToken)
         {
@@ -85,9 +85,9 @@ namespace osu.Server.Queues.ScorePump
                         $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) "
                         + $"VALUES (@userId{i}, @beatmapId{i}, {RulesetId}, @data{i}, 1, @date{i}, @date{i});"
                         // pp insert
-                        + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@@LAST_INSERT_ID, @pp{i});"
+                        + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (LAST_INSERT_ID(), @pp{i});"
                         // mapping insert
-                        + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({RulesetId}, @oldScoreId{i}, @@LAST_INSERT_ID);";
+                        + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({RulesetId}, @oldScoreId{i}, LAST_INSERT_ID());";
 
                     insertCommandParameters[i] = new InsertParameters(
                         insertCommand.Parameters.Add($"userId{i}", MySqlDbType.UInt32),
@@ -110,10 +110,7 @@ namespace osu.Server.Queues.ScorePump
                     if (currentCommandIndex == insert_size - 1)
                     {
                         insertCommand.Transaction = transaction;
-
-                        Console.WriteLine($"Inserting {insertCommand.CommandText.Length}");
                         insertCommand.ExecuteNonQuery();
-                        Console.WriteLine("done");
 
                         Interlocked.Add(ref currentTransactionInsertCount, insert_size);
                         Interlocked.Add(ref totalInsertCount, insert_size);
