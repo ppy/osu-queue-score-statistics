@@ -57,7 +57,7 @@ namespace osu.Server.Queues.ScorePump
 
         private const int seconds_between_transactions = 1;
 
-        private const int insert_size = 100;
+        private const int insert_size = 500;
 
         public int OnExecute(CancellationToken cancellationToken)
         {
@@ -103,7 +103,10 @@ namespace osu.Server.Queues.ScorePump
                     if (currentCommandIndex == insert_size - 1)
                     {
                         insertCommand.Transaction = transaction;
+
+                        Console.WriteLine($"Inserting {insertCommand.CommandText.Length}");
                         insertCommand.ExecuteNonQuery();
+                        Console.WriteLine("done");
 
                         Interlocked.Add(ref currentTransactionInsertCount, insert_size);
 
