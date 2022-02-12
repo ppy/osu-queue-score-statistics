@@ -46,6 +46,7 @@ namespace osu.Server.Queues.ScorePump
     {
         private long lastCommitTimestamp;
         private int currentTransactionInsertCount;
+        private int totalInsertCount;
 
         [Option(CommandOptionType.SingleValue)]
         public int RulesetId { get; set; }
@@ -57,7 +58,7 @@ namespace osu.Server.Queues.ScorePump
 
         private const int seconds_between_transactions = 1;
 
-        private const int insert_size = 500;
+        private const int insert_size = 100;
 
         public int OnExecute(CancellationToken cancellationToken)
         {
@@ -67,6 +68,10 @@ namespace osu.Server.Queues.ScorePump
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             using (var db = Queue.GetDatabaseConnection())
             {
+                Console.WriteLine("Resetting test tables..");
+                db.Execute("truncate table test_solo_scores; truncate table test_solo_scores_performance; truncate table solo_scores_legacy_id_map;");
+                Console.WriteLine("Done.");
+
                 var transaction = db.BeginTransaction();
 
                 var insertCommand = db.CreateCommand();
@@ -96,6 +101,8 @@ namespace osu.Server.Queues.ScorePump
 
                 insertCommand.Prepare();
 
+                DateTimeOffset start = DateTimeOffset.Now;
+
                 int currentCommandIndex = -1;
 
                 InsertParameters getNextInsertion()
@@ -109,6 +116,7 @@ namespace osu.Server.Queues.ScorePump
                         Console.WriteLine("done");
 
                         Interlocked.Add(ref currentTransactionInsertCount, insert_size);
+                        Interlocked.Add(ref totalInsertCount, insert_size);
 
                         long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
 
@@ -119,6 +127,12 @@ namespace osu.Server.Queues.ScorePump
                             int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
 
                             Console.WriteLine($"Written up to {insertCommandParameters[currentCommandIndex].OldScoreId.Value} (+{inserted} rows {inserted / seconds_between_transactions}/s)");
+
+                            if (totalInsertCount >= 20000)
+                            {
+                                Console.WriteLine($"Finished in {(DateTimeOffset.Now - start).TotalMilliseconds} ms");
+                                Environment.Exit(0);
+                            }
 
                             transaction = db.BeginTransaction();
                             lastCommitTimestamp = currentTimestamp;
