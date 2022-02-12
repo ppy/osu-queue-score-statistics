@@ -58,7 +58,7 @@ namespace osu.Server.Queues.ScorePump
 
         private const int seconds_between_transactions = 1;
 
-        private const int insert_size = 100;
+        private const int insert_size = 1000;
 
         public int OnExecute(CancellationToken cancellationToken)
         {
