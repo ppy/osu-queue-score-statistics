@@ -134,7 +134,6 @@ namespace osu.Server.Queues.ScorePump
             var scoreInfo = new ScoreInfo
             {
                 Ruleset = ruleset.RulesetInfo,
-                RulesetID = RulesetId,
             };
 
             scoreInfo.SetCount50(highScore.count50);

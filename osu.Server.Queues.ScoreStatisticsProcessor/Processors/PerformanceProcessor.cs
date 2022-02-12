@@ -22,7 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.ID == score.ruleset_id);
+            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.ruleset_id);
             Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
             ScoreInfo scoreInfo = score.ToScoreInfo(mods);
 
@@ -62,7 +62,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             var difficultyAttributes = rawDifficultyAttribs.ToDictionary(a => (int)a.attrib_id).Map(score.RulesetID, beatmap);
             var performanceCalculator = ruleset.CreatePerformanceCalculator(difficultyAttributes, score);
-            return performanceCalculator.Calculate();
+            return performanceCalculator.Calculate().Total;
         }
 
         /// <summary>

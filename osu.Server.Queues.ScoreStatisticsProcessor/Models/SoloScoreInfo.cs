@@ -8,6 +8,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API;
+using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
@@ -63,10 +65,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public ScoreInfo ToScoreInfo(Mod[] mods) => new ScoreInfo
         {
-            OnlineScoreID = id,
-            UserID = user_id,
+            OnlineID = id,
+            User = new APIUser { Id = user_id },
             BeatmapInfo = new BeatmapInfo { OnlineID = beatmap_id },
-            RulesetID = ruleset_id,
+            Ruleset = new RulesetInfo { OnlineID = ruleset_id },
             Passed = passed,
             TotalScore = total_score,
             Accuracy = accuracy,

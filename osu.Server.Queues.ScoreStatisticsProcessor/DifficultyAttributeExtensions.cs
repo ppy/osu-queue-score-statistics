@@ -22,13 +22,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 case 0:
                     return new OsuDifficultyAttributes
                     {
-                        AimStrain = databasedAttribs[1].value,
-                        SpeedStrain = databasedAttribs[3].value,
+                        AimDifficulty = databasedAttribs[1].value,
+                        SpeedDifficulty = databasedAttribs[3].value,
                         OverallDifficulty = databasedAttribs[5].value,
                         ApproachRate = databasedAttribs[7].value,
                         MaxCombo = (int)databasedAttribs[9].value,
                         StarRating = databasedAttribs[11].value,
-                        FlashlightRating = databasedAttribs.GetValueOrDefault(17)?.value ?? 0,
+                        FlashlightDifficulty = databasedAttribs.GetValueOrDefault(17)?.value ?? 0,
                         HitCircleCount = databasedBeatmap.countNormal,
                         SpinnerCount = databasedBeatmap.countSpinner,
                     };
