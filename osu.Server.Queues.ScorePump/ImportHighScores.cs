@@ -54,9 +54,9 @@ namespace osu.Server.Queues.ScorePump
                     $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) "
                     + $"VALUES (@userId, @beatmapId, {RulesetId}, @data, 1, @date, @date);"
                     // pp insert
-                    + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (@@LAST_INSERT_ID, @pp);"
+                    + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
                     // mapping insert
-                    + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({RulesetId}, @oldScoreId, @@LAST_INSERT_ID);";
+                    + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({RulesetId}, @oldScoreId, LAST_INSERT_ID());";
 
                 var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
                 var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt32);
