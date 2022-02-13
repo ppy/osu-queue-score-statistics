@@ -48,7 +48,14 @@ namespace osu.Server.Queues.ScorePump
             string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
 
             using (var dbMainQuery = Queue.GetDatabaseConnection())
+            using (var db = Queue.GetDatabaseConnection())
             {
+                Console.WriteLine("Resetting test tables..");
+                await db.ExecuteAsync("truncate table test_solo_scores; truncate table test_solo_scores_performance; truncate table solo_scores_legacy_id_map;");
+                Console.WriteLine("Done.");
+
+                DateTimeOffset start = DateTimeOffset.Now;
+
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     Console.WriteLine($"Retrieving next {scores_per_query} scores starting from {StartId + 1}");
