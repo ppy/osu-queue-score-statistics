@@ -47,7 +47,6 @@ namespace osu.Server.Queues.ScorePump
             string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
 
             using (var dbMainQuery = Queue.GetDatabaseConnection())
-            using (var db = Queue.GetDatabaseConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
