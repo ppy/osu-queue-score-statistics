@@ -26,7 +26,8 @@ namespace osu.Server.Queues.ScorePump
     public class ImportHighScores : ScorePump
     {
         private long lastCommitTimestamp;
-        private int currentTransactionInsertCount;
+        private static int currentReportInsertCount;
+        private static int totalInsertCount;
 
         [Option(CommandOptionType.SingleValue)]
         public int RulesetId { get; set; }
@@ -34,9 +35,11 @@ namespace osu.Server.Queues.ScorePump
         [Option(CommandOptionType.SingleValue)]
         public long StartId { get; set; }
 
-        private const int scores_per_query = 10000;
+        private const int scores_per_query = 50000;
 
-        private const int seconds_between_transactions = 2;
+        private const int mysql_batch_size = 500;
+
+        private const int seconds_between_report = 2;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
@@ -46,28 +49,6 @@ namespace osu.Server.Queues.ScorePump
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             using (var db = Queue.GetDatabaseConnection())
             {
-                var transaction = await db.BeginTransactionAsync(cancellationToken);
-
-                var insertCommand = db.CreateCommand();
-
-                insertCommand.CommandText =
-                    // main score insert
-                    $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) "
-                    + $"VALUES (@userId, @beatmapId, {RulesetId}, @data, 1, @date, @date);"
-                    // pp insert
-                    + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
-                    // mapping insert
-                    + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({RulesetId}, @oldScoreId, LAST_INSERT_ID());";
-
-                var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
-                var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt32);
-                var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
-                var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
-                var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
-                var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
-
-                await insertCommand.PrepareAsync(cancellationToken);
-
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     Console.WriteLine($"Retrieving next {scores_per_query} scores starting from {StartId + 1}");
@@ -77,11 +58,100 @@ namespace osu.Server.Queues.ScorePump
                     if (!highScores.Any())
                         break;
 
-                    foreach (var highScore in highScores)
-                    {
-                        if (cancellationToken.IsCancellationRequested)
-                            break;
+                    List<Task> waitingTasks = new List<Task>();
 
+                    var orderedHighScores = highScores.OrderBy(s => s.beatmap_id).ThenBy(s => s.score_id);
+
+                    int? lastBeatmapId = null;
+
+                    List<HighScore> batch = new List<HighScore>();
+
+                    foreach (var score in orderedHighScores)
+                    {
+                        batch.Add(score);
+
+                        if (lastBeatmapId != score.beatmap_id && batch.Count >= mysql_batch_size)
+                            queueBatch();
+
+                        lastBeatmapId = score.beatmap_id;
+                    }
+
+                    queueBatch();
+
+                    void queueBatch()
+                    {
+                        if (batch.Count == 0)
+                            return;
+
+                        waitingTasks.Add(new RowInserter(ruleset, () => Queue.GetDatabaseConnection(), cancellationToken).Run(batch.ToArray()));
+                        batch.Clear();
+                    }
+
+                    // update StartId to allow the next bulk query to start from the correct location.
+                    StartId = highScores.Max(s => s.score_id);
+
+                    while (!waitingTasks.All(t => t.IsCompleted))
+                    {
+                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+
+                        if (currentTimestamp - lastCommitTimestamp >= seconds_between_report)
+                        {
+                            int inserted = Interlocked.Exchange(ref currentReportInsertCount, 0);
+
+                            Console.WriteLine($"Writing up to {StartId} "
+                                              + $"[{waitingTasks.Count(t => t.IsCompleted)}/{waitingTasks.Count}] "
+                                              + $"{totalInsertCount} (+{inserted} new {inserted / seconds_between_report}/s)");
+
+                            lastCommitTimestamp = currentTimestamp;
+                        }
+
+                        Thread.Sleep(10);
+                    }
+                }
+            }
+
+            return 0;
+        }
+
+        private class RowInserter
+        {
+            private readonly Ruleset ruleset;
+            private readonly Func<MySqlConnection> getConnection;
+            private readonly CancellationToken cancellationToken;
+
+            public RowInserter(Ruleset ruleset, Func<MySqlConnection> getConnection, CancellationToken cancellationToken)
+            {
+                this.ruleset = ruleset;
+                this.getConnection = getConnection;
+                this.cancellationToken = cancellationToken;
+            }
+
+            public async Task Run(HighScore[] scores)
+            {
+                using (var db = getConnection())
+                using (var transaction = await db.BeginTransactionAsync(cancellationToken))
+                using (var insertCommand = db.CreateCommand())
+                {
+                    insertCommand.CommandText =
+                        // main score insert
+                        $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) "
+                        + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, 1, @date, @date);"
+                        // pp insert
+                        + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
+                        // mapping insert
+                        + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
+
+                    var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
+                    var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt32);
+                    var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
+                    var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
+                    var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
+                    var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
+
+                    await insertCommand.PrepareAsync(cancellationToken);
+
+                    foreach (var highScore in scores)
+                    {
                         var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
 
                         pp.Value = highScore.pp;
@@ -94,7 +164,7 @@ namespace osu.Server.Queues.ScorePump
                             // id will be written below in the UPDATE call.
                             user_id = highScore.user_id,
                             beatmap_id = highScore.beatmap_id,
-                            ruleset_id = RulesetId,
+                            ruleset_id = ruleset.RulesetInfo.OnlineID,
                             passed = true,
                             total_score = highScore.score,
                             accuracy = accuracy,
@@ -105,52 +175,35 @@ namespace osu.Server.Queues.ScorePump
                         });
 
                         insertCommand.Transaction = transaction;
+
                         await insertCommand.ExecuteNonQueryAsync(cancellationToken);
 
-                        Interlocked.Increment(ref currentTransactionInsertCount);
-
-                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-
-                        if (currentTimestamp - lastCommitTimestamp >= seconds_between_transactions)
-                        {
-                            await transaction.CommitAsync(cancellationToken);
-
-                            int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
-
-                            Console.WriteLine($"Written up to {highScore.score_id} (+{inserted} rows {inserted / seconds_between_transactions}/s)");
-
-                            transaction = await db.BeginTransactionAsync(cancellationToken);
-                            lastCommitTimestamp = currentTimestamp;
-                        }
-
-                        // update StartId to allow the next bulk query to start from the correct location.
-                        StartId = highScore.score_id;
+                        Interlocked.Increment(ref currentReportInsertCount);
+                        Interlocked.Increment(ref totalInsertCount);
                     }
-                }
 
-                await transaction.CommitAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                }
             }
 
-            return 0;
-        }
-
-        private (double accuracy, Dictionary<HitResult, int> statistics) getAccuracyAndStatistics(Ruleset ruleset, HighScore highScore)
-        {
-            var scoreInfo = new ScoreInfo
+            private (double accuracy, Dictionary<HitResult, int> statistics) getAccuracyAndStatistics(Ruleset ruleset, HighScore highScore)
             {
-                Ruleset = ruleset.RulesetInfo,
-            };
+                var scoreInfo = new ScoreInfo
+                {
+                    Ruleset = ruleset.RulesetInfo,
+                };
 
-            scoreInfo.SetCount50(highScore.count50);
-            scoreInfo.SetCount100(highScore.count100);
-            scoreInfo.SetCount300(highScore.count300);
-            scoreInfo.SetCountMiss(highScore.countmiss);
-            scoreInfo.SetCountGeki(highScore.countgeki);
-            scoreInfo.SetCountKatu(highScore.countkatu);
+                scoreInfo.SetCount50(highScore.count50);
+                scoreInfo.SetCount100(highScore.count100);
+                scoreInfo.SetCount300(highScore.count300);
+                scoreInfo.SetCountMiss(highScore.countmiss);
+                scoreInfo.SetCountGeki(highScore.countgeki);
+                scoreInfo.SetCountKatu(highScore.countkatu);
 
-            LegacyScoreDecoder.PopulateAccuracy(scoreInfo);
+                LegacyScoreDecoder.PopulateAccuracy(scoreInfo);
 
-            return (scoreInfo.Accuracy, scoreInfo.Statistics);
+                return (scoreInfo.Accuracy, scoreInfo.Statistics);
+            }
         }
 
         [SuppressMessage("ReSharper", "InconsistentNaming")]
