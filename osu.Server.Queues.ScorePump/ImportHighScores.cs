@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
@@ -37,7 +38,7 @@ namespace osu.Server.Queues.ScorePump
 
         private const int seconds_between_transactions = 2;
 
-        public int OnExecute(CancellationToken cancellationToken)
+        public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
             string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
@@ -45,7 +46,7 @@ namespace osu.Server.Queues.ScorePump
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             using (var db = Queue.GetDatabaseConnection())
             {
-                var transaction = db.BeginTransaction();
+                var transaction = await db.BeginTransactionAsync(cancellationToken);
 
                 var insertCommand = db.CreateCommand();
 
@@ -65,13 +66,13 @@ namespace osu.Server.Queues.ScorePump
                 var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
                 var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
 
-                insertCommand.Prepare();
+                await insertCommand.PrepareAsync(cancellationToken);
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     Console.WriteLine($"Retrieving next {scores_per_query} scores starting from {StartId + 1}");
 
-                    var highScores = dbMainQuery.Query<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id > @startId LIMIT {scores_per_query}", new { startId = StartId });
+                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id > @startId LIMIT {scores_per_query}", new { startId = StartId });
 
                     if (!highScores.Any())
                         break;
@@ -104,7 +105,7 @@ namespace osu.Server.Queues.ScorePump
                         });
 
                         insertCommand.Transaction = transaction;
-                        insertCommand.ExecuteNonQuery();
+                        await insertCommand.ExecuteNonQueryAsync(cancellationToken);
 
                         Interlocked.Increment(ref currentTransactionInsertCount);
 
@@ -112,13 +113,13 @@ namespace osu.Server.Queues.ScorePump
 
                         if (currentTimestamp - lastCommitTimestamp >= seconds_between_transactions)
                         {
-                            transaction.Commit();
+                            await transaction.CommitAsync(cancellationToken);
 
                             int inserted = Interlocked.Exchange(ref currentTransactionInsertCount, 0);
 
                             Console.WriteLine($"Written up to {highScore.score_id} (+{inserted} rows {inserted / seconds_between_transactions}/s)");
 
-                            transaction = db.BeginTransaction();
+                            transaction = await db.BeginTransactionAsync(cancellationToken);
                             lastCommitTimestamp = currentTimestamp;
                         }
 
@@ -127,7 +128,7 @@ namespace osu.Server.Queues.ScorePump
                     }
                 }
 
-                transaction.Commit();
+                await transaction.CommitAsync(cancellationToken);
             }
 
             return 0;
