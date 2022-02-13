@@ -26,6 +26,7 @@ namespace osu.Server.Queues.ScorePump
     public class ImportHighScores : ScorePump
     {
         private long lastCommitTimestamp;
+
         private static int currentReportInsertCount;
         private static int totalInsertCount;
 
@@ -70,21 +71,12 @@ namespace osu.Server.Queues.ScorePump
                         batch.Add(score);
 
                         if (lastBeatmapId != score.beatmap_id && batch.Count >= mysql_batch_size)
-                            queueBatch();
+                            queueNextBatch();
 
                         lastBeatmapId = score.beatmap_id;
                     }
 
-                    queueBatch();
-
-                    void queueBatch()
-                    {
-                        if (batch.Count == 0)
-                            return;
-
-                        waitingTasks.Add(new RowInserter(ruleset, () => Queue.GetDatabaseConnection(), cancellationToken).Run(batch.ToArray()));
-                        batch.Clear();
-                    }
+                    queueNextBatch();
 
                     // update StartId to allow the next bulk query to start from the correct location.
                     StartId = highScores.Max(s => s.score_id);
@@ -106,19 +98,28 @@ namespace osu.Server.Queues.ScorePump
 
                         Thread.Sleep(10);
                     }
+
+                    void queueNextBatch()
+                    {
+                        if (batch.Count == 0)
+                            return;
+
+                        waitingTasks.Add(new BatchInserter(ruleset, () => Queue.GetDatabaseConnection(), cancellationToken).Run(batch.ToArray()));
+                        batch.Clear();
+                    }
                 }
             }
 
             return 0;
         }
 
-        private class RowInserter
+        private class BatchInserter
         {
             private readonly Ruleset ruleset;
             private readonly Func<MySqlConnection> getConnection;
             private readonly CancellationToken cancellationToken;
 
-            public RowInserter(Ruleset ruleset, Func<MySqlConnection> getConnection, CancellationToken cancellationToken)
+            public BatchInserter(Ruleset ruleset, Func<MySqlConnection> getConnection, CancellationToken cancellationToken)
             {
                 this.ruleset = ruleset;
                 this.getConnection = getConnection;
