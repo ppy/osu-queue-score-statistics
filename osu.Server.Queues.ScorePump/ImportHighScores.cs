@@ -171,7 +171,7 @@ namespace osu.Server.Queues.ScorePump
                 Console.WriteLine($"Current slave latency of {latency} seconds exceeded maximum of {maximum_slave_latency_seconds} seconds.");
                 Console.WriteLine($"Sleeping for {latency} seconds to allow catch-up.");
 
-                Thread.Sleep(latency * 1000);
+                Thread.Sleep(Math.Max(seconds_between_latency_checks * 2, latency * 1000));
 
                 // greatly reduce processing rate to allow for recovery.
                 scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery / 2);
