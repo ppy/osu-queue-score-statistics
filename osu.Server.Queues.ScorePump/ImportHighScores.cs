@@ -22,24 +22,39 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScorePump
 {
-    [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo scores table.")]
+    [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo_scores table.")]
     public class ImportHighScores : ScorePump
     {
+        /// <summary>
+        /// The ruleset to run this import job for.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue)]
+        public int RulesetId { get; set; }
+
+        /// <summary>
+        /// The high score ID to start the import process from. This can be used to resume an existing job, or perform catch-up on new scores.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue)]
+        public long StartId { get; set; }
+
         private long lastCommitTimestamp;
 
         private static int currentReportInsertCount;
         private static int totalInsertCount;
 
-        [Option(CommandOptionType.SingleValue)]
-        public int RulesetId { get; set; }
-
-        [Option(CommandOptionType.SingleValue)]
-        public long StartId { get; set; }
-
+        /// <summary>
+        /// The number of scores done in a single processing query. These scores are read in one go, then distributed to parallel insertion workers.
+        /// </summary>
         private const int scores_per_query = 50000;
 
+        /// <summary>
+        /// The number of scores to run in each batch. Setting this higher will reduce the parallelism and in turn, the throughput of this process.
+        /// </summary>
         private const int mysql_batch_size = 500;
 
+        /// <summary>
+        /// The number of seconds between console progress reports.
+        /// </summary>
         private const int seconds_between_report = 2;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
@@ -113,6 +128,15 @@ namespace osu.Server.Queues.ScorePump
             return 0;
         }
 
+        /// <summary>
+        /// Handles one batch insertion of <see cref="HighScore"/>s. Can be used to parallelize work.
+        /// </summary>
+        /// <remarks>
+        /// Importantly, on a process-wide basis (with the requirement that only one import is happening at once from the same source),
+        /// scores for the same beatmap should always be inserted using the same <see cref="BatchInserter"/>. This is to ensure that the new
+        /// IDs given to inserted scores are still chronologically correct (we fallback to using IDs for tiebreaker cases where the stored timestamps
+        /// are equal to the max precision of mysql TIMESTAMP).
+        /// </remarks>
         private class BatchInserter
         {
             private readonly Ruleset ruleset;
@@ -176,6 +200,8 @@ namespace osu.Server.Queues.ScorePump
 
                         insertCommand.Transaction = transaction;
 
+                        // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
+                        // this does not improve throughput.
                         await insertCommand.ExecuteNonQueryAsync(cancellationToken);
 
                         Interlocked.Increment(ref currentReportInsertCount);
