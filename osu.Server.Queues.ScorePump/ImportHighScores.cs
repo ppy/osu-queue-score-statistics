@@ -38,14 +38,21 @@ namespace osu.Server.Queues.ScorePump
         public long StartId { get; set; }
 
         private long lastCommitTimestamp;
+        private long lastLatencyCheckTimestamp;
 
         private static int currentReportInsertCount;
         private static int totalInsertCount;
 
         /// <summary>
         /// The number of scores done in a single processing query. These scores are read in one go, then distributed to parallel insertion workers.
+        /// May be adjusted at runtime based on the replication state.
         /// </summary>
-        private const int scores_per_query = 50000;
+        private const int initial_scores_per_query = 50000;
+
+        /// <summary>
+        /// In cases of slave replication latency, this will be the minimum scores processed per top-level query.
+        /// </summary>
+        private const int safe_minimum_scores_per_query = 500;
 
         /// <summary>
         /// The number of scores to run in each batch. Setting this higher will reduce the parallelism and in turn, the throughput of this process.
@@ -57,18 +64,34 @@ namespace osu.Server.Queues.ScorePump
         /// </summary>
         private const int seconds_between_report = 2;
 
+        /// <summary>
+        /// The number of seconds between checks for slave latency.
+        /// </summary>
+        private const int seconds_between_latency_checks = 30;
+
+        private int scoresPerQuery = initial_scores_per_query;
+
+        /// <summary>
+        /// The latency a slave is allowed to fall behind before we start to panic.
+        /// </summary>
+        private const int maximum_slave_latency_seconds = 10;
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
             string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
 
+            DateTimeOffset start = DateTimeOffset.Now;
+
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    Console.WriteLine($"Retrieving next {scores_per_query} scores starting from {StartId + 1}");
+                    checkSlaveLatency(dbMainQuery);
 
-                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id > @startId LIMIT {scores_per_query}", new { startId = StartId });
+                    Console.WriteLine($"Retrieving next {scoresPerQuery} scores starting from {StartId + 1}");
+
+                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id > @startId LIMIT {scoresPerQuery}", new { startId = StartId });
 
                     if (!highScores.Any())
                         break;
@@ -104,9 +127,9 @@ namespace osu.Server.Queues.ScorePump
                         {
                             int inserted = Interlocked.Exchange(ref currentReportInsertCount, 0);
 
-                            Console.WriteLine($"Writing up to {StartId} "
-                                              + $"[{waitingTasks.Count(t => t.IsCompleted)}/{waitingTasks.Count}] "
-                                              + $"{totalInsertCount} (+{inserted} new {inserted / seconds_between_report}/s)");
+                            Console.WriteLine($"Processing up to {StartId:N0} "
+                                              + $"[{waitingTasks.Count(t => t.IsCompleted),-2}/{waitingTasks.Count}] "
+                                              + $"{totalInsertCount:N0} inserted (+{inserted:N0} new {inserted / seconds_between_report:N0}/s)");
 
                             lastCommitTimestamp = currentTimestamp;
                         }
@@ -125,7 +148,45 @@ namespace osu.Server.Queues.ScorePump
                 }
             }
 
+            Console.WriteLine($"Finished in {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
             return 0;
+        }
+
+        private void checkSlaveLatency(MySqlConnection db)
+        {
+            long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+
+            if (currentTimestamp - lastLatencyCheckTimestamp < seconds_between_latency_checks)
+                return;
+
+            lastLatencyCheckTimestamp = currentTimestamp;
+
+            // This latency is best-effort, and randomly queried from available hosts (with rough precedence of the importance of the host).
+            // When we detect a high latency value, a recovery period should be introduced where we are pretty sure that we're back in a good
+            // state before resuming operations.
+            int latency = db.QueryFirst<int>("SELECT `count` FROM `osu_counts` WHERE NAME = 'slave_latency'");
+
+            if (latency > maximum_slave_latency_seconds)
+            {
+                Console.WriteLine($"Current slave latency of {latency} seconds exceeded maximum of {maximum_slave_latency_seconds} seconds.");
+                Console.WriteLine($"Sleeping for {latency} seconds to allow catch-up.");
+
+                Thread.Sleep(Math.Max(seconds_between_latency_checks * 2, latency * 1000));
+
+                // greatly reduce processing rate to allow for recovery.
+                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery / 2);
+            }
+
+            if (latency > 0)
+            {
+                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - (latency * 100));
+                Console.WriteLine($"Decreasing processing rate to {scoresPerQuery} due to latency of {latency}");
+            }
+            else if (scoresPerQuery < initial_scores_per_query)
+            {
+                scoresPerQuery = Math.Min(initial_scores_per_query, scoresPerQuery + 100);
+                Console.WriteLine($"Increasing processing rate to {scoresPerQuery} due to latency of {latency}");
+            }
         }
 
         /// <summary>
