@@ -15,6 +15,9 @@ namespace osu.Server.Queues.ScorePump
         [Option("--start_id")]
         public long StartId { get; set; }
 
+        [Option("--delay", Description = "Delay in milliseconds between queue operations")]
+        public int Delay { get; set; }
+
         [Option("--sql", Description = "Specify a custom query to limit the scope of pumping")]
         public string? CustomQuery { get; set; }
 
@@ -41,6 +44,9 @@ namespace osu.Server.Queues.ScorePump
 
                     Console.WriteLine($"Pumping {score}");
                     Queue.PushToQueue(new ScoreItem(score, history));
+
+                    if (Delay > 0)
+                        Thread.Sleep(Delay);
                 }
             }
 
