@@ -46,6 +46,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         protected override void ProcessResult(ScoreItem item)
         {
+            if (item.ProcessHistory?.processed_version == VERSION)
+            {
+                return;
+            }
+
             try
             {
                 using (var conn = GetDatabaseConnection())
