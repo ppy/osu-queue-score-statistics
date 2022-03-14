@@ -61,8 +61,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 }, transaction).ToArray();
 
             var difficultyAttributes = rawDifficultyAttribs.ToDictionary(a => (int)a.attrib_id).Map(score.RulesetID, beatmap);
-            var performanceCalculator = ruleset.CreatePerformanceCalculator(difficultyAttributes, score);
-            return performanceCalculator.Calculate().Total;
+            var performanceCalculator = ruleset.CreatePerformanceCalculator();
+            return performanceCalculator?.Calculate(score, difficultyAttributes).Total ?? 0;
         }
 
         /// <summary>
