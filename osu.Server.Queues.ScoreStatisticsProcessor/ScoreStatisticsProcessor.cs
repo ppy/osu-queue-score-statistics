@@ -48,7 +48,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         {
             if (item.ProcessHistory?.processed_version == VERSION)
             {
-                DogStatsd.Increment("total_skipped");
+                item.Tags = new[] { "type:skipped" };
                 return;
             }
 
@@ -71,11 +71,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         // if required, we can rollback any previous version of processing then reapply with the latest.
                         if (item.ProcessHistory != null)
                         {
-                            DogStatsd.Increment("total_upgraded");
+                            item.Tags = new[] { "type:upgraded" };
                             byte version = item.ProcessHistory.processed_version;
 
                             foreach (var p in processors)
                                 p.RevertFromUserStats(score, userStats, version, conn, transaction);
+                        }
+                        else
+                        {
+                            item.Tags = new[] { "type:new" };
                         }
 
                         foreach (var p in processors)
