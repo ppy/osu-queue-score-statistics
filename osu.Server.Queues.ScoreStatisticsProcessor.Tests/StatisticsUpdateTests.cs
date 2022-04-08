@@ -208,6 +208,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestMaxComboDoesntIncreaseIfAutomationMod()
+        {
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            var score = CreateTestScore();
+            score.Score.ScoreInfo.max_combo++;
+            score.Score.ScoreInfo.mods = new List<APIMod>
+            {
+                new APIMod(new OsuModRelax()),
+            };
+
+            // Due to how the waiting for database test works, we can't check, for null.
+            // Therefore push a non-automated score *after* the automated score, and ensure the combo matches the second.
+            processor.PushToQueue(score);
+            processor.PushToQueue(CreateTestScore());
+
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
+        }
+
+        [Fact]
         public void TestUserBeatmapPlaycountIncrease()
         {
             waitForDatabaseState("SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = 172", (int?)null, cts.Token);
