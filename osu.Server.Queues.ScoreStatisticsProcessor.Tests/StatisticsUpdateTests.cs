@@ -20,6 +20,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private readonly CancellationTokenSource cts = new CancellationTokenSource(10000);
 
+        private const int max_combo = 1337;
+
         public StatisticsUpdateTests()
         {
             processor = new ScoreStatisticsProcessor();
@@ -183,13 +185,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
 
             processor.PushToQueue(CreateTestScore());
-            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo, cts.Token);
 
             var score = CreateTestScore();
             score.Score.ScoreInfo.max_combo++;
 
             processor.PushToQueue(score);
-            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1338, cts.Token);
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo + 1, cts.Token);
         }
 
         [Fact]
@@ -198,13 +200,33 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
 
             processor.PushToQueue(CreateTestScore());
-            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo, cts.Token);
 
             var score = CreateTestScore();
             score.Score.ScoreInfo.max_combo--;
 
             processor.PushToQueue(score);
-            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 1337, cts.Token);
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo, cts.Token);
+        }
+
+        [Fact]
+        public void TestMaxComboDoesntIncreaseIfAutomationMod()
+        {
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            var score = CreateTestScore();
+            score.Score.ScoreInfo.max_combo++;
+            score.Score.ScoreInfo.mods = new List<APIMod>
+            {
+                new APIMod(new OsuModRelax()),
+            };
+
+            // Due to how the waiting for database test works, we can't check, for null.
+            // Therefore push a non-automated score *after* the automated score, and ensure the combo matches the second.
+            processor.PushToQueue(score);
+            processor.PushToQueue(CreateTestScore());
+
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo, cts.Token);
         }
 
         [Fact]
@@ -387,7 +409,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 ruleset_id = row.ruleset_id,
                 started_at = startTime,
                 ended_at = startTime + TimeSpan.FromSeconds(180),
-                max_combo = 1337,
+                max_combo = max_combo,
                 total_score = 100000,
                 rank = ScoreRank.S,
                 statistics =
