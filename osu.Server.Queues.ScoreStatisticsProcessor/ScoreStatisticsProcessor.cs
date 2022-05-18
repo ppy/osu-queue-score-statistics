@@ -156,7 +156,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             {
                 userStats = new T
                 {
-                    user_id = score.user_id
+                    user_id = score.user_id,
+                    country_acronym = db.QueryFirstOrDefault<string>("SELECT country_acronym FROM phpbb_users WHERE user_id = @user_id", score, transaction) ?? "XX",
                 };
 
                 db.Insert(userStats, transaction);
