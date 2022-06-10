@@ -22,6 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     [Serializable]
     public class SoloScoreInfo // TODO: hopefully combine with client-side ScoreInfo class.
     {
+        [JsonIgnore]
         public long id { get; set; }
 
         public int user_id { get; set; }
