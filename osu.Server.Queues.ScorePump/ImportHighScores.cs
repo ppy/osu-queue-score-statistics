@@ -108,6 +108,8 @@ namespace osu.Server.Queues.ScorePump
                     {
                         batch.Add(score);
 
+                        // Ensure batches are only ever split on dealing with scores from a new beatmap_id.
+                        // This is to enforce insertion order per-beatmap as we may use this to decide ordering in tiebreaker scenarios.
                         if (lastBeatmapId != score.beatmap_id && batch.Count >= mysql_batch_size)
                             queueNextBatch();
 
@@ -135,6 +137,17 @@ namespace osu.Server.Queues.ScorePump
                         }
 
                         Thread.Sleep(10);
+                    }
+
+                    foreach (var erroredTask in waitingTasks.Where(t => t.IsFaulted))
+                    {
+                        Console.WriteLine("ERROR: At least one tasks were faulted.");
+
+                        // TODO: potentially rewrite scores rather than hard bailing.
+                        Debug.Assert(erroredTask.Exception != null);
+
+                        Console.WriteLine($"ERROR: {erroredTask.Exception}");
+                        throw erroredTask.Exception;
                     }
 
                     void queueNextBatch()
