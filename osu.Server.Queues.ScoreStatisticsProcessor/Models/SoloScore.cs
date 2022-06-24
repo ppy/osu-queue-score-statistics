@@ -13,7 +13,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     [Table(TABLE_NAME)]
     public class SoloScore
     {
-        public const string TABLE_NAME = "solo_scores";
+        public const string TABLE_NAME = "test_solo_scores";
 
         [ExplicitKey]
         public long id { get; set; }
