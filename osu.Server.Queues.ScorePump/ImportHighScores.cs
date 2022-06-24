@@ -47,7 +47,7 @@ namespace osu.Server.Queues.ScorePump
         /// The number of scores done in a single processing query. These scores are read in one go, then distributed to parallel insertion workers.
         /// May be adjusted at runtime based on the replication state.
         /// </summary>
-        private const int initial_scores_per_query = 50000;
+        private const int maximum_scores_per_query = 50000;
 
         /// <summary>
         /// In cases of slave replication latency, this will be the minimum scores processed per top-level query.
@@ -69,7 +69,7 @@ namespace osu.Server.Queues.ScorePump
         /// </summary>
         private const int seconds_between_latency_checks = 30;
 
-        private int scoresPerQuery = initial_scores_per_query;
+        private int scoresPerQuery = safe_minimum_scores_per_query;
 
         /// <summary>
         /// The latency a slave is allowed to fall behind before we start to panic.
@@ -182,9 +182,9 @@ namespace osu.Server.Queues.ScorePump
                 scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - (latency * 100));
                 Console.WriteLine($"Decreasing processing rate to {scoresPerQuery} due to latency of {latency}");
             }
-            else if (scoresPerQuery < initial_scores_per_query)
+            else if (scoresPerQuery < maximum_scores_per_query)
             {
-                scoresPerQuery = Math.Min(initial_scores_per_query, scoresPerQuery + 100);
+                scoresPerQuery = Math.Min(maximum_scores_per_query, scoresPerQuery + 100);
                 Console.WriteLine($"Increasing processing rate to {scoresPerQuery} due to latency of {latency}");
             }
         }
