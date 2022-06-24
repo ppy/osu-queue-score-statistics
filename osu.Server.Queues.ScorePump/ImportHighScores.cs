@@ -95,7 +95,10 @@ namespace osu.Server.Queues.ScorePump
                     var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id >= @startId LIMIT {scoresPerQuery}", new { startId = StartId });
 
                     if (!highScores.Any())
+                    {
+                        Console.WriteLine("No scores found");
                         break;
+                    }
 
                     List<Task> waitingTasks = new List<Task>();
 
