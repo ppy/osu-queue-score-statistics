@@ -159,7 +159,7 @@ namespace osu.Server.Queues.ScorePump
                         if (batch.Count == 0)
                             return;
 
-                        waitingTasks.Add(new BatchInserter(ruleset, () => Queue.GetDatabaseConnection(), cancellationToken).Run(batch.ToArray()));
+                        waitingTasks.Add(new BatchInserter(ruleset, () => Queue.GetDatabaseConnection()).Run(batch.ToArray()));
                         batch.Clear();
                     }
                 }
@@ -233,19 +233,17 @@ namespace osu.Server.Queues.ScorePump
         {
             private readonly Ruleset ruleset;
             private readonly Func<MySqlConnection> getConnection;
-            private readonly CancellationToken cancellationToken;
 
-            public BatchInserter(Ruleset ruleset, Func<MySqlConnection> getConnection, CancellationToken cancellationToken)
+            public BatchInserter(Ruleset ruleset, Func<MySqlConnection> getConnection)
             {
                 this.ruleset = ruleset;
                 this.getConnection = getConnection;
-                this.cancellationToken = cancellationToken;
             }
 
             public async Task Run(HighScore[] scores)
             {
                 using (var db = getConnection())
-                using (var transaction = await db.BeginTransactionAsync(cancellationToken))
+                using (var transaction = await db.BeginTransactionAsync())
                 using (var insertCommand = db.CreateCommand())
                 {
                     insertCommand.CommandText =
@@ -264,7 +262,7 @@ namespace osu.Server.Queues.ScorePump
                     var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
                     var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
 
-                    await insertCommand.PrepareAsync(cancellationToken);
+                    await insertCommand.PrepareAsync();
 
                     foreach (var highScore in scores)
                     {
@@ -294,13 +292,13 @@ namespace osu.Server.Queues.ScorePump
 
                         // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
                         // this does not improve throughput.
-                        await insertCommand.ExecuteNonQueryAsync(cancellationToken);
+                        await insertCommand.ExecuteNonQueryAsync();
 
                         Interlocked.Increment(ref currentReportInsertCount);
                         Interlocked.Increment(ref totalInsertCount);
                     }
 
-                    await transaction.CommitAsync(cancellationToken);
+                    await transaction.CommitAsync();
                 }
             }
 
