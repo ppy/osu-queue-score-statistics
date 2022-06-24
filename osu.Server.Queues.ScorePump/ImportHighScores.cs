@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
@@ -89,9 +90,9 @@ namespace osu.Server.Queues.ScorePump
                 {
                     checkSlaveLatency(dbMainQuery);
 
-                    Console.WriteLine($"Retrieving next {scoresPerQuery} scores starting from {StartId + 1}");
+                    Console.WriteLine($"Retrieving next {scoresPerQuery} scores from {StartId}");
 
-                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id > @startId LIMIT {scoresPerQuery}", new { startId = StartId });
+                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id >= @startId LIMIT {scoresPerQuery}", new { startId = StartId });
 
                     if (!highScores.Any())
                         break;
@@ -129,7 +130,7 @@ namespace osu.Server.Queues.ScorePump
                         {
                             int inserted = Interlocked.Exchange(ref currentReportInsertCount, 0);
 
-                            Console.WriteLine($"Processing up to {StartId:N0} "
+                            Console.WriteLine($"Inserting up to {StartId:N0} "
                                               + $"[{waitingTasks.Count(t => t.IsCompleted),-2}/{waitingTasks.Count}] "
                                               + $"{totalInsertCount:N0} inserted (+{inserted:N0} new {inserted / seconds_between_report:N0}/s)");
 
@@ -138,6 +139,9 @@ namespace osu.Server.Queues.ScorePump
 
                         Thread.Sleep(10);
                     }
+
+                    Console.WriteLine($"Transaction commit at score_id {StartId}");
+                    StartId++;
 
                     foreach (var erroredTask in waitingTasks.Where(t => t.IsFaulted))
                     {
@@ -161,7 +165,21 @@ namespace osu.Server.Queues.ScorePump
                 }
             }
 
-            Console.WriteLine($"Finished in {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
+            Console.WriteLine();
+            Console.WriteLine();
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                Console.WriteLine($"Cancelled after {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
+                Console.WriteLine($"Resume from start id {StartId}");
+            }
+            else
+            {
+                Console.WriteLine($"Finished in {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine();
             return 0;
         }
 
