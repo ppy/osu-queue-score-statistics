@@ -143,9 +143,6 @@ namespace osu.Server.Queues.ScorePump
                         Thread.Sleep(10);
                     }
 
-                    Console.WriteLine($"Transaction commit at score_id {StartId}");
-                    StartId++;
-
                     foreach (var erroredTask in waitingTasks.Where(t => t.IsFaulted))
                     {
                         Console.WriteLine("ERROR: At least one tasks were faulted.");
@@ -156,6 +153,9 @@ namespace osu.Server.Queues.ScorePump
                         Console.WriteLine($"ERROR: {erroredTask.Exception}");
                         throw erroredTask.Exception;
                     }
+
+                    Console.WriteLine($"Transaction commit at score_id {StartId}");
+                    StartId++;
 
                     void queueNextBatch()
                     {
