@@ -1,4 +1,5 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
+using osu.Server.Queues.ScorePump.Performance;
 
 namespace osu.Server.Queues.ScorePump
 {
@@ -8,6 +9,7 @@ namespace osu.Server.Queues.ScorePump
     [Subcommand(typeof(WatchNewScores))]
     [Subcommand(typeof(ClearQueue))]
     [Subcommand(typeof(ImportHighScores))]
+    [Subcommand(typeof(PerformanceMain))]
     public class Program
     {
         public static void Main(string[] args)

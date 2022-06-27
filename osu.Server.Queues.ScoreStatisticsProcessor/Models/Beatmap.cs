@@ -19,6 +19,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public ushort countNormal { get; set; }
         public ushort countSlider { get; set; }
         public ushort countSpinner { get; set; }
+        public float diff_drain { get; set; }
+        public float diff_size { get; set; }
+        public float diff_overall { get; set; }
+        public float diff_approach { get; set; }
         public byte playmode { get; set; }
         public float difficultyrating { get; set; }
     }
