@@ -35,16 +35,16 @@ namespace osu.Server.Queues.ScorePump.Performance
 
             long currentUserId;
 
+            if (Continue)
+                currentUserId = await GetCount(databaseInfo.LastProcessedPpUserCount);
+            else
+            {
+                currentUserId = 0;
+                await SetCount(databaseInfo.LastProcessedPpUserCount, 0);
+            }
+
             using (var db = Queue.GetDatabaseConnection())
             {
-                if (Continue)
-                    currentUserId = await GetCount(db, databaseInfo.LastProcessedPpUserCount);
-                else
-                {
-                    currentUserId = 0;
-                    await SetCount(db, databaseInfo.LastProcessedPpUserCount, 0);
-                }
-
                 totalCount = await db.QuerySingleAsync<int?>($"SELECT COUNT(`user_id`) FROM {databaseInfo.UserStatsTable} WHERE `user_id` >= @UserId", new
                 {
                     UserId = currentUserId
@@ -77,8 +77,7 @@ namespace osu.Server.Queues.ScorePump.Performance
 
                 currentUserId = Math.Max(currentUserId, users.Max());
 
-                using (var db = Queue.GetDatabaseConnection())
-                    await SetCount(db, databaseInfo.LastProcessedPpUserCount, currentUserId);
+                await SetCount(databaseInfo.LastProcessedPpUserCount, currentUserId);
             }
 
             return 0;
@@ -122,25 +121,30 @@ namespace osu.Server.Queues.ScorePump.Performance
 
             foreach (SoloScore score in scores)
             {
-                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
-                Mod[] mods = score.ScoreInfo.mods.Select(m => m.ToMod(ruleset)).ToArray();
-                ScoreInfo scoreInfo = score.ScoreInfo.ToScoreInfo(mods);
-
-                DifficultyAttributes? difficultyAttributes = await GetDifficultyAttributes(score, ruleset, mods);
-                if (difficultyAttributes == null)
-                    continue;
-
-                PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
-                if (performanceAttributes == null)
-                    continue;
-
-                using (var db = Queue.GetDatabaseConnection())
+                try
                 {
-                    await db.ExecuteAsync($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
+                    Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
+                    Mod[] mods = score.ScoreInfo.mods.Select(m => m.ToMod(ruleset)).ToArray();
+                    ScoreInfo scoreInfo = score.ScoreInfo.ToScoreInfo(mods);
+
+                    DifficultyAttributes difficultyAttributes = await GetDifficultyAttributes(score, ruleset, mods);
+
+                    PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
+                    if (performanceAttributes == null)
+                        continue;
+
+                    using (var db = Queue.GetDatabaseConnection())
                     {
-                        ScoreId = score.id,
-                        Pp = performanceAttributes.Total
-                    });
+                        await db.ExecuteAsync($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
+                        {
+                            ScoreId = score.id,
+                            Pp = performanceAttributes.Total
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
                 }
             }
         }

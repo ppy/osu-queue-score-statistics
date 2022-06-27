@@ -7,7 +7,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
-using MySqlConnector;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
@@ -29,30 +28,55 @@ namespace osu.Server.Queues.ScorePump.Performance
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
 
-        protected async Task SetCount(MySqlConnection connection, string key, long value)
+        /// <summary>
+        /// Sets a count in the database.
+        /// </summary>
+        /// <param name="key">The count's key.</param>
+        /// <param name="value">The count's value.</param>
+        protected async Task SetCount(string key, long value)
         {
-            await connection.ExecuteAsync("INSERT INTO `osu_counts` (`name`,`count`) VALUES (@NAME, @COUNT) "
-                                          + "ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `count` = VALUES(`count`)", new
+            using (var db = Queue.GetDatabaseConnection())
             {
-                Name = key,
-                Count = value
-            });
+                await db.ExecuteAsync("INSERT INTO `osu_counts` (`name`,`count`) VALUES (@NAME, @COUNT) "
+                                      + "ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `count` = VALUES(`count`)", new
+                {
+                    Name = key,
+                    Count = value
+                });
+            }
         }
 
-        protected async Task<long> GetCount(MySqlConnection connection, string key)
+        /// <summary>
+        /// Retrieves a count value from the database.
+        /// </summary>
+        /// <param name="key">The count's key.</param>
+        /// <returns>The count for the provided key.</returns>
+        /// <exception cref="InvalidOperationException">If the key wasn't found in the database.</exception>
+        protected async Task<long> GetCount(string key)
         {
-            long? res = await connection.QuerySingleOrDefaultAsync<long?>("SELECT `count` FROM `osu_counts` WHERE `name` = @NAME", new
+            using (var db = Queue.GetDatabaseConnection())
             {
-                Name = key
-            });
+                long? res = await db.QuerySingleOrDefaultAsync<long?>("SELECT `count` FROM `osu_counts` WHERE `name` = @NAME", new
+                {
+                    Name = key
+                });
 
-            if (res == null)
-                throw new InvalidOperationException($"Unable to retrieve count '{key}'.");
+                if (res == null)
+                    throw new InvalidOperationException($"Unable to retrieve count '{key}'.");
 
-            return res.Value;
+                return res.Value;
+            }
         }
 
-        protected async Task<DifficultyAttributes?> GetDifficultyAttributes(SoloScore score, Ruleset ruleset, Mod[] mods)
+        /// <summary>
+        /// Retrieves difficulty attributes from the database.
+        /// </summary>
+        /// <param name="score">The score.</param>
+        /// <param name="ruleset">The score's ruleset.</param>
+        /// <param name="mods">The score's mods.</param>
+        /// <returns>The difficulty attributes.</returns>
+        /// <exception cref="InvalidOperationException">If the beatmap or attributes weren't found in the database.</exception>
+        protected async Task<DifficultyAttributes> GetDifficultyAttributes(SoloScore score, Ruleset ruleset, Mod[] mods)
         {
             Beatmap? beatmap;
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
@@ -68,7 +92,7 @@ namespace osu.Server.Queues.ScorePump.Performance
                 }
 
                 if (beatmap == null)
-                    return null;
+                    throw new InvalidOperationException($"Beatmap not found in database: {score.beatmap_id}");
 
                 // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
                 LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.ruleset_id != beatmap.playmode);
@@ -86,7 +110,7 @@ namespace osu.Server.Queues.ScorePump.Performance
                 }
 
                 if (rawDifficultyAttributes == null)
-                    return null;
+                    throw new InvalidOperationException($"Databased difficulty attributes were not found for: {key}");
             }
 
             DifficultyAttributes difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(score.ruleset_id);
