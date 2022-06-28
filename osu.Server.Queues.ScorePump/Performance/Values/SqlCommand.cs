@@ -23,7 +23,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
 
-        public async Task<int> OnExecuteAsync(CommandLineApplication app)
+        protected override async Task<int> Execute(CommandLineApplication app)
         {
             uint[] userIds;
 

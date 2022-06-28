@@ -19,7 +19,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
         [Argument(0, Description = "A space-separated list of scores to compute PP for.")]
         public ulong[] ScoreIds { get; set; } = null!;
 
-        public async Task<int> OnExecuteAsync(CommandLineApplication app)
+        protected override async Task<int> Execute(CommandLineApplication app)
         {
             Console.WriteLine($"Processed 0 of {ScoreIds.Length}");
 

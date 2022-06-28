@@ -24,10 +24,28 @@ namespace osu.Server.Queues.ScorePump.Performance
     {
         private readonly ConcurrentDictionary<int, Beatmap?> beatmapCache = new ConcurrentDictionary<int, Beatmap?>();
         private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
-        private readonly ConcurrentDictionary<int, bool> buildsCache = new ConcurrentDictionary<int, bool>();
+
+        private ConcurrentDictionary<int, bool> builds = null!;
+        private ConcurrentDictionary<BlacklistEntry, byte> blacklist = null!;
 
         [Option(Description = "Number of threads to use.")]
         public int Threads { get; set; } = 1;
+
+        public virtual async Task<int> OnExecuteAsync(CommandLineApplication app)
+        {
+            using (var db = Queue.GetDatabaseConnection())
+            {
+                var dbBuilds = await db.QueryAsync<Build>($"SELECT * FROM {Build.TABLE_NAME}");
+                builds = new ConcurrentDictionary<int, bool>(dbBuilds.Select(b => new KeyValuePair<int, bool>(b.build_id, b.allow_performance)));
+
+                var dbBlacklist = await db.QueryAsync<PerformanceBlacklistEntry>($"SELECT * FROM {PerformanceBlacklistEntry.TABLE_NAME}");
+                blacklist = new ConcurrentDictionary<BlacklistEntry, byte>(dbBlacklist.Select(b => new KeyValuePair<BlacklistEntry, byte>(new BlacklistEntry(b.beatmap_id, b.mode), 1)));
+            }
+
+            return await Execute(app);
+        }
+
+        protected abstract Task<int> Execute(CommandLineApplication app);
 
         /// <summary>
         /// Sets a count in the database.
@@ -111,6 +129,9 @@ namespace osu.Server.Queues.ScorePump.Performance
         {
             try
             {
+                if (blacklist.ContainsKey(new BlacklistEntry(score.beatmap_id, score.ruleset_id)))
+                    return;
+
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
                 Mod[] mods = score.ScoreInfo.mods.Select(m => m.ToMod(ruleset)).ToArray();
                 ScoreInfo scoreInfo = score.ScoreInfo.ToScoreInfo(mods);
@@ -212,29 +233,6 @@ namespace osu.Server.Queues.ScorePump.Performance
                     })).ToList();
             }
 
-            // Populate builds for the scores.
-            foreach (var s in scores)
-            {
-                if (s.pp == null || s.ScoreInfo.build_id == null)
-                    continue;
-
-                if (buildsCache.ContainsKey(s.ScoreInfo.build_id.Value))
-                    continue;
-
-                using (var db = Queue.GetDatabaseConnection())
-                {
-                    Build? build = await db.QuerySingleOrDefaultAsync<Build>($"SELECT * FROM {Build.TABLE_NAME} WHERE `build_id` = @BuildId", new
-                    {
-                        BuildId = s.ScoreInfo.build_id.Value
-                    });
-
-                    if (build == null)
-                        await Console.Error.WriteLineAsync($"Build {s.ScoreInfo.build_id.Value} was not found for score {s.id}, skipping...");
-
-                    buildsCache[s.ScoreInfo.build_id.Value] = build?.allow_performance ?? false;
-                }
-            }
-
             // Filter out invalid scores.
             scores.RemoveAll(s =>
             {
@@ -242,12 +240,16 @@ namespace osu.Server.Queues.ScorePump.Performance
                 if (s.pp == null)
                     return true;
 
+                // The beatmap/ruleset combo must not be blacklisted.
+                if (blacklist.ContainsKey(new BlacklistEntry(s.beatmap_id, s.ruleset_id)))
+                    return true;
+
                 // Scores with no build were imported from the legacy high scores tables and are always valid.
                 if (s.ScoreInfo.build_id == null)
                     return false;
 
                 // Performance needs to be allowed for the build.
-                return !buildsCache[s.ScoreInfo.build_id.Value];
+                return !builds[s.ScoreInfo.build_id.Value];
             });
 
             SoloScoreWithPerformance[] groupedItems = scores
@@ -295,6 +297,8 @@ namespace osu.Server.Queues.ScorePump.Performance
         }
 
         private record struct DifficultyAttributeKey(int BeatmapId, int RulesetId, uint ModValue);
+
+        private record struct BlacklistEntry(int BeatmapId, int RulesetId);
 
         [SuppressMessage("ReSharper", "InconsistentNaming")]
         [Serializable]

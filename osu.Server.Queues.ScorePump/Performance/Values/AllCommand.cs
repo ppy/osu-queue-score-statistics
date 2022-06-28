@@ -27,7 +27,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
         private int? totalCount;
         private int processedCount;
 
-        public async Task<int> OnExecuteAsync(CommandLineApplication app)
+        protected override async Task<int> Execute(CommandLineApplication app)
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 
