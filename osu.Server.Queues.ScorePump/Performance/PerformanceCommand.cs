@@ -159,7 +159,7 @@ namespace osu.Server.Queues.ScorePump.Performance
                     throw new InvalidOperationException($"Beatmap not found in database: {score.beatmap_id}");
 
                 // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
-                LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.ruleset_id != beatmap.playmode);
+                LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.ruleset_id != beatmap.playmode, score.ruleset_id);
                 DifficultyAttributeKey key = new DifficultyAttributeKey(score.beatmap_id, score.ruleset_id, (uint)legacyModValue);
 
                 if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
