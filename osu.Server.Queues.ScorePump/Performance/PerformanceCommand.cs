@@ -3,6 +3,8 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
@@ -22,6 +24,7 @@ namespace osu.Server.Queues.ScorePump.Performance
     {
         private readonly ConcurrentDictionary<int, Beatmap?> beatmapCache = new ConcurrentDictionary<int, Beatmap?>();
         private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
+        private readonly ConcurrentDictionary<int, bool> buildsCache = new ConcurrentDictionary<int, bool>();
 
         [Option(Description = "Number of threads to use.")]
         public int Threads { get; set; } = 1;
@@ -191,6 +194,112 @@ namespace osu.Server.Queues.ScorePump.Performance
             return difficultyAttributes;
         }
 
+        protected async Task UpdateTotals(uint userId, int rulesetId)
+        {
+            List<SoloScoreWithPerformance> scores;
+
+            using (var db = Queue.GetDatabaseConnection())
+            {
+                scores = (await db.QueryAsync<SoloScoreWithPerformance>(
+                    $"SELECT s.*, p.pp AS `pp` FROM {SoloScore.TABLE_NAME} s "
+                    + $"JOIN {SoloScorePerformance.TABLE_NAME} p ON s.id = p.score_id "
+                    + $"WHERE s.user_id = @UserId "
+                    + $"AND s.ruleset_id = @RulesetId", new
+                    {
+                        UserId = userId,
+                        RulesetId = rulesetId
+                    })).ToList();
+            }
+
+            // Populate builds for the scores.
+            foreach (var s in scores)
+            {
+                if (s.pp == null || s.ScoreInfo.build_id == null)
+                    continue;
+
+                if (buildsCache.ContainsKey(s.ScoreInfo.build_id.Value))
+                    continue;
+
+                using (var db = Queue.GetDatabaseConnection())
+                {
+                    Build? build = await db.QuerySingleOrDefaultAsync<Build>($"SELECT * FROM {Build.TABLE_NAME} WHERE `build_id` = @BuildId", new
+                    {
+                        BuildId = s.ScoreInfo.build_id.Value
+                    });
+
+                    if (build == null)
+                        await Console.Error.WriteLineAsync($"Build {s.ScoreInfo.build_id.Value} was not found for score {s.id}, skipping...");
+
+                    buildsCache[s.ScoreInfo.build_id.Value] = build?.allow_performance ?? false;
+                }
+            }
+
+            // Filter out invalid scores.
+            scores.RemoveAll(s =>
+            {
+                // Score must have a valid pp.
+                if (s.pp == null)
+                    return true;
+
+                // Scores with no build were imported from the legacy high scores tables and are always valid.
+                if (s.ScoreInfo.build_id == null)
+                    return false;
+
+                // Performance needs to be allowed for the build.
+                return !buildsCache[s.ScoreInfo.build_id.Value];
+            });
+
+            SoloScoreWithPerformance[] groupedItems = scores
+                                                      // Group by beatmap ID.
+                                                      .GroupBy(i => i.beatmap_id)
+                                                      // Extract the maximum PP for each beatmap.
+                                                      .Select(g => g.OrderByDescending(i => i.pp).First())
+                                                      // And order the beatmaps by decreasing value.
+                                                      .OrderByDescending(i => i.pp)
+                                                      .ToArray();
+
+            // Build the diminishing sum
+            double factor = 1;
+            double totalPp = 0;
+            double totalAccuracy = 0;
+
+            foreach (var item in groupedItems)
+            {
+                totalPp += item.pp!.Value * factor;
+                totalAccuracy += item.ScoreInfo.accuracy * factor;
+                factor *= 0.95;
+            }
+
+            // This weird factor is to keep legacy compatibility with the diminishing bonus of 0.25 by 0.9994 each score.
+            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.9994, groupedItems.Length));
+
+            // We want our accuracy to be normalized.
+            if (groupedItems.Length > 0)
+            {
+                // We want the percentage, not a factor in [0, 1], hence we divide 20 by 100.
+                totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, groupedItems.Length)));
+            }
+
+            LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
+
+            using (var db = Queue.GetDatabaseConnection())
+            {
+                await db.ExecuteAsync($"UPDATE {databaseInfo.UserStatsTable} SET `rank_score` = @Pp, `accuracy_new` = @Accuracy WHERE `user_id` = @UserId", new
+                {
+                    UserId = userId,
+                    Pp = totalPp,
+                    Accuracy = totalAccuracy
+                });
+            }
+        }
+
         private record struct DifficultyAttributeKey(int BeatmapId, int RulesetId, uint ModValue);
+
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
+        [Serializable]
+        private class SoloScoreWithPerformance : SoloScore
+        {
+            public double? pp { get; set; }
+        }
     }
 }

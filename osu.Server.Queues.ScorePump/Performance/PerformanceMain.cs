@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.Queues.ScorePump.Performance.Totals;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
@@ -10,6 +11,7 @@ namespace osu.Server.Queues.ScorePump.Performance
     [Subcommand(typeof(SqlCommand))]
     [Subcommand(typeof(UsersCommand))]
     [Subcommand(typeof(ScoresCommand))]
+    [Subcommand(typeof(UpdateTotalsMain))]
     public sealed class PerformanceMain
     {
         public int OnExecute(CommandLineApplication app)
