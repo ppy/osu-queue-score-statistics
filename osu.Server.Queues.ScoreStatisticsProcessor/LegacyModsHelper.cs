@@ -1,7 +1,6 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System;
 using osu.Game.Beatmaps.Legacy;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
@@ -31,9 +30,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     if (isConvertedBeatmap)
                         relevantMods |= KEY_MODS;
                     break;
-
-                default:
-                    throw new ArgumentException($"Invalid ruleset ID: {rulesetId}");
             }
 
             return mods & relevantMods;
