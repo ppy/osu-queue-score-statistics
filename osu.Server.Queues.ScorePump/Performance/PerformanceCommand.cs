@@ -136,7 +136,9 @@ namespace osu.Server.Queues.ScorePump.Performance
                 Mod[] mods = score.ScoreInfo.mods.Select(m => m.ToMod(ruleset)).ToArray();
                 ScoreInfo scoreInfo = score.ScoreInfo.ToScoreInfo(mods);
 
-                DifficultyAttributes difficultyAttributes = await GetDifficultyAttributes(score, ruleset, mods);
+                DifficultyAttributes? difficultyAttributes = await GetDifficultyAttributes(score, ruleset, mods);
+                if (difficultyAttributes == null)
+                    return;
 
                 PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
                 if (performanceAttributes == null)
@@ -164,25 +166,16 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// <param name="ruleset">The score's ruleset.</param>
         /// <param name="mods">The score's mods.</param>
         /// <returns>The difficulty attributes.</returns>
-        /// <exception cref="InvalidOperationException">If the beatmap or attributes weren't found in the database.</exception>
-        protected async Task<DifficultyAttributes> GetDifficultyAttributes(SoloScore score, Ruleset ruleset, Mod[] mods)
+        protected async Task<DifficultyAttributes?> GetDifficultyAttributes(SoloScore score, Ruleset ruleset, Mod[] mods)
         {
-            Beatmap? beatmap;
+            Beatmap? beatmap = await GetBeatmap(score.beatmap_id);
+            if (beatmap == null)
+                return null;
+
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
 
             using (var db = Queue.GetDatabaseConnection())
             {
-                if (!beatmapCache.TryGetValue(score.beatmap_id, out beatmap))
-                {
-                    beatmap = beatmapCache[score.beatmap_id] = await db.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
-                    {
-                        BeatmapId = score.beatmap_id
-                    });
-                }
-
-                if (beatmap == null)
-                    throw new InvalidOperationException($"Beatmap not found in database: {score.beatmap_id}");
-
                 // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
                 LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.ruleset_id != beatmap.playmode, score.ruleset_id);
                 DifficultyAttributeKey key = new DifficultyAttributeKey(score.beatmap_id, score.ruleset_id, (uint)legacyModValue);
@@ -197,10 +190,10 @@ namespace osu.Server.Queues.ScorePump.Performance
                             ModValue = key.ModValue
                         })).ToArray();
                 }
-
-                if (rawDifficultyAttributes == null)
-                    throw new InvalidOperationException($"Databased difficulty attributes were not found for: {key}");
             }
+
+            if (rawDifficultyAttributes == null)
+                return null;
 
             DifficultyAttributes difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(score.ruleset_id);
             difficultyAttributes.FromDatabaseAttributes(rawDifficultyAttributes.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), new APIBeatmap
@@ -214,6 +207,20 @@ namespace osu.Server.Queues.ScorePump.Performance
             });
 
             return difficultyAttributes;
+        }
+
+        protected async Task<Beatmap?> GetBeatmap(int beatmapId)
+        {
+            if (beatmapCache.TryGetValue(beatmapId, out var beatmap))
+                return beatmap;
+
+            using (var db = Queue.GetDatabaseConnection())
+            {
+                return beatmapCache[beatmapId] = await db.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
+                {
+                    BeatmapId = beatmapId
+                });
+            }
         }
 
         protected async Task UpdateTotals(uint userId, int rulesetId)
