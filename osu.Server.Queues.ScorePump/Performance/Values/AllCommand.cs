@@ -34,11 +34,11 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
             long currentUserId;
 
             if (Continue)
-                currentUserId = await GetCount(databaseInfo.LastProcessedPpUserCount);
+                currentUserId = await Processor.GetCount(databaseInfo.LastProcessedPpUserCount);
             else
             {
                 currentUserId = 0;
-                await SetCount(databaseInfo.LastProcessedPpUserCount, 0);
+                await Processor.SetCount(databaseInfo.LastProcessedPpUserCount, 0);
             }
 
             using (var db = Queue.GetDatabaseConnection())
@@ -75,7 +75,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
 
                 currentUserId = Math.Max(currentUserId, users.Max());
 
-                await SetCount(databaseInfo.LastProcessedPpUserCount, currentUserId);
+                await Processor.SetCount(databaseInfo.LastProcessedPpUserCount, currentUserId);
             }
 
             return 0;
@@ -97,7 +97,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
                     {
                         await Task.Yield();
 
-                        await ProcessUser(partition.Current, RulesetId);
+                        await Processor.ProcessUser(partition.Current, RulesetId);
 
                         Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
                     }

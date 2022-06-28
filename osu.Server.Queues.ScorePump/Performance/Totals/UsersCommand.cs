@@ -43,7 +43,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
                     {
                         await Task.Yield();
 
-                        await UpdateTotals(partition.Current, RulesetId);
+                        await Processor.UpdateTotals(partition.Current, RulesetId);
 
                         Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
                     }

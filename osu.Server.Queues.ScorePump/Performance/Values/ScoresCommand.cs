@@ -40,7 +40,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
                     {
                         await Task.Yield();
 
-                        await ProcessScore(partition.Current);
+                        await Processor.ProcessScore(partition.Current);
 
                         Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {ScoreIds.Length}");
                     }
