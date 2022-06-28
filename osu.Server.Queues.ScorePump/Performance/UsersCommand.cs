@@ -17,17 +17,18 @@ namespace osu.Server.Queues.ScorePump.Performance
     {
         [Required]
         [Argument(0, Description = "A space-separated list of users to compute PP for.")]
-        public uint[] Users { get; set; } = null!;
+        public uint[] UserIds { get; set; } = null!;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
 
         public async Task<int> OnExecuteAsync(CommandLineApplication app)
         {
-            int processedCount = 0;
+            Console.WriteLine($"Processed 0 of {UserIds.Length}");
 
+            int processedCount = 0;
             await Task.WhenAll(Partitioner
-                               .Create(Users)
+                               .Create(UserIds)
                                .GetPartitions(Threads)
                                .AsParallel()
                                .Select(processPartition));
@@ -44,7 +45,7 @@ namespace osu.Server.Queues.ScorePump.Performance
 
                         await ProcessUser(partition.Current);
 
-                        Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {Users.Length}");
+                        Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
                     }
                 }
             }

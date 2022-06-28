@@ -21,8 +21,9 @@ namespace osu.Server.Queues.ScorePump.Performance
 
         public async Task<int> OnExecuteAsync(CommandLineApplication app)
         {
-            int processedCount = 0;
+            Console.WriteLine($"Processed 0 of {ScoreIds.Length}");
 
+            int processedCount = 0;
             await Task.WhenAll(Partitioner
                                .Create(ScoreIds)
                                .GetPartitions(Threads)
