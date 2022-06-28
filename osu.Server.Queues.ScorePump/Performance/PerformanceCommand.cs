@@ -9,6 +9,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
@@ -17,11 +18,15 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
     public abstract class PerformanceCommand : ScorePump
     {
+        private const BeatmapOnlineStatus min_ranked_status = BeatmapOnlineStatus.Ranked;
+        private const BeatmapOnlineStatus max_ranked_status = BeatmapOnlineStatus.Approved;
+
         private readonly ConcurrentDictionary<int, Beatmap?> beatmapCache = new ConcurrentDictionary<int, Beatmap?>();
         private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
 
@@ -132,14 +137,22 @@ namespace osu.Server.Queues.ScorePump.Performance
                 if (blacklist.ContainsKey(new BlacklistEntry(score.beatmap_id, score.ruleset_id)))
                     return;
 
+                Beatmap? beatmap = await GetBeatmap(score.beatmap_id);
+
+                if (beatmap == null)
+                    return;
+
+                if (beatmap.approved < min_ranked_status || beatmap.approved > max_ranked_status)
+                    return;
+
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
                 Mod[] mods = score.ScoreInfo.mods.Select(m => m.ToMod(ruleset)).ToArray();
-                ScoreInfo scoreInfo = score.ScoreInfo.ToScoreInfo(mods);
 
-                DifficultyAttributes? difficultyAttributes = await GetDifficultyAttributes(score, ruleset, mods);
+                DifficultyAttributes? difficultyAttributes = await GetDifficultyAttributes(beatmap, ruleset, mods);
                 if (difficultyAttributes == null)
                     return;
 
+                ScoreInfo scoreInfo = score.ScoreInfo.ToScoreInfo(mods);
                 PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
                 if (performanceAttributes == null)
                     return;
@@ -162,23 +175,19 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// <summary>
         /// Retrieves difficulty attributes from the database.
         /// </summary>
-        /// <param name="score">The score.</param>
+        /// <param name="beatmap">The beatmap.</param>
         /// <param name="ruleset">The score's ruleset.</param>
         /// <param name="mods">The score's mods.</param>
         /// <returns>The difficulty attributes.</returns>
-        protected async Task<DifficultyAttributes?> GetDifficultyAttributes(SoloScore score, Ruleset ruleset, Mod[] mods)
+        protected async Task<DifficultyAttributes?> GetDifficultyAttributes(Beatmap beatmap, Ruleset ruleset, Mod[] mods)
         {
-            Beatmap? beatmap = await GetBeatmap(score.beatmap_id);
-            if (beatmap == null)
-                return null;
-
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
 
             using (var db = Queue.GetDatabaseConnection())
             {
                 // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
-                LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.ruleset_id != beatmap.playmode, score.ruleset_id);
-                DifficultyAttributeKey key = new DifficultyAttributeKey(score.beatmap_id, score.ruleset_id, (uint)legacyModValue);
+                LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), ruleset.RulesetInfo.OnlineID != beatmap.playmode, ruleset.RulesetInfo.OnlineID);
+                DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
 
                 if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
                 {
@@ -195,7 +204,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             if (rawDifficultyAttributes == null)
                 return null;
 
-            DifficultyAttributes difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(score.ruleset_id);
+            DifficultyAttributes difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
             difficultyAttributes.FromDatabaseAttributes(rawDifficultyAttributes.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), new APIBeatmap
             {
                 ApproachRate = beatmap.diff_approach,
@@ -303,7 +312,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             }
         }
 
-        private record struct DifficultyAttributeKey(int BeatmapId, int RulesetId, uint ModValue);
+        private record struct DifficultyAttributeKey(uint BeatmapId, int RulesetId, uint ModValue);
 
         private record struct BlacklistEntry(int BeatmapId, int RulesetId);
 

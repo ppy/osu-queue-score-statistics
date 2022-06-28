@@ -4,6 +4,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using Dapper.Contrib.Extensions;
+using osu.Game.Beatmaps;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
@@ -24,6 +25,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public float diff_overall { get; set; }
         public float diff_approach { get; set; }
         public byte playmode { get; set; }
+        public BeatmapOnlineStatus approved { get; set; }
         public float difficultyrating { get; set; }
     }
 }
