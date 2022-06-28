@@ -69,15 +69,16 @@ namespace osu.Server.Queues.ScorePump.Performance
             }
         }
 
-        protected async Task ProcessUser(uint userId)
+        protected async Task ProcessUser(uint userId, int rulesetId)
         {
             SoloScore[] scores;
 
             using (var db = Queue.GetDatabaseConnection())
             {
-                scores = (await db.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `user_id` = @UserId", new
+                scores = (await db.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
                 {
-                    UserId = userId
+                    UserId = userId,
+                    RulesetId = rulesetId
                 })).ToArray();
             }
 

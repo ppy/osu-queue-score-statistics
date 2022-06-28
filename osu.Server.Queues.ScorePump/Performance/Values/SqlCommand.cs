@@ -20,6 +20,9 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
         [Argument(0, Description = "The SQL statement selecting the user ids to compute.")]
         public string Statement { get; set; } = null!;
 
+        [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
+        public int RulesetId { get; set; }
+
         public async Task<int> OnExecuteAsync(CommandLineApplication app)
         {
             uint[] userIds;
@@ -49,7 +52,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
                     {
                         await Task.Yield();
 
-                        await ProcessUser(partition.Current);
+                        await ProcessUser(partition.Current, RulesetId);
 
                         Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
                     }
