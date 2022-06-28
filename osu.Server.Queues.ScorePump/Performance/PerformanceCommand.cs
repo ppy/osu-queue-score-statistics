@@ -12,6 +12,7 @@ using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -65,6 +66,35 @@ namespace osu.Server.Queues.ScorePump.Performance
                     throw new InvalidOperationException($"Unable to retrieve count '{key}'.");
 
                 return res.Value;
+            }
+        }
+
+        protected async Task ProcessScore(SoloScore score)
+        {
+            try
+            {
+                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
+                Mod[] mods = score.ScoreInfo.mods.Select(m => m.ToMod(ruleset)).ToArray();
+                ScoreInfo scoreInfo = score.ScoreInfo.ToScoreInfo(mods);
+
+                DifficultyAttributes difficultyAttributes = await GetDifficultyAttributes(score, ruleset, mods);
+
+                PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
+                if (performanceAttributes == null)
+                    return;
+
+                using (var db = Queue.GetDatabaseConnection())
+                {
+                    await db.ExecuteAsync($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
+                    {
+                        ScoreId = score.id,
+                        Pp = performanceAttributes.Total
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
             }
         }
 

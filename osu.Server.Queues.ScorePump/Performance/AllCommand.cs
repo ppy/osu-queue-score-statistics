@@ -9,10 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
-using osu.Game.Rulesets;
-using osu.Game.Rulesets.Difficulty;
-using osu.Game.Rulesets.Mods;
-using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -120,33 +116,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             }
 
             foreach (SoloScore score in scores)
-            {
-                try
-                {
-                    Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
-                    Mod[] mods = score.ScoreInfo.mods.Select(m => m.ToMod(ruleset)).ToArray();
-                    ScoreInfo scoreInfo = score.ScoreInfo.ToScoreInfo(mods);
-
-                    DifficultyAttributes difficultyAttributes = await GetDifficultyAttributes(score, ruleset, mods);
-
-                    PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
-                    if (performanceAttributes == null)
-                        continue;
-
-                    using (var db = Queue.GetDatabaseConnection())
-                    {
-                        await db.ExecuteAsync($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
-                        {
-                            ScoreId = score.id,
-                            Pp = performanceAttributes.Total
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
-                }
-            }
+                await ProcessScore(score);
         }
     }
 }
