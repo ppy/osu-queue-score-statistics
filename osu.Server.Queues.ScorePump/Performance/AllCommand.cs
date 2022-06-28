@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor;
-using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
@@ -98,28 +97,12 @@ namespace osu.Server.Queues.ScorePump.Performance
                     {
                         await Task.Yield();
 
-                        await processUser(partition.Current);
+                        await ProcessUser(partition.Current);
 
                         Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
                     }
                 }
             }
-        }
-
-        private async Task processUser(uint userId)
-        {
-            SoloScore[] scores;
-
-            using (var db = Queue.GetDatabaseConnection())
-            {
-                scores = (await db.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `user_id` = @UserId", new
-                {
-                    UserId = userId
-                })).ToArray();
-            }
-
-            foreach (SoloScore score in scores)
-                await ProcessScore(score);
         }
     }
 }

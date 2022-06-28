@@ -66,6 +66,43 @@ namespace osu.Server.Queues.ScorePump.Performance
             }
         }
 
+        protected async Task ProcessUser(uint userId)
+        {
+            SoloScore[] scores;
+
+            using (var db = Queue.GetDatabaseConnection())
+            {
+                scores = (await db.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `user_id` = @UserId", new
+                {
+                    UserId = userId
+                })).ToArray();
+            }
+
+            foreach (SoloScore score in scores)
+                await ProcessScore(score);
+        }
+
+        protected async Task ProcessScore(ulong scoreId)
+        {
+            SoloScore? score;
+
+            using (var db = Queue.GetDatabaseConnection())
+            {
+                score = await db.QuerySingleOrDefaultAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `id` = @ScoreId", new
+                {
+                    ScoreId = scoreId
+                });
+            }
+
+            if (score == null)
+            {
+                await Console.Error.WriteLineAsync($"Could not find score ID {scoreId}.");
+                return;
+            }
+
+            await ProcessScore(score);
+        }
+
         protected async Task ProcessScore(SoloScore score)
         {
             try

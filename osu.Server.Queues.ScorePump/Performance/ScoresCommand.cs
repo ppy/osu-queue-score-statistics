@@ -8,9 +8,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Dapper;
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
@@ -31,6 +29,8 @@ namespace osu.Server.Queues.ScorePump.Performance
                                .AsParallel()
                                .Select(processPartition));
 
+            return 0;
+
             async Task processPartition(IEnumerator<ulong> partition)
             {
                 using (partition)
@@ -39,30 +39,12 @@ namespace osu.Server.Queues.ScorePump.Performance
                     {
                         await Task.Yield();
 
-                        SoloScore? score;
-
-                        using (var db = Queue.GetDatabaseConnection())
-                        {
-                            score = await db.QuerySingleOrDefaultAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `id` = @ScoreId", new
-                            {
-                                ScoreId = partition.Current
-                            });
-                        }
-
-                        if (score == null)
-                        {
-                            await Console.Error.WriteLineAsync($"Could not find score ID {partition.Current}.");
-                            continue;
-                        }
-
-                        await ProcessScore(score);
+                        await ProcessScore(partition.Current);
 
                         Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {ScoreIds.Length}");
                     }
                 }
             }
-
-            return 0;
         }
     }
 }
