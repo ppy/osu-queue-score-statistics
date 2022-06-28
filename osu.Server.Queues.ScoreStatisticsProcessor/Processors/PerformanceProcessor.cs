@@ -50,7 +50,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }, transaction);
 
             // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
-            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.RulesetID != beatmap.playmode);
+            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.RulesetID != beatmap.playmode, score.RulesetID);
 
             var rawDifficultyAttribs = conn.Query<BeatmapDifficultyAttribute>(
                 "SELECT * FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId AND mods = @ModValue", new
