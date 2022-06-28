@@ -16,27 +16,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         // See: https://github.com/ppy/osu-performance/blob/83c02f50315a4ef7feea80acb84c66ee437d7210/include/pp/Common.h#L109-L129
         public static LegacyMods MaskRelevantMods(LegacyMods mods, bool isConvertedBeatmap, int rulesetId)
         {
-            LegacyMods relevantMods;
+            LegacyMods relevantMods = LegacyMods.DoubleTime | LegacyMods.HalfTime | LegacyMods.HardRock | LegacyMods.Easy;
 
             switch (rulesetId)
             {
                 case 0:
                     if ((mods & LegacyMods.Flashlight) > 0)
-                        relevantMods = LegacyMods.DoubleTime | LegacyMods.HalfTime | LegacyMods.HardRock | LegacyMods.Easy | LegacyMods.Flashlight | LegacyMods.Hidden;
+                        relevantMods |= LegacyMods.Flashlight | LegacyMods.Hidden;
                     else
-                        relevantMods = LegacyMods.DoubleTime | LegacyMods.HalfTime | LegacyMods.HardRock | LegacyMods.Easy | LegacyMods.Flashlight;
-                    break;
-
-                case 1:
-                case 2:
-                    relevantMods = LegacyMods.DoubleTime | LegacyMods.HalfTime | LegacyMods.HardRock | LegacyMods.Easy;
+                        relevantMods |= LegacyMods.Flashlight;
                     break;
 
                 case 3:
                     if (isConvertedBeatmap)
-                        relevantMods = LegacyMods.DoubleTime | LegacyMods.HalfTime | LegacyMods.HardRock | LegacyMods.Easy | KEY_MODS;
-                    else
-                        relevantMods = LegacyMods.DoubleTime | LegacyMods.HalfTime | LegacyMods.HardRock | LegacyMods.Easy;
+                        relevantMods |= KEY_MODS;
                     break;
 
                 default:
