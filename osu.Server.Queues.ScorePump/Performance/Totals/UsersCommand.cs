@@ -10,9 +10,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 
-namespace osu.Server.Queues.ScorePump.Performance
+namespace osu.Server.Queues.ScorePump.Performance.Totals
 {
-    [Command("users", Description = "Computes pp of specific users.")]
+    [Command("users", Description = "Updates the total PP of specific users.")]
     public class UsersCommand : PerformanceCommand
     {
         [Required]
@@ -43,7 +43,7 @@ namespace osu.Server.Queues.ScorePump.Performance
                     {
                         await Task.Yield();
 
-                        await ProcessUser(partition.Current);
+                        await UpdateTotals(partition.Current, RulesetId);
 
                         Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
                     }

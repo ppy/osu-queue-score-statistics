@@ -4,35 +4,31 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Dapper;
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.Queues.ScoreStatisticsProcessor;
 
-namespace osu.Server.Queues.ScorePump.Performance.Totals
+namespace osu.Server.Queues.ScorePump.Performance.Values
 {
-    [Command("all", Description = "Updates the total PP of all users.")]
-    public class UpdateAllTotalsCommand : PerformanceCommand
+    [Command("users", Description = "Computes pp of specific users.")]
+    public class UsersCommand : PerformanceCommand
     {
+        [Required]
+        [Argument(0, Description = "A space-separated list of users to compute PP for.")]
+        public uint[] UserIds { get; set; } = null!;
+
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
 
         public async Task<int> OnExecuteAsync(CommandLineApplication app)
         {
-            LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
-
-            uint[] userIds;
-
-            using (var db = Queue.GetDatabaseConnection())
-                userIds = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
-
-            Console.WriteLine($"Processed 0 of {userIds.Length}");
+            Console.WriteLine($"Processed 0 of {UserIds.Length}");
 
             int processedCount = 0;
             await Task.WhenAll(Partitioner
-                               .Create(userIds)
+                               .Create(UserIds)
                                .GetPartitions(Threads)
                                .AsParallel()
                                .Select(processPartition));
@@ -47,9 +43,9 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
                     {
                         await Task.Yield();
 
-                        await UpdateTotals(partition.Current, RulesetId);
+                        await ProcessUser(partition.Current);
 
-                        Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
+                        Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
                     }
                 }
             }

@@ -3,12 +3,14 @@
 
 using McMaster.Extensions.CommandLineUtils;
 
-namespace osu.Server.Queues.ScorePump.Performance.Totals
+namespace osu.Server.Queues.ScorePump.Performance.Values
 {
-    [Command("totals", Description = "Updates user total PP values.")]
+    [Command("values", Description = "Updates score PP values.")]
     [Subcommand(typeof(AllCommand))]
+    [Subcommand(typeof(ScoresCommand))]
+    [Subcommand(typeof(SqlCommand))]
     [Subcommand(typeof(UsersCommand))]
-    public sealed class UpdateTotalsMain
+    public sealed class UpdateValuesMain
     {
         public int OnExecute(CommandLineApplication app)
         {

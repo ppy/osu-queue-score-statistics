@@ -4,31 +4,29 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.Queues.ScoreStatisticsProcessor;
 
-namespace osu.Server.Queues.ScorePump.Performance
+namespace osu.Server.Queues.ScorePump.Performance.Totals
 {
-    [Command(Name = "sql", Description = "Computes pp of users given by an SQL select statement.")]
-    public class SqlCommand : PerformanceCommand
+    [Command("all", Description = "Updates the total PP of all users.")]
+    public class AllCommand : PerformanceCommand
     {
-        [Required]
-        [Argument(0, Description = "The SQL statement selecting the user ids to compute.")]
-        public string Statement { get; set; } = null!;
+        [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
+        public int RulesetId { get; set; }
 
         public async Task<int> OnExecuteAsync(CommandLineApplication app)
         {
+            LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
+
             uint[] userIds;
 
             using (var db = Queue.GetDatabaseConnection())
-                userIds = (await db.QueryAsync<uint>(Statement)).ToArray();
-
-            if (userIds.Length == 0)
-                throw new InvalidOperationException("SQL query returned 0 users to process.");
+                userIds = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
 
             Console.WriteLine($"Processed 0 of {userIds.Length}");
 
@@ -49,7 +47,7 @@ namespace osu.Server.Queues.ScorePump.Performance
                     {
                         await Task.Yield();
 
-                        await ProcessUser(partition.Current);
+                        await UpdateTotals(partition.Current, RulesetId);
 
                         Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
                     }

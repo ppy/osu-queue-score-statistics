@@ -10,7 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 
-namespace osu.Server.Queues.ScorePump.Performance
+namespace osu.Server.Queues.ScorePump.Performance.Values
 {
     [Command("scores", Description = "Computes pp of specific scores.")]
     public class ScoresCommand : PerformanceCommand
