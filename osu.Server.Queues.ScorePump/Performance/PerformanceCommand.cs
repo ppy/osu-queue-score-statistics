@@ -26,9 +26,6 @@ namespace osu.Server.Queues.ScorePump.Performance
         [Option(Description = "Number of threads to use.")]
         public int Threads { get; set; } = 1;
 
-        [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
-        public int RulesetId { get; set; }
-
         /// <summary>
         /// Sets a count in the database.
         /// </summary>

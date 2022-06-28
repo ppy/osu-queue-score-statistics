@@ -22,6 +22,9 @@ namespace osu.Server.Queues.ScorePump.Performance
         [Option(Description = "Continue where a previously aborted 'all' run left off.")]
         public bool Continue { get; set; }
 
+        [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
+        public int RulesetId { get; set; }
+
         private int? totalCount;
         private int processedCount;
 
