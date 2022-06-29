@@ -75,7 +75,7 @@ namespace osu.Server.Queues.ScorePump
         /// <summary>
         /// The latency a slave is allowed to fall behind before we start to panic.
         /// </summary>
-        private const int maximum_slave_latency_seconds = 10;
+        private const int maximum_slave_latency_seconds = 60;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
@@ -205,10 +205,10 @@ namespace osu.Server.Queues.ScorePump
                 Console.WriteLine($"Current slave latency of {latency} seconds exceeded maximum of {maximum_slave_latency_seconds} seconds.");
                 Console.WriteLine($"Sleeping for {latency} seconds to allow catch-up.");
 
-                Thread.Sleep(Math.Max(seconds_between_latency_checks * 2, latency * 1000));
+                Thread.Sleep(latency * 1000);
 
                 // greatly reduce processing rate to allow for recovery.
-                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery / 2);
+                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - 1000);
             }
 
             if (latency > 0)
