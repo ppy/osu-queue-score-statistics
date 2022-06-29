@@ -16,10 +16,12 @@ namespace osu.Server.Queues.ScorePump
 
         public static void Main(string[] args)
         {
-            Console.CancelKeyPress += delegate
+            Console.CancelKeyPress += (_, e) =>
             {
                 Console.WriteLine("Cancellation requested!");
                 cts.Cancel();
+
+                e.Cancel = true;
             };
 
             CommandLineApplication.ExecuteAsync<Program>(args, cts.Token);
