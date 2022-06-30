@@ -68,9 +68,9 @@ namespace osu.Server.Queues.ScorePump
         /// <summary>
         /// The number of seconds between checks for slave latency.
         /// </summary>
-        private const int seconds_between_latency_checks = 30;
+        private const int seconds_between_latency_checks = 60;
 
-        private int scoresPerQuery = safe_minimum_scores_per_query;
+        private int scoresPerQuery = safe_minimum_scores_per_query * 4;
 
         /// <summary>
         /// The latency a slave is allowed to fall behind before we start to panic.
@@ -206,12 +206,11 @@ namespace osu.Server.Queues.ScorePump
                 Thread.Sleep(latency * 1000);
 
                 // greatly reduce processing rate to allow for recovery.
-                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - 1000);
+                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - 500);
             }
-
-            if (latency > 0)
+            else if (latency > 2)
             {
-                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - (latency * 100));
+                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - 200);
                 Console.WriteLine($"Decreasing processing rate to {scoresPerQuery} due to latency of {latency}");
             }
             else if (scoresPerQuery < maximum_scores_per_query)
