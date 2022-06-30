@@ -193,8 +193,6 @@ namespace osu.Server.Queues.ScorePump
             if (currentTimestamp - lastLatencyCheckTimestamp < seconds_between_latency_checks)
                 return;
 
-            lastLatencyCheckTimestamp = currentTimestamp;
-
             // This latency is best-effort, and randomly queried from available hosts (with rough precedence of the importance of the host).
             // When we detect a high latency value, a recovery period should be introduced where we are pretty sure that we're back in a good
             // state before resuming operations.
@@ -221,6 +219,8 @@ namespace osu.Server.Queues.ScorePump
                 scoresPerQuery = Math.Min(maximum_scores_per_query, scoresPerQuery + 100);
                 Console.WriteLine($"Increasing processing rate to {scoresPerQuery} due to latency of {latency}");
             }
+
+            lastLatencyCheckTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
         }
 
         /// <summary>
