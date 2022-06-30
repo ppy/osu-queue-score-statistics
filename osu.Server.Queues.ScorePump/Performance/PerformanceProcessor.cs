@@ -235,22 +235,36 @@ namespace osu.Server.Queues.ScorePump.Performance
             }
         }
 
-        public async Task UpdateTotals(uint userId, int rulesetId)
+        public async Task UpdateTotals(int userId, int rulesetId, UserStats? userStats = null)
         {
-            List<SoloScoreWithPerformance> scores;
-
             using (var db = getConnection())
             {
-                scores = (await db.QueryAsync<SoloScoreWithPerformance>(
-                    $"SELECT s.*, p.pp AS `pp` FROM {SoloScore.TABLE_NAME} s "
-                    + $"JOIN {SoloScorePerformance.TABLE_NAME} p ON s.id = p.score_id "
-                    + $"WHERE s.user_id = @UserId "
-                    + $"AND s.ruleset_id = @RulesetId", new
-                    {
-                        UserId = userId,
-                        RulesetId = rulesetId
-                    })).ToList();
+                var transaction = await db.BeginTransactionAsync();
+                await UpdateTotals(db, userId, rulesetId, userStats, transaction);
+                await transaction.CommitAsync();
             }
+        }
+
+        public async Task UpdateTotals(MySqlConnection db, int userId, int rulesetId, UserStats? userStats = null, MySqlTransaction? transaction = null)
+        {
+            userStats ??= await DatabaseHelper.GetUserStatsAsync(userId, rulesetId, db, transaction);
+
+            if (userStats == null)
+                return;
+
+            // Check if the user is restricted.
+            if (userStats.rank_score == 0)
+                return;
+
+            List<SoloScoreWithPerformance> scores = (await db.QueryAsync<SoloScoreWithPerformance>(
+                $"SELECT s.*, p.pp AS `pp` FROM {SoloScore.TABLE_NAME} s "
+                + $"JOIN {SoloScorePerformance.TABLE_NAME} p ON s.id = p.score_id "
+                + $"WHERE s.user_id = @UserId "
+                + $"AND s.ruleset_id = @RulesetId", new
+                {
+                    UserId = userId,
+                    RulesetId = rulesetId
+                }, transaction)).ToList();
 
             // Filter out invalid scores.
             scores.RemoveAll(s =>
@@ -302,17 +316,10 @@ namespace osu.Server.Queues.ScorePump.Performance
                 totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, groupedItems.Length)));
             }
 
-            LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
+            userStats.rank_score = (float)totalPp;
+            userStats.accuracy_new = (float)totalAccuracy;
 
-            using (var db = getConnection())
-            {
-                await db.ExecuteAsync($"UPDATE {databaseInfo.UserStatsTable} SET `rank_score` = @Pp, `accuracy_new` = @Accuracy WHERE `user_id` = @UserId", new
-                {
-                    UserId = userId,
-                    Pp = totalPp,
-                    Accuracy = totalAccuracy
-                });
-            }
+            await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
         }
 
         private record struct DifficultyAttributeKey(uint BeatmapId, int RulesetId, uint ModValue);

@@ -8,6 +8,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 
 namespace osu.Server.Queues.ScorePump.Performance.Values
@@ -15,6 +16,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
     [Command("scores", Description = "Computes pp of specific scores.")]
     public class ScoresCommand : PerformanceCommand
     {
+        [UsedImplicitly]
         [Required]
         [Argument(0, Description = "A space-separated list of scores to compute PP for.")]
         public ulong[] ScoreIds { get; set; } = null!;

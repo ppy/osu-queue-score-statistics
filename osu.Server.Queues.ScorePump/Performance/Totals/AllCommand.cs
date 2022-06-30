@@ -23,10 +23,10 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 
-            uint[] userIds;
+            int[] userIds;
 
             using (var db = Queue.GetDatabaseConnection())
-                userIds = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
+                userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
 
             Console.WriteLine($"Processed 0 of {userIds.Length}");
 
@@ -39,7 +39,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
 
             return 0;
 
-            async Task processPartition(IEnumerator<uint> partition)
+            async Task processPartition(IEnumerator<int> partition)
             {
                 using (partition)
                 {

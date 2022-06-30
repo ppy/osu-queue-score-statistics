@@ -8,6 +8,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 
 namespace osu.Server.Queues.ScorePump.Performance.Totals
@@ -15,9 +16,10 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
     [Command("users", Description = "Updates the total PP of specific users.")]
     public class UsersCommand : PerformanceCommand
     {
+        [UsedImplicitly]
         [Required]
         [Argument(0, Description = "A space-separated list of users to compute PP for.")]
-        public uint[] UserIds { get; set; } = null!;
+        public int[] UserIds { get; set; } = null!;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
@@ -35,7 +37,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
 
             return 0;
 
-            async Task processPartition(IEnumerator<uint> partition)
+            async Task processPartition(IEnumerator<int> partition)
             {
                 using (partition)
                 {
