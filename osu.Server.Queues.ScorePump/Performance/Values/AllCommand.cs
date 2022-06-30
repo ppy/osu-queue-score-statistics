@@ -27,18 +27,18 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
         private int? totalCount;
         private int processedCount;
 
-        protected override async Task<int> Execute(CommandLineApplication app)
+        protected override async Task<int> ExecuteAsync(CommandLineApplication app)
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 
             long currentUserId;
 
             if (Continue)
-                currentUserId = await Processor.GetCount(databaseInfo.LastProcessedPpUserCount);
+                currentUserId = await Processor.GetCountAsync(databaseInfo.LastProcessedPpUserCount);
             else
             {
                 currentUserId = 0;
-                await Processor.SetCount(databaseInfo.LastProcessedPpUserCount, 0);
+                await Processor.SetCountAsync(databaseInfo.LastProcessedPpUserCount, 0);
             }
 
             using (var db = Queue.GetDatabaseConnection())
@@ -75,7 +75,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
 
                 currentUserId = Math.Max(currentUserId, users.Max());
 
-                await Processor.SetCount(databaseInfo.LastProcessedPpUserCount, currentUserId);
+                await Processor.SetCountAsync(databaseInfo.LastProcessedPpUserCount, currentUserId);
             }
 
             return 0;
@@ -97,7 +97,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
                     {
                         await Task.Yield();
 
-                        await Processor.ProcessUser(partition.Current, RulesetId);
+                        await Processor.ProcessUserAsync(partition.Current, RulesetId);
 
                         Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
                     }

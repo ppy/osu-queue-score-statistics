@@ -24,7 +24,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
 
-        protected override async Task<int> Execute(CommandLineApplication app)
+        protected override async Task<int> ExecuteAsync(CommandLineApplication app)
         {
             Console.WriteLine($"Processed 0 of {UserIds.Length}");
 
@@ -45,7 +45,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
                     {
                         await Task.Yield();
 
-                        await Processor.UpdateTotals(partition.Current, RulesetId);
+                        await Processor.UpdateTotalsAsync(partition.Current, RulesetId);
 
                         Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
                     }

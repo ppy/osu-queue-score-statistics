@@ -39,7 +39,7 @@ namespace osu.Server.Queues.ScorePump.Performance
         }
 
         [MemberNotNull(nameof(getConnection), nameof(builds), nameof(blacklist))]
-        public static async Task<PerformanceProcessor> Create(Func<MySqlConnection> getConnection)
+        public static async Task<PerformanceProcessor> CreateAsync(Func<MySqlConnection> getConnection)
         {
             using (var db = getConnection())
             {
@@ -60,7 +60,7 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// </summary>
         /// <param name="key">The count's key.</param>
         /// <param name="value">The count's value.</param>
-        public async Task SetCount(string key, long value)
+        public async Task SetCountAsync(string key, long value)
         {
             using (var db = getConnection())
             {
@@ -79,7 +79,7 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// <param name="key">The count's key.</param>
         /// <returns>The count for the provided key.</returns>
         /// <exception cref="InvalidOperationException">If the key wasn't found in the database.</exception>
-        public async Task<long> GetCount(string key)
+        public async Task<long> GetCountAsync(string key)
         {
             using (var db = getConnection())
             {
@@ -95,7 +95,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             }
         }
 
-        public async Task ProcessUser(uint userId, int rulesetId)
+        public async Task ProcessUserAsync(uint userId, int rulesetId)
         {
             SoloScore[] scores;
 
@@ -109,10 +109,10 @@ namespace osu.Server.Queues.ScorePump.Performance
             }
 
             foreach (SoloScore score in scores)
-                await ProcessScore(score);
+                await ProcessScoreAsync(score);
         }
 
-        public async Task ProcessScore(ulong scoreId)
+        public async Task ProcessScoreAsync(ulong scoreId)
         {
             SoloScore? score;
 
@@ -130,17 +130,17 @@ namespace osu.Server.Queues.ScorePump.Performance
                 return;
             }
 
-            await ProcessScore(score);
+            await ProcessScoreAsync(score);
         }
 
-        public async Task ProcessScore(SoloScore score)
+        public async Task ProcessScoreAsync(SoloScore score)
         {
             try
             {
                 if (blacklist.ContainsKey(new BlacklistEntry(score.beatmap_id, score.ruleset_id)))
                     return;
 
-                Beatmap? beatmap = await GetBeatmap(score.beatmap_id);
+                Beatmap? beatmap = await GetBeatmapAsync(score.beatmap_id);
 
                 if (beatmap == null)
                     return;
@@ -151,7 +151,7 @@ namespace osu.Server.Queues.ScorePump.Performance
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
                 Mod[] mods = score.ScoreInfo.mods.Select(m => m.ToMod(ruleset)).ToArray();
 
-                DifficultyAttributes? difficultyAttributes = await GetDifficultyAttributes(beatmap, ruleset, mods);
+                DifficultyAttributes? difficultyAttributes = await GetDifficultyAttributesAsync(beatmap, ruleset, mods);
                 if (difficultyAttributes == null)
                     return;
 
@@ -182,7 +182,7 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// <param name="ruleset">The score's ruleset.</param>
         /// <param name="mods">The score's mods.</param>
         /// <returns>The difficulty attributes.</returns>
-        public async Task<DifficultyAttributes?> GetDifficultyAttributes(Beatmap beatmap, Ruleset ruleset, Mod[] mods)
+        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods)
         {
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
 
@@ -221,7 +221,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             return difficultyAttributes;
         }
 
-        public async Task<Beatmap?> GetBeatmap(int beatmapId)
+        public async Task<Beatmap?> GetBeatmapAsync(int beatmapId)
         {
             if (beatmapCache.TryGetValue(beatmapId, out var beatmap))
                 return beatmap;
@@ -235,17 +235,17 @@ namespace osu.Server.Queues.ScorePump.Performance
             }
         }
 
-        public async Task UpdateTotals(int userId, int rulesetId, UserStats? userStats = null)
+        public async Task UpdateTotalsAsync(int userId, int rulesetId, UserStats? userStats = null)
         {
             using (var db = getConnection())
             {
                 var transaction = await db.BeginTransactionAsync();
-                await UpdateTotals(db, userId, rulesetId, userStats, transaction);
+                await UpdateTotalsAsync(db, userId, rulesetId, userStats, transaction);
                 await transaction.CommitAsync();
             }
         }
 
-        public async Task UpdateTotals(MySqlConnection db, int userId, int rulesetId, UserStats? userStats = null, MySqlTransaction? transaction = null)
+        public async Task UpdateTotalsAsync(MySqlConnection db, int userId, int rulesetId, UserStats? userStats = null, MySqlTransaction? transaction = null)
         {
             userStats ??= await DatabaseHelper.GetUserStatsAsync(userId, rulesetId, db, transaction);
 

@@ -15,10 +15,10 @@ namespace osu.Server.Queues.ScorePump.Performance
 
         public virtual async Task<int> OnExecuteAsync(CommandLineApplication app)
         {
-            Processor = await PerformanceProcessor.Create(() => Queue.GetDatabaseConnection());
-            return await Execute(app);
+            Processor = await PerformanceProcessor.CreateAsync(() => Queue.GetDatabaseConnection());
+            return await ExecuteAsync(app);
         }
 
-        protected abstract Task<int> Execute(CommandLineApplication app);
+        protected abstract Task<int> ExecuteAsync(CommandLineApplication app);
     }
 }
