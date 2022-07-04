@@ -2,8 +2,6 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,9 +22,6 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
 
-        private int? totalCount;
-        private int processedCount;
-
         protected override async Task<int> ExecuteAsync(CommandLineApplication app)
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
@@ -41,6 +36,8 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
                 await Processor.SetCountAsync(databaseInfo.LastProcessedPpUserCount, 0);
             }
 
+            int? totalCount;
+
             using (var db = Queue.GetDatabaseConnection())
             {
                 totalCount = await db.QuerySingleAsync<int?>($"SELECT COUNT(`user_id`) FROM {databaseInfo.UserStatsTable} WHERE `user_id` >= @UserId", new
@@ -54,6 +51,8 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
 
             Console.WriteLine($"Processing all users with ID larger than {currentUserId}");
             Console.WriteLine($"Processed 0 of {totalCount}");
+
+            int processedCount = 0;
 
             while (true)
             {
@@ -71,7 +70,11 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
                 if (users.Length == 0)
                     break;
 
-                await processUsers(users);
+                await ProcessPartitioned(users, async id =>
+                {
+                    await Processor.ProcessUserAsync(id, RulesetId);
+                    Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
+                });
 
                 currentUserId = Math.Max(currentUserId, users.Max());
 
@@ -79,30 +82,6 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
             }
 
             return 0;
-        }
-
-        private async Task processUsers(IEnumerable<uint> userIds)
-        {
-            await Task.WhenAll(Partitioner
-                               .Create(userIds)
-                               .GetPartitions(Threads)
-                               .AsParallel()
-                               .Select(processPartition));
-
-            async Task processPartition(IEnumerator<uint> partition)
-            {
-                using (partition)
-                {
-                    while (partition.MoveNext())
-                    {
-                        await Task.Yield();
-
-                        await Processor.ProcessUserAsync(partition.Current, RulesetId);
-
-                        Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
-                    }
-                }
-            }
         }
     }
 }

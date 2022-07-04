@@ -1,6 +1,10 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 
@@ -20,5 +24,23 @@ namespace osu.Server.Queues.ScorePump.Performance
         }
 
         protected abstract Task<int> ExecuteAsync(CommandLineApplication app);
+
+        protected async Task ProcessPartitioned<T>(IEnumerable<T> values, Func<T, Task> processFunc)
+        {
+            await Task.WhenAll(Partitioner
+                               .Create(values)
+                               .GetPartitions(Threads)
+                               .AsParallel()
+                               .Select(processPartition));
+
+            async Task processPartition(IEnumerator<T> partition)
+            {
+                using (partition)
+                {
+                    while (partition.MoveNext())
+                        await processFunc(partition.Current);
+                }
+            }
+        }
     }
 }

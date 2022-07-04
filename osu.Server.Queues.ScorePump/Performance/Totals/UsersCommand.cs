@@ -2,10 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
@@ -29,28 +26,14 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
             Console.WriteLine($"Processed 0 of {UserIds.Length}");
 
             int processedCount = 0;
-            await Task.WhenAll(Partitioner
-                               .Create(UserIds)
-                               .GetPartitions(Threads)
-                               .AsParallel()
-                               .Select(processPartition));
+
+            await ProcessPartitioned(UserIds, async id =>
+            {
+                await Processor.UpdateTotalsAsync(id, RulesetId);
+                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
+            });
 
             return 0;
-
-            async Task processPartition(IEnumerator<int> partition)
-            {
-                using (partition)
-                {
-                    while (partition.MoveNext())
-                    {
-                        await Task.Yield();
-
-                        await Processor.UpdateTotalsAsync(partition.Current, RulesetId);
-
-                        Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
-                    }
-                }
-            }
         }
     }
 }
