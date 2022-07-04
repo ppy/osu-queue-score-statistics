@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 
@@ -17,15 +18,15 @@ namespace osu.Server.Queues.ScorePump.Performance
         [Option(Description = "Number of threads to use.")]
         public int Threads { get; set; } = 1;
 
-        public virtual async Task<int> OnExecuteAsync(CommandLineApplication app)
+        public virtual async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             Processor = await PerformanceProcessor.CreateAsync(() => Queue.GetDatabaseConnection());
-            return await ExecuteAsync(app);
+            return await ExecuteAsync(cancellationToken);
         }
 
-        protected abstract Task<int> ExecuteAsync(CommandLineApplication app);
+        protected abstract Task<int> ExecuteAsync(CancellationToken cancellationToken);
 
-        protected async Task ProcessPartitioned<T>(IEnumerable<T> values, Func<T, Task> processFunc)
+        protected async Task ProcessPartitioned<T>(IEnumerable<T> values, Func<T, Task> processFunc, CancellationToken cancellationToken)
         {
             await Task.WhenAll(Partitioner
                                .Create(values)
@@ -38,7 +39,12 @@ namespace osu.Server.Queues.ScorePump.Performance
                 using (partition)
                 {
                     while (partition.MoveNext())
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                            return;
+
                         await processFunc(partition.Current);
+                    }
                 }
             }
         }

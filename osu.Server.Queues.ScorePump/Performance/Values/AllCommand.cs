@@ -22,7 +22,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
 
-        protected override async Task<int> ExecuteAsync(CommandLineApplication app)
+        protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 
@@ -54,7 +54,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
 
             int processedCount = 0;
 
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 uint[] users;
 
@@ -74,7 +74,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
                 {
                     await Processor.ProcessUserAsync(id, RulesetId);
                     Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
-                });
+                }, cancellationToken);
 
                 currentUserId = Math.Max(currentUserId, users.Max());
 

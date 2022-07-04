@@ -18,7 +18,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
         [Argument(0, Description = "A space-separated list of scores to compute PP for.")]
         public ulong[] ScoreIds { get; set; } = null!;
 
-        protected override async Task<int> ExecuteAsync(CommandLineApplication app)
+        protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
             Console.WriteLine($"Processed 0 of {ScoreIds.Length}");
 
@@ -28,7 +28,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
             {
                 await Processor.ProcessScoreAsync(id);
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {ScoreIds.Length}");
-            });
+            }, cancellationToken);
 
             return 0;
         }
