@@ -1,4 +1,7 @@
-﻿using McMaster.Extensions.CommandLineUtils;
+﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
+using McMaster.Extensions.CommandLineUtils;
 
 namespace osu.Server.Queues.ScorePump
 {
@@ -10,9 +13,19 @@ namespace osu.Server.Queues.ScorePump
     [Subcommand(typeof(ImportHighScores))]
     public class Program
     {
-        public static void Main(string[] args)
+        private static readonly CancellationTokenSource cts = new CancellationTokenSource();
+
+        public static async Task Main(string[] args)
         {
-            CommandLineApplication.Execute<Program>(args);
+            Console.CancelKeyPress += (_, e) =>
+            {
+                Console.WriteLine("Cancellation requested!");
+                cts.Cancel();
+
+                e.Cancel = true;
+            };
+
+            await CommandLineApplication.ExecuteAsync<Program>(args, cts.Token);
         }
 
         public int OnExecute(CommandLineApplication app)
