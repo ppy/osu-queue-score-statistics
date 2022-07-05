@@ -33,13 +33,11 @@ namespace osu.Server.Queues.ScorePump.Performance
         private readonly ConcurrentDictionary<int, Beatmap?> beatmapCache = new ConcurrentDictionary<int, Beatmap?>();
         private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
 
-        private readonly Func<MySqlConnection> getConnection;
         private readonly ConcurrentDictionary<int, bool> builds;
         private readonly ConcurrentDictionary<BlacklistEntry, byte> blacklist;
 
-        private PerformanceProcessor(Func<MySqlConnection> getConnection, IEnumerable<KeyValuePair<int, bool>> builds, IEnumerable<KeyValuePair<BlacklistEntry, byte>> blacklist)
+        private PerformanceProcessor(IEnumerable<KeyValuePair<int, bool>> builds, IEnumerable<KeyValuePair<BlacklistEntry, byte>> blacklist)
         {
-            this.getConnection = getConnection;
             this.builds = new ConcurrentDictionary<int, bool>(builds);
             this.blacklist = new ConcurrentDictionary<BlacklistEntry, byte>(blacklist);
         }
@@ -47,23 +45,19 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// <summary>
         /// Creates a new <see cref="PerformanceProcessor"/>.
         /// </summary>
-        /// <param name="getConnection">A function to retrieve a new <see cref="MySqlConnection"/>.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
         /// <returns>The created <see cref="PerformanceProcessor"/>.</returns>
-        [MemberNotNull(nameof(getConnection), nameof(builds), nameof(blacklist))]
-        public static async Task<PerformanceProcessor> CreateAsync(Func<MySqlConnection> getConnection)
+        public static async Task<PerformanceProcessor> CreateAsync(MySqlConnection? connection, MySqlTransaction? transaction = null)
         {
-            using (var db = getConnection())
-            {
-                var dbBuilds = await db.QueryAsync<Build>($"SELECT * FROM {Build.TABLE_NAME}");
-                var dbBlacklist = await db.QueryAsync<PerformanceBlacklistEntry>($"SELECT * FROM {PerformanceBlacklistEntry.TABLE_NAME}");
+            var dbBuilds = await connection.QueryAsync<Build>($"SELECT * FROM {Build.TABLE_NAME}", transaction: transaction);
+            var dbBlacklist = await connection.QueryAsync<PerformanceBlacklistEntry>($"SELECT * FROM {PerformanceBlacklistEntry.TABLE_NAME}", transaction: transaction);
 
-                return new PerformanceProcessor
-                (
-                    getConnection,
-                    dbBuilds.Select(b => new KeyValuePair<int, bool>(b.build_id, b.allow_performance)),
-                    dbBlacklist.Select(b => new KeyValuePair<BlacklistEntry, byte>(new BlacklistEntry(b.beatmap_id, b.mode), 1))
-                );
-            }
+            return new PerformanceProcessor
+            (
+                dbBuilds.Select(b => new KeyValuePair<int, bool>(b.build_id, b.allow_performance)),
+                dbBlacklist.Select(b => new KeyValuePair<BlacklistEntry, byte>(new BlacklistEntry(b.beatmap_id, b.mode), 1))
+            );
         }
 
         /// <summary>
@@ -71,39 +65,37 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// </summary>
         /// <param name="key">The count's key.</param>
         /// <param name="value">The count's value.</param>
-        public async Task SetCountAsync(string key, long value)
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public async Task SetCountAsync(string key, long value, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            using (var db = getConnection())
+            await connection.ExecuteAsync("INSERT INTO `osu_counts` (`name`,`count`) VALUES (@NAME, @COUNT) "
+                                          + "ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `count` = VALUES(`count`)", new
             {
-                await db.ExecuteAsync("INSERT INTO `osu_counts` (`name`,`count`) VALUES (@NAME, @COUNT) "
-                                      + "ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `count` = VALUES(`count`)", new
-                {
-                    Name = key,
-                    Count = value
-                });
-            }
+                Name = key,
+                Count = value
+            }, transaction: transaction);
         }
 
         /// <summary>
         /// Retrieves a count value from the database.
         /// </summary>
         /// <param name="key">The count's key.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
         /// <returns>The count for the provided key.</returns>
         /// <exception cref="InvalidOperationException">If the key wasn't found in the database.</exception>
-        public async Task<long> GetCountAsync(string key)
+        public async Task<long> GetCountAsync(string key, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            using (var db = getConnection())
+            long? res = await connection.QuerySingleOrDefaultAsync<long?>("SELECT `count` FROM `osu_counts` WHERE `name` = @NAME", new
             {
-                long? res = await db.QuerySingleOrDefaultAsync<long?>("SELECT `count` FROM `osu_counts` WHERE `name` = @NAME", new
-                {
-                    Name = key
-                });
+                Name = key
+            }, transaction: transaction);
 
-                if (res == null)
-                    throw new InvalidOperationException($"Unable to retrieve count '{key}'.");
+            if (res == null)
+                throw new InvalidOperationException($"Unable to retrieve count '{key}'.");
 
-                return res.Value;
-            }
+            return res.Value;
         }
 
         /// <summary>
@@ -111,38 +103,32 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// </summary>
         /// <param name="userId">The user to process all scores of.</param>
         /// <param name="rulesetId">The ruleset for which scores should be processed.</param>
-        public async Task ProcessUserScoresAsync(uint userId, int rulesetId)
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public async Task ProcessUserScoresAsync(uint userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            SoloScore[] scores;
-
-            using (var db = getConnection())
+            var scores = (await connection.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
             {
-                scores = (await db.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
-                {
-                    UserId = userId,
-                    RulesetId = rulesetId
-                })).ToArray();
-            }
+                UserId = userId,
+                RulesetId = rulesetId
+            }, transaction: transaction)).ToArray();
 
             foreach (SoloScore score in scores)
-                await ProcessScoreAsync(score);
+                await ProcessScoreAsync(score, connection, transaction);
         }
 
         /// <summary>
         /// Processes the raw PP value of a given score.
         /// </summary>
         /// <param name="scoreId">The score to process.</param>
-        public async Task ProcessScoreAsync(ulong scoreId)
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public async Task ProcessScoreAsync(ulong scoreId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            SoloScore? score;
-
-            using (var db = getConnection())
+            var score = await connection.QuerySingleOrDefaultAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `id` = @ScoreId", new
             {
-                score = await db.QuerySingleOrDefaultAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `id` = @ScoreId", new
-                {
-                    ScoreId = scoreId
-                });
-            }
+                ScoreId = scoreId
+            }, transaction: transaction);
 
             if (score == null)
             {
@@ -150,21 +136,31 @@ namespace osu.Server.Queues.ScorePump.Performance
                 return;
             }
 
-            await ProcessScoreAsync(score);
+            await ProcessScoreAsync(score, connection, transaction);
         }
 
         /// <summary>
         /// Processes the raw PP value of a given score.
         /// </summary>
         /// <param name="score">The score to process.</param>
-        public async Task ProcessScoreAsync(SoloScore score)
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public Task ProcessScoreAsync(SoloScore score, MySqlConnection connection, MySqlTransaction? transaction = null) => ProcessScoreAsync(score.ScoreInfo, connection, transaction);
+
+        /// <summary>
+        /// Processes the raw PP value of a given score.
+        /// </summary>
+        /// <param name="score">The score to process.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public async Task ProcessScoreAsync(SoloScoreInfo score, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             try
             {
                 if (blacklist.ContainsKey(new BlacklistEntry(score.beatmap_id, score.ruleset_id)))
                     return;
 
-                Beatmap? beatmap = await GetBeatmapAsync(score.beatmap_id);
+                Beatmap? beatmap = await GetBeatmapAsync(score.beatmap_id, connection, transaction);
 
                 if (beatmap == null)
                     return;
@@ -173,25 +169,22 @@ namespace osu.Server.Queues.ScorePump.Performance
                     return;
 
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
-                Mod[] mods = score.ScoreInfo.mods.Select(m => m.ToMod(ruleset)).ToArray();
+                Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
 
-                DifficultyAttributes? difficultyAttributes = await GetDifficultyAttributesAsync(beatmap, ruleset, mods);
+                DifficultyAttributes? difficultyAttributes = await GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
                 if (difficultyAttributes == null)
                     return;
 
-                ScoreInfo scoreInfo = score.ScoreInfo.ToScoreInfo(mods);
+                ScoreInfo scoreInfo = score.ToScoreInfo(mods);
                 PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
                 if (performanceAttributes == null)
                     return;
 
-                using (var db = getConnection())
+                await connection.ExecuteAsync($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
                 {
-                    await db.ExecuteAsync($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
-                    {
-                        ScoreId = score.id,
-                        Pp = performanceAttributes.Total
-                    });
-                }
+                    ScoreId = score.id,
+                    Pp = performanceAttributes.Total
+                }, transaction: transaction);
             }
             catch (Exception ex)
             {
@@ -205,27 +198,26 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// <param name="beatmap">The beatmap.</param>
         /// <param name="ruleset">The score's ruleset.</param>
         /// <param name="mods">The score's mods.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
-        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods)
+        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
 
-            using (var db = getConnection())
-            {
-                // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
-                LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), ruleset.RulesetInfo.OnlineID != beatmap.playmode, ruleset.RulesetInfo.OnlineID);
-                DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
+            // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
+            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), ruleset.RulesetInfo.OnlineID != beatmap.playmode, ruleset.RulesetInfo.OnlineID);
+            DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
 
-                if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
-                {
-                    rawDifficultyAttributes = attributeCache[key] = (await db.QueryAsync<BeatmapDifficultyAttribute>(
-                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId AND mods = @ModValue", new
-                        {
-                            BeatmapId = key.BeatmapId,
-                            RulesetId = key.RulesetId,
-                            ModValue = key.ModValue
-                        })).ToArray();
-                }
+            if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
+            {
+                rawDifficultyAttributes = attributeCache[key] = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
+                    "SELECT * FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId AND mods = @ModValue", new
+                    {
+                        BeatmapId = key.BeatmapId,
+                        RulesetId = key.RulesetId,
+                        ModValue = key.ModValue
+                    }, transaction: transaction)).ToArray();
             }
 
             if (rawDifficultyAttributes == null)
@@ -249,52 +241,32 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// Retrieves a beatmap from the database.
         /// </summary>
         /// <param name="beatmapId">The beatmap's ID.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
         /// <returns>The retrieved beatmap, or <c>null</c> if not existing.</returns>
-        public async Task<Beatmap?> GetBeatmapAsync(int beatmapId)
+        public async Task<Beatmap?> GetBeatmapAsync(int beatmapId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             if (beatmapCache.TryGetValue(beatmapId, out var beatmap))
                 return beatmap;
 
-            using (var db = getConnection())
+            return beatmapCache[beatmapId] = await connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
             {
-                return beatmapCache[beatmapId] = await db.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
-                {
-                    BeatmapId = beatmapId
-                });
-            }
+                BeatmapId = beatmapId
+            }, transaction: transaction);
         }
 
         /// <summary>
-        /// Updates a user's total PP.
+        /// Updates a user's stats with their total PP/accuracy.
         /// </summary>
-        /// <param name="userId">The user's ID.</param>
+        /// <remarks>
+        /// This does not insert the new stats values into the database.
+        /// </remarks>
         /// <param name="rulesetId">The ruleset for which to update the total PP.</param>
         /// <param name="userStats">An existing <see cref="UserStats"/> object to update with.</param>
-        public async Task UpdateUserTotalsAsync(int userId, int rulesetId, UserStats? userStats = null)
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            using (var db = getConnection())
-            {
-                var transaction = await db.BeginTransactionAsync();
-                await UpdateUserTotalsAsync(db, userId, rulesetId, userStats, transaction);
-                await transaction.CommitAsync();
-            }
-        }
-
-        /// <summary>
-        /// Updates a user's total PP.
-        /// </summary>
-        /// <param name="connection">A <see cref="MySqlConnection"/>.</param>
-        /// <param name="userId">The user's ID.</param>
-        /// <param name="rulesetId">The ruleset for which to update the total PP.</param>
-        /// <param name="userStats">An existing <see cref="UserStats"/> object to update with.</param>
-        /// <param name="transaction">An existing database transaction under <paramref name="connection"/>.</param>
-        public async Task UpdateUserTotalsAsync(MySqlConnection connection, int userId, int rulesetId, UserStats? userStats = null, MySqlTransaction? transaction = null)
-        {
-            userStats ??= await DatabaseHelper.GetUserStatsAsync(userId, rulesetId, connection, transaction);
-
-            if (userStats == null)
-                return;
-
             // Check if the user is restricted.
             if (userStats.rank_score == 0)
                 return;
@@ -305,9 +277,9 @@ namespace osu.Server.Queues.ScorePump.Performance
                 + $"WHERE s.user_id = @UserId "
                 + $"AND s.ruleset_id = @RulesetId", new
                 {
-                    UserId = userId,
+                    UserId = userStats.user_id,
                     RulesetId = rulesetId
-                }, transaction)).ToList();
+                }, transaction: transaction)).ToList();
 
             // Filter out invalid scores.
             scores.RemoveAll(s =>
@@ -361,8 +333,6 @@ namespace osu.Server.Queues.ScorePump.Performance
 
             userStats.rank_score = (float)totalPp;
             userStats.accuracy_new = (float)totalAccuracy;
-
-            await DatabaseHelper.UpdateUserStatsAsync(userStats, connection, transaction);
         }
 
         private record struct DifficultyAttributeKey(uint BeatmapId, int RulesetId, uint ModValue);

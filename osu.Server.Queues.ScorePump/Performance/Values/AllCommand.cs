@@ -28,12 +28,15 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
 
             long currentUserId;
 
-            if (Continue)
-                currentUserId = await Processor.GetCountAsync(databaseInfo.LastProcessedPpUserCount);
-            else
+            using (var db = Queue.GetDatabaseConnection())
             {
-                currentUserId = 0;
-                await Processor.SetCountAsync(databaseInfo.LastProcessedPpUserCount, 0);
+                if (Continue)
+                    currentUserId = await Processor.GetCountAsync(databaseInfo.LastProcessedPpUserCount, db);
+                else
+                {
+                    currentUserId = 0;
+                    await Processor.SetCountAsync(databaseInfo.LastProcessedPpUserCount, 0, db);
+                }
             }
 
             int? totalCount;
@@ -72,13 +75,15 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
 
                 await ProcessPartitioned(users, async id =>
                 {
-                    await Processor.ProcessUserScoresAsync(id, RulesetId);
+                    using (var db = Queue.GetDatabaseConnection())
+                        await Processor.ProcessUserScoresAsync(id, RulesetId, db);
                     Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
                 }, cancellationToken);
 
                 currentUserId = Math.Max(currentUserId, users.Max());
 
-                await Processor.SetCountAsync(databaseInfo.LastProcessedPpUserCount, currentUserId);
+                using (var db = Queue.GetDatabaseConnection())
+                    await Processor.SetCountAsync(databaseInfo.LastProcessedPpUserCount, currentUserId, db);
             }
 
             return 0;

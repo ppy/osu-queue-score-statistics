@@ -32,7 +32,13 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
 
             await ProcessPartitioned(userIds, async id =>
             {
-                await Processor.UpdateUserTotalsAsync(id, RulesetId);
+                using (var db = Queue.GetDatabaseConnection())
+                {
+                    var userStats = await DatabaseHelper.GetUserStatsAsync(id, RulesetId, db);
+                    await Processor.UpdateUserStatsAsync(userStats!, RulesetId, db);
+                    await DatabaseHelper.UpdateUserStatsAsync(userStats!, db);
+                }
+
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
 

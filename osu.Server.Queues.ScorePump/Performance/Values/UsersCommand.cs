@@ -27,7 +27,8 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
 
             await ProcessPartitioned(UserIds, async id =>
             {
-                await Processor.ProcessUserScoresAsync(id, RulesetId);
+                using (var db = Queue.GetDatabaseConnection())
+                    await Processor.ProcessUserScoresAsync(id, RulesetId, db);
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
             }, cancellationToken);
 

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.Queues.ScoreStatisticsProcessor;
 
 namespace osu.Server.Queues.ScorePump.Performance.Totals
 {
@@ -29,7 +30,13 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
 
             await ProcessPartitioned(UserIds, async id =>
             {
-                await Processor.UpdateUserTotalsAsync(id, RulesetId);
+                using (var db = Queue.GetDatabaseConnection())
+                {
+                    var userStats = await DatabaseHelper.GetUserStatsAsync(id, RulesetId, db);
+                    await Processor.UpdateUserStatsAsync(userStats!, RulesetId, db);
+                    await DatabaseHelper.UpdateUserStatsAsync(userStats!, db);
+                }
+
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
             }, cancellationToken);
 

@@ -20,7 +20,8 @@ namespace osu.Server.Queues.ScorePump.Performance
 
         public virtual async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            Processor = await PerformanceProcessor.CreateAsync(() => Queue.GetDatabaseConnection());
+            using (var db = Queue.GetDatabaseConnection())
+                Processor = await PerformanceProcessor.CreateAsync(db);
             return await ExecuteAsync(cancellationToken);
         }
 
