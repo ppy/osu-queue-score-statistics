@@ -69,7 +69,7 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// <param name="transaction">An existing transaction.</param>
         public async Task SetCountAsync(string key, long value, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            await connection.ExecuteAsync("INSERT INTO `osu_counts` (`name`,`count`) VALUES (@NAME, @COUNT) "
+            await connection.ExecuteAsync("INSERT INTO `osu_counts` (`name`,`count`) VALUES (@Name, @Count) "
                                           + "ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `count` = VALUES(`count`)", new
             {
                 Name = key,
@@ -87,7 +87,7 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// <exception cref="InvalidOperationException">If the key wasn't found in the database.</exception>
         public async Task<long> GetCountAsync(string key, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            long? res = await connection.QuerySingleOrDefaultAsync<long?>("SELECT `count` FROM `osu_counts` WHERE `name` = @NAME", new
+            long? res = await connection.QuerySingleOrDefaultAsync<long?>("SELECT `count` FROM `osu_counts` WHERE `name` = @Name", new
             {
                 Name = key
             }, transaction: transaction);
@@ -212,7 +212,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
             {
                 rawDifficultyAttributes = attributeCache[key] = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
-                    "SELECT * FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId AND mods = @ModValue", new
+                    "SELECT * FROM `osu_beatmap_difficulty_attribs` WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
                     {
                         BeatmapId = key.BeatmapId,
                         RulesetId = key.RulesetId,
@@ -249,7 +249,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             if (beatmapCache.TryGetValue(beatmapId, out var beatmap))
                 return beatmap;
 
-            return beatmapCache[beatmapId] = await connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
+            return beatmapCache[beatmapId] = await connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM `osu_beatmaps` WHERE `beatmap_id` = @BeatmapId", new
             {
                 BeatmapId = beatmapId
             }, transaction: transaction);
@@ -268,10 +268,10 @@ namespace osu.Server.Queues.ScorePump.Performance
         public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             List<SoloScoreWithPerformance> scores = (await connection.QueryAsync<SoloScoreWithPerformance>(
-                $"SELECT s.*, p.pp AS `pp` FROM {SoloScore.TABLE_NAME} s "
-                + $"JOIN {SoloScorePerformance.TABLE_NAME} p ON s.id = p.score_id "
-                + $"WHERE s.user_id = @UserId "
-                + $"AND s.ruleset_id = @RulesetId", new
+                $"SELECT `s`.*, `p`.`pp` AS `pp` FROM {SoloScore.TABLE_NAME} `s` "
+                + $"JOIN {SoloScorePerformance.TABLE_NAME} `p` ON `s`.`id` = `p`.`score_id` "
+                + $"WHERE `s`.`user_id` = @UserId "
+                + $"AND `s`.`ruleset_id` = @RulesetId", new
                 {
                     UserId = userStats.user_id,
                     RulesetId = rulesetId
