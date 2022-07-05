@@ -212,7 +212,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
             {
                 rawDifficultyAttributes = attributeCache[key] = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
-                    "SELECT * FROM `osu_beatmap_difficulty_attribs` WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
+                    $"SELECT * FROM {BeatmapDifficultyAttribute.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
                     {
                         BeatmapId = key.BeatmapId,
                         RulesetId = key.RulesetId,
@@ -249,7 +249,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             if (beatmapCache.TryGetValue(beatmapId, out var beatmap))
                 return beatmap;
 
-            return beatmapCache[beatmapId] = await connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM `osu_beatmaps` WHERE `beatmap_id` = @BeatmapId", new
+            return beatmapCache[beatmapId] = await connection.QuerySingleOrDefaultAsync<Beatmap?>($"SELECT * FROM {Beatmap.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId", new
             {
                 BeatmapId = beatmapId
             }, transaction: transaction);
