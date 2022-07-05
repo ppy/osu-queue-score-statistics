@@ -14,7 +14,9 @@ using osu.Game.Beatmaps.Legacy;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
+using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
@@ -169,6 +171,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
                 Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
+
+                if (!AllModsValidForPerformance(mods))
+                    return;
 
                 DifficultyAttributes? difficultyAttributes = await GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
                 if (difficultyAttributes == null)
@@ -328,6 +333,46 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
             userStats.rank_score = (float)totalPp;
             userStats.accuracy_new = (float)totalAccuracy;
+        }
+
+        /// <summary>
+        /// Checks whether all mods in a given array are valid to give PP for.
+        /// </summary>
+        public static bool AllModsValidForPerformance(Mod[] mods)
+        {
+            foreach (var m in mods)
+            {
+                switch (m)
+                {
+                    case ManiaModHardRock:
+                    case ManiaModKey1:
+                    case ManiaModKey2:
+                    case ManiaModKey3:
+                    case ManiaModKey10:
+                        return false;
+
+                    case ModEasy:
+                    case ModNoFail:
+                    case ModHalfTime:
+                    case ModSuddenDeath:
+                    case ModPerfect:
+                    case ModHardRock:
+                    case ModDoubleTime:
+                    case ModHidden:
+                    case ModFlashlight:
+                    case ModMuted:
+                    case ModClassic:
+                    case OsuModSpunOut:
+                    case ManiaKeyMod:
+                    case ManiaModMirror:
+                        continue;
+
+                    default:
+                        return false;
+                }
+            }
+
+            return true;
         }
 
         private record struct DifficultyAttributeKey(uint BeatmapId, int RulesetId, uint ModValue);
