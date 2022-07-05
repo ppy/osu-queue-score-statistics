@@ -6,6 +6,7 @@ using Dapper;
 using MySqlConnector;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu.Mods;
@@ -60,9 +61,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     ModValue = (uint)legacyModValue
                 }, transaction).ToArray();
 
-            var difficultyAttributes = rawDifficultyAttribs.ToDictionary(a => (int)a.attrib_id).Map(score.RulesetID, beatmap);
-            var performanceCalculator = ruleset.CreatePerformanceCalculator();
-            return performanceCalculator?.Calculate(score, difficultyAttributes).Total ?? 0;
+            DifficultyAttributes attributes = LegacyRulesetHelper.CreateDifficultyAttributes(score.RulesetID);
+            attributes.FromDatabaseAttributes(rawDifficultyAttribs.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap.ToAPIBeatmap());
+
+            return ruleset.CreatePerformanceCalculator()?.Calculate(score, attributes).Total ?? 0;
         }
 
         /// <summary>
