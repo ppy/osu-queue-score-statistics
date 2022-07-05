@@ -9,6 +9,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
     public class ScorePerformanceProcessor : IProcessor
     {
+        private PerformanceProcessor? processor;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -17,8 +19,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             // .Wait() in this class should be safe, since the queue processor runs under its own (non-TPL) task scheduler.
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
-            var processor = PerformanceProcessor.CreateAsync(conn, transaction).Result;
 
+            processor ??= PerformanceProcessor.CreateAsync(conn, transaction).Result;
             processor.ProcessScoreAsync(score, conn, transaction).Wait();
             processor.UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
 
