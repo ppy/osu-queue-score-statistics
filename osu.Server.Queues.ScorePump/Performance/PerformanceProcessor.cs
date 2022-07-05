@@ -267,10 +267,6 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// <param name="transaction">An existing transaction.</param>
         public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            // Check if the user is restricted.
-            if (userStats.rank_score == 0)
-                return;
-
             List<SoloScoreWithPerformance> scores = (await connection.QueryAsync<SoloScoreWithPerformance>(
                 $"SELECT s.*, p.pp AS `pp` FROM {SoloScore.TABLE_NAME} s "
                 + $"JOIN {SoloScorePerformance.TABLE_NAME} p ON s.id = p.score_id "
