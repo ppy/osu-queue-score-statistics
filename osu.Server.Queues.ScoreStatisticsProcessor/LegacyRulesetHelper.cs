@@ -4,9 +4,14 @@
 using System;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Catch;
+using osu.Game.Rulesets.Catch.Difficulty;
+using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mania;
+using osu.Game.Rulesets.Mania.Difficulty;
 using osu.Game.Rulesets.Osu;
+using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Taiko;
+using osu.Game.Rulesets.Taiko.Difficulty;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
@@ -27,6 +32,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                 case 3:
                     return new ManiaRuleset();
+
+                default:
+                    throw new ArgumentException($"Invalid ruleset ID: {legacyId}", nameof(legacyId));
+            }
+        }
+
+        public static DifficultyAttributes CreateDifficultyAttributes(int legacyId)
+        {
+            switch (legacyId)
+            {
+                case 0:
+                    return new OsuDifficultyAttributes();
+
+                case 1:
+                    return new TaikoDifficultyAttributes();
+
+                case 2:
+                    return new CatchDifficultyAttributes();
+
+                case 3:
+                    return new ManiaDifficultyAttributes();
 
                 default:
                     throw new ArgumentException($"Invalid ruleset ID: {legacyId}", nameof(legacyId));

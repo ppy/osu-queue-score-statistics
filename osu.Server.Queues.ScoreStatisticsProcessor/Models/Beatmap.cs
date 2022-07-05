@@ -4,6 +4,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using Dapper.Contrib.Extensions;
+using osu.Game.Online.API.Requests.Responses;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
@@ -19,7 +20,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public ushort countNormal { get; set; }
         public ushort countSlider { get; set; }
         public ushort countSpinner { get; set; }
+        public float diff_drain { get; set; }
+        public float diff_size { get; set; }
+        public float diff_overall { get; set; }
+        public float diff_approach { get; set; }
         public byte playmode { get; set; }
         public float difficultyrating { get; set; }
+
+        public APIBeatmap ToAPIBeatmap() => new APIBeatmap
+        {
+            OnlineID = (int)beatmap_id,
+            CircleCount = countNormal,
+            SliderCount = countSlider,
+            SpinnerCount = countSpinner,
+            DrainRate = diff_drain,
+            CircleSize = diff_size,
+            OverallDifficulty = diff_overall,
+            ApproachRate = diff_approach,
+            RulesetID = playmode,
+            StarRating = difficultyrating
+        };
     }
 }
