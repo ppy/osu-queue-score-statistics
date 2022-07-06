@@ -288,6 +288,7 @@ namespace osu.Server.Queues.ScorePump
                             rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
                             mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToList(),
                             statistics = statistics,
+                            ended_at = highScore.date
                         });
 
                         insertCommand.Transaction = transaction;

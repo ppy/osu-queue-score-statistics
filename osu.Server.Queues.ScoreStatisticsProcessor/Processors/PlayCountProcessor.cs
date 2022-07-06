@@ -1,6 +1,8 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
+using System.Diagnostics;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
@@ -39,24 +41,30 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private static void adjustUserBeatmapPlaycount(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, bool revert = false)
         {
-            conn.Execute("INSERT INTO osu_user_beatmap_playcount (beatmap_id, user_id, playcount) VALUES (@beatmap_id, @user_id, @add) ON DUPLICATE KEY UPDATE playcount = GREATEST(0, playcount + @adjust)", new
-            {
-                score.beatmap_id,
-                score.user_id,
-                add = revert ? 0 : 1,
-                adjust = revert ? -1 : 1,
-            }, transaction);
+            conn.Execute(
+                "INSERT INTO osu_user_beatmap_playcount (beatmap_id, user_id, playcount) VALUES (@beatmap_id, @user_id, @add) ON DUPLICATE KEY UPDATE playcount = GREATEST(0, playcount + @adjust)", new
+                {
+                    score.beatmap_id,
+                    score.user_id,
+                    add = revert ? 0 : 1,
+                    adjust = revert ? -1 : 1,
+                }, transaction);
         }
 
         private static void adjustMonthlyPlaycount(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, bool revert = false)
         {
-            conn.Execute("INSERT INTO osu_user_month_playcount (`year_month`, user_id, playcount) VALUES (@yearmonth, @user_id, @add) ON DUPLICATE KEY UPDATE playcount = GREATEST(0, playcount + @adjust)", new
-            {
-                yearmonth = score.started_at!.Value.ToString("yyMM"),
-                score.user_id,
-                add = revert ? 0 : 1,
-                adjust = revert ? -1 : 1,
-            }, transaction);
+            DateTimeOffset? date = score.started_at ?? score.ended_at;
+
+            Debug.Assert(date != null);
+
+            conn.Execute(
+                "INSERT INTO osu_user_month_playcount (`year_month`, user_id, playcount) VALUES (@yearmonth, @user_id, @add) ON DUPLICATE KEY UPDATE playcount = GREATEST(0, playcount + @adjust)", new
+                {
+                    yearmonth = date.Value.ToString("yyMM"),
+                    score.user_id,
+                    add = revert ? 0 : 1,
+                    adjust = revert ? -1 : 1,
+                }, transaction);
         }
     }
 }

@@ -39,7 +39,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private static int getPlayLength(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
         {
-            Debug.Assert(score.started_at != null);
             Debug.Assert(score.ended_at != null);
 
             // to ensure sanity, first get the maximum time feasible from the beatmap's length
@@ -52,10 +51,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             foreach (var mod in rateAdjustMods)
                 totalLengthSeconds /= mod.SpeedChange.Value;
 
-            TimeSpan realTimePassed = score.ended_at.Value - score.started_at.Value;
+            if (score.started_at == null)
+                return (int)totalLengthSeconds;
 
             // TODO: better handle failed plays once we have incoming data.
 
+            TimeSpan realTimePassed = score.ended_at.Value - score.started_at.Value;
             return (int)Math.Min(totalLengthSeconds, realTimePassed.TotalSeconds);
         }
     }
