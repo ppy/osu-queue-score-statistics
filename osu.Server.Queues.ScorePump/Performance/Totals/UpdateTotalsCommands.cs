@@ -6,9 +6,9 @@ using McMaster.Extensions.CommandLineUtils;
 namespace osu.Server.Queues.ScorePump.Performance.Totals
 {
     [Command("totals", Description = "Updates user total PP values.")]
-    [Subcommand(typeof(AllCommand))]
-    [Subcommand(typeof(UsersCommand))]
-    public sealed class UpdateTotalsMain
+    [Subcommand(typeof(UpdateTotalsAllCommand))]
+    [Subcommand(typeof(UpdateTotalsUsersCommand))]
+    public sealed class UpdateTotalsCommands
     {
         public int OnExecute(CommandLineApplication app)
         {

@@ -12,7 +12,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor;
 namespace osu.Server.Queues.ScorePump.Performance.Values
 {
     [Command(Name = "all", Description = "Computes pp of all users.")]
-    public class AllCommand : PerformanceCommand
+    public class UpdateValuesAllCommand : PerformanceCommand
     {
         private const int max_users_per_query = 10000;
 

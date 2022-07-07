@@ -2,33 +2,35 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
+using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor;
 
 namespace osu.Server.Queues.ScorePump.Performance.Totals
 {
-    [Command("users", Description = "Updates the total PP of specific users.")]
-    public class UsersCommand : PerformanceCommand
+    [Command("all", Description = "Updates the total PP of all users.")]
+    public class UpdateTotalsAllCommand : PerformanceCommand
     {
-        [UsedImplicitly]
-        [Required]
-        [Argument(0, Description = "A space-separated list of users to compute PP for.")]
-        public int[] UserIds { get; set; } = null!;
-
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
-            Console.WriteLine($"Processed 0 of {UserIds.Length}");
+            LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
+
+            int[] userIds;
+
+            using (var db = Queue.GetDatabaseConnection())
+                userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
+
+            Console.WriteLine($"Processed 0 of {userIds.Length}");
 
             int processedCount = 0;
 
-            await ProcessPartitioned(UserIds, async id =>
+            await ProcessPartitioned(userIds, async id =>
             {
                 using (var db = Queue.GetDatabaseConnection())
                 {
@@ -42,7 +44,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
                     await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
                 }
 
-                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
+                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
 
             return 0;

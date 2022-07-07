@@ -5,16 +5,19 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using System.Threading;
 using System.Threading.Tasks;
+using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.Queues.ScoreStatisticsProcessor;
 
-namespace osu.Server.Queues.ScorePump.Performance.Values
+namespace osu.Server.Queues.ScorePump.Performance.Totals
 {
-    [Command("users", Description = "Computes pp of specific users.")]
-    public class UsersCommand : PerformanceCommand
+    [Command("users", Description = "Updates the total PP of specific users.")]
+    public class UpdateTotalsUsersCommand : PerformanceCommand
     {
+        [UsedImplicitly]
         [Required]
         [Argument(0, Description = "A space-separated list of users to compute PP for.")]
-        public uint[] UserIds { get; set; } = null!;
+        public int[] UserIds { get; set; } = null!;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
@@ -28,7 +31,17 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
             await ProcessPartitioned(UserIds, async id =>
             {
                 using (var db = Queue.GetDatabaseConnection())
-                    await Processor.ProcessUserScoresAsync(id, RulesetId, db);
+                {
+                    var userStats = await DatabaseHelper.GetUserStatsAsync(id, RulesetId, db);
+
+                    // Only process users with an existing rank_score.
+                    if (userStats!.rank_score == 0)
+                        return;
+
+                    await Processor.UpdateUserStatsAsync(userStats, RulesetId, db);
+                    await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
+                }
+
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
             }, cancellationToken);
 
