@@ -30,13 +30,13 @@ namespace osu.Server.Queues.ScorePump.Performance
         private readonly ConcurrentDictionary<int, Beatmap?> beatmapCache = new ConcurrentDictionary<int, Beatmap?>();
         private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
 
-        private readonly ConcurrentDictionary<int, bool> builds;
-        private readonly ConcurrentDictionary<BlacklistEntry, byte> blacklist;
+        private readonly IReadOnlyDictionary<int, bool> builds;
+        private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
 
         private PerformanceProcessor(IEnumerable<KeyValuePair<int, bool>> builds, IEnumerable<KeyValuePair<BlacklistEntry, byte>> blacklist)
         {
-            this.builds = new ConcurrentDictionary<int, bool>(builds);
-            this.blacklist = new ConcurrentDictionary<BlacklistEntry, byte>(blacklist);
+            this.builds = new Dictionary<int, bool>(builds);
+            this.blacklist = new Dictionary<BlacklistEntry, byte>(blacklist);
         }
 
         /// <summary>
