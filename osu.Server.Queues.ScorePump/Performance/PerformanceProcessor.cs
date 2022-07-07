@@ -27,9 +27,6 @@ namespace osu.Server.Queues.ScorePump.Performance
     /// </summary>
     public class PerformanceProcessor
     {
-        private const BeatmapOnlineStatus min_ranked_status = BeatmapOnlineStatus.Ranked;
-        private const BeatmapOnlineStatus max_ranked_status = BeatmapOnlineStatus.Approved;
-
         private readonly ConcurrentDictionary<int, Beatmap?> beatmapCache = new ConcurrentDictionary<int, Beatmap?>();
         private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
 
@@ -157,15 +154,12 @@ namespace osu.Server.Queues.ScorePump.Performance
         {
             try
             {
-                if (blacklist.ContainsKey(new BlacklistEntry(score.beatmap_id, score.ruleset_id)))
-                    return;
-
                 Beatmap? beatmap = await GetBeatmapAsync(score.beatmap_id, connection, transaction);
 
                 if (beatmap == null)
                     return;
 
-                if (beatmap.approved < min_ranked_status || beatmap.approved > max_ranked_status)
+                if (!IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
                     return;
 
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
@@ -277,6 +271,16 @@ namespace osu.Server.Queues.ScorePump.Performance
                     RulesetId = rulesetId
                 }, transaction: transaction)).ToList();
 
+            Dictionary<int, Beatmap?> beatmaps = new Dictionary<int, Beatmap?>();
+
+            foreach (var score in scores)
+            {
+                if (beatmaps.ContainsKey(score.beatmap_id))
+                    continue;
+
+                beatmaps[score.beatmap_id] = await GetBeatmapAsync(score.beatmap_id, connection, transaction);
+            }
+
             // Filter out invalid scores.
             scores.RemoveAll(s =>
             {
@@ -284,8 +288,12 @@ namespace osu.Server.Queues.ScorePump.Performance
                 if (s.pp == null)
                     return true;
 
-                // The beatmap/ruleset combo must not be blacklisted.
-                if (blacklist.ContainsKey(new BlacklistEntry(s.beatmap_id, s.ruleset_id)))
+                // Beatmap must exist.
+                if (!beatmaps.TryGetValue(s.beatmap_id, out var beatmap) || beatmap == null)
+                    return true;
+
+                // Given beatmap needs to be allowed to give performance.
+                if (!IsBeatmapValidForPerformance(beatmap, s.ruleset_id))
                     return true;
 
                 // Scores with no build were imported from the legacy high scores tables and are always valid.
@@ -329,6 +337,27 @@ namespace osu.Server.Queues.ScorePump.Performance
 
             userStats.rank_score = (float)totalPp;
             userStats.accuracy_new = (float)totalAccuracy;
+        }
+
+        /// <summary>
+        /// Whether performance points may be awarded for the given beatmap and ruleset combination.
+        /// </summary>
+        /// <param name="beatmap">The beatmap.</param>
+        /// <param name="rulesetId">The ruleset.</param>
+        public bool IsBeatmapValidForPerformance(Beatmap beatmap, int rulesetId)
+        {
+            if (blacklist.ContainsKey(new BlacklistEntry((int)beatmap.beatmap_id, rulesetId)))
+                return false;
+
+            switch (beatmap.approved)
+            {
+                case BeatmapOnlineStatus.Ranked:
+                case BeatmapOnlineStatus.Approved:
+                    return true;
+
+                default:
+                    return false;
+            }
         }
 
         private record struct DifficultyAttributeKey(uint BeatmapId, int RulesetId, uint ModValue);
