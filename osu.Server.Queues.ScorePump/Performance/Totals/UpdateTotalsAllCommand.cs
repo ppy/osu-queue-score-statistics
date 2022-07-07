@@ -34,14 +34,14 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
             {
                 using (var db = Queue.GetDatabaseConnection())
                 {
-                    var userStats = await DatabaseHelper.GetUserStatsAsync(id, RulesetId, db);
+                    var userStats = DatabaseHelper.GetUserStats(id, RulesetId, db);
 
                     // Only process users with an existing rank_score.
                     if (userStats!.rank_score == 0)
                         return;
 
                     await Processor.UpdateUserStatsAsync(userStats, RulesetId, db);
-                    await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
+                    DatabaseHelper.UpdateUserStats(userStats, db);
                 }
 
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
