@@ -15,7 +15,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
-    public class PerformanceProcessor : IProcessor
+    public class ScorePerformanceProcessor : IProcessor
     {
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
