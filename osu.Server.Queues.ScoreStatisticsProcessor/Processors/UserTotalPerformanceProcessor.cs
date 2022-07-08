@@ -21,12 +21,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private BeatmapStore? beatmapStore;
         private BuildStore? buildStore;
 
+        // This processor needs to run after the score's PP value has been processed.
+        public int Order => ScorePerformanceProcessor.ORDER + 1;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
+            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+
+            int warnings = conn.QuerySingleOrDefault<int>($"SELECT `user_warnings` FROM {dbInfo.UsersTable} WHERE `user_id` = @UserId", new
+            {
+                UserId = userStats.user_id
+            }, transaction);
+
+            if (warnings > 0)
+                return;
+
+            UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)

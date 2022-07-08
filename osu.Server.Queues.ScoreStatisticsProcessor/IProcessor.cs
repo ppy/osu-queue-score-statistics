@@ -8,6 +8,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
     public interface IProcessor
     {
+        /// <summary>
+        /// The order in which this <see cref="IProcessor"/> will be run.
+        /// Defaults to 0.
+        /// </summary>
+        /// <remarks>
+        /// Higher values indicate this <see cref="IProcessor"/> runs after other <see cref="IProcessor"/>s with a smaller <see cref="Order"/> value.
+        /// </remarks>
+        int Order => 0;
+
         void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction);
 
         void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction);

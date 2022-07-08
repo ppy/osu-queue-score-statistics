@@ -41,6 +41,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 if (Activator.CreateInstance(t) is IProcessor processor)
                     processors.Add(processor);
             }
+
+            processors = processors.OrderBy(p => p.Order).ToList();
         }
 
         protected override void ProcessResult(ScoreItem item)

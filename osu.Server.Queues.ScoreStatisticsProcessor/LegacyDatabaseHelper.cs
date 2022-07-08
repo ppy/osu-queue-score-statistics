@@ -1,6 +1,8 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
+
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
     public static class LegacyDatabaseHelper
@@ -26,6 +28,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         public class RulesetDatabaseInfo
         {
+            public readonly string UsersTable;
             public readonly string ScoreTable;
             public readonly string HighScoreTable;
             public readonly string LeadersTable;
@@ -38,6 +41,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             {
                 string tableSuffix = legacySuffix ? $"_{rulesetIdentifier}" : string.Empty;
 
+                // If using the dumps, set this environment variable to "sample_users".
+                string usersTable = Environment.GetEnvironmentVariable("DB_USERS_TABLE") ?? "phpbb_users";
+
+                UsersTable = $"`osu`.`{usersTable}`";
                 ScoreTable = $"`osu`.`osu_scores{tableSuffix}`";
                 HighScoreTable = $"`osu`.`osu_scores{tableSuffix}_high`";
                 LeadersTable = $"`osu`.`osu_leaders{tableSuffix}`";

@@ -22,7 +22,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     /// </summary>
     public class ScorePerformanceProcessor : IProcessor
     {
+        public const int ORDER = 0;
+
         private BeatmapStore? beatmapStore;
+
+        public int Order => ORDER;
 
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
