@@ -20,9 +20,9 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
-            ulong[] scoreIds = ParseIds(ScoresString);
+            ulong[] scoreIds = ParseLongIds(ScoresString);
 
-            Console.WriteLine($"Processed 0 of {scoreIds.Length}");
+            Console.WriteLine($"Processing {scoreIds.Length} provided scores");
 
             int processedCount = 0;
 

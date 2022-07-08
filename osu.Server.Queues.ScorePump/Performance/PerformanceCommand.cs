@@ -8,12 +8,16 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.Queues.ScoreStatisticsProcessor;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
     public abstract class PerformanceCommand : ScorePump
     {
         protected PerformanceProcessor Processor { get; private set; } = null!;
+
+        [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
+        public int RulesetId { get; set; }
 
         [Option(Description = "Number of threads to use.")]
         public int Threads { get; set; } = 1;
@@ -32,7 +36,64 @@ namespace osu.Server.Queues.ScorePump.Performance
         /// </summary>
         /// <param name="input">The input string.</param>
         /// <returns>The IDs.</returns>
-        protected ulong[] ParseIds(string input) => input.Split(',').Select(ulong.Parse).ToArray();
+        protected static int[] ParseIntIds(string input) => input.Split(',').Select(int.Parse).ToArray();
+
+        /// <summary>
+        /// Parses a comma-separated list of IDs from a given input string.
+        /// </summary>
+        /// <param name="input">The input string.</param>
+        /// <returns>The IDs.</returns>
+        protected static ulong[] ParseLongIds(string input) => input.Split(',').Select(ulong.Parse).ToArray();
+
+        protected async Task ProcessUserTotals(int[] userIds, CancellationToken cancellationToken)
+        {
+            if (userIds.Length == 0)
+            {
+                Console.WriteLine("No matching users to process!");
+                return;
+            }
+
+            Console.WriteLine($"Processing user totals for {userIds.Length} users");
+
+            int processedCount = 0;
+
+            await ProcessPartitioned(userIds, async userId =>
+            {
+                using (var db = Queue.GetDatabaseConnection())
+                {
+                    var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db);
+
+                    // Only process users with an existing rank_score.
+                    if (userStats!.rank_score == 0)
+                        return;
+
+                    await Processor.UpdateUserStatsAsync(userStats, RulesetId, db);
+                    await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
+                }
+
+                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
+            }, cancellationToken);
+        }
+
+        protected async Task ProcessUserScores(int[] userIds, CancellationToken cancellationToken)
+        {
+            if (userIds.Length == 0)
+            {
+                Console.WriteLine("No matching users to process!");
+                return;
+            }
+
+            Console.WriteLine($"Processing user scores for {userIds.Length} users");
+
+            int processedCount = 0;
+
+            await ProcessPartitioned(userIds, async userId =>
+            {
+                using (var db = Queue.GetDatabaseConnection())
+                    await Processor.ProcessUserScoresAsync(userId, RulesetId, db);
+                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
+            }, cancellationToken);
+        }
 
         protected async Task ProcessPartitioned<T>(IEnumerable<T> values, Func<T, Task> processFunc, CancellationToken cancellationToken)
         {

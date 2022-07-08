@@ -11,16 +11,13 @@ using osu.Server.Queues.ScoreStatisticsProcessor;
 
 namespace osu.Server.Queues.ScorePump.Performance.Values
 {
-    [Command(Name = "all", Description = "Computes pp of all users.")]
+    [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateValuesAllCommand : PerformanceCommand
     {
         private const int max_users_per_query = 10000;
 
         [Option(Description = "Continue where a previously aborted 'all' run left off.")]
         public bool Continue { get; set; }
-
-        [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
-        public int RulesetId { get; set; }
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
@@ -52,35 +49,34 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
                     throw new InvalidOperationException("Could not find user ID count.");
             }
 
-            Console.WriteLine($"Processing all users with ID larger than {currentUserId}");
-            Console.WriteLine($"Processed 0 of {totalCount}");
+            Console.WriteLine($"Processing all users starting from UserID {currentUserId}");
 
             int processedCount = 0;
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                uint[] users;
+                int[] userIds;
 
                 using (var db = Queue.GetDatabaseConnection())
                 {
-                    users = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE `user_id` > @UserId ORDER BY `user_id` LIMIT @Limit", new
+                    userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE `user_id` > @UserId ORDER BY `user_id` LIMIT @Limit", new
                     {
                         UserId = currentUserId,
                         Limit = max_users_per_query
                     })).ToArray();
                 }
 
-                if (users.Length == 0)
+                if (userIds.Length == 0)
                     break;
 
-                await ProcessPartitioned(users, async id =>
+                await ProcessPartitioned(userIds, async userId =>
                 {
                     using (var db = Queue.GetDatabaseConnection())
-                        await Processor.ProcessUserScoresAsync(id, RulesetId, db);
+                        await Processor.ProcessUserScoresAsync(userId, RulesetId, db);
                     Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
                 }, cancellationToken);
 
-                currentUserId = Math.Max(currentUserId, users.Max());
+                currentUserId = userIds.Max();
 
                 using (var db = Queue.GetDatabaseConnection())
                     await Processor.SetCountAsync(databaseInfo.LastProcessedPpUserCount, currentUserId, db);

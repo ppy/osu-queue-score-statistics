@@ -14,39 +14,20 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
     [Command("all", Description = "Updates the total PP of all users.")]
     public class UpdateTotalsAllCommand : PerformanceCommand
     {
-        [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
-        public int RulesetId { get; set; }
-
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 
             int[] userIds;
 
+            Console.WriteLine("Fetching all users...");
+
             using (var db = Queue.GetDatabaseConnection())
                 userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
 
-            Console.WriteLine($"Processed 0 of {userIds.Length}");
+            Console.WriteLine($"Fetched {userIds.Length} users");
 
-            int processedCount = 0;
-
-            await ProcessPartitioned(userIds, async id =>
-            {
-                using (var db = Queue.GetDatabaseConnection())
-                {
-                    var userStats = await DatabaseHelper.GetUserStatsAsync(id, RulesetId, db);
-
-                    // Only process users with an existing rank_score.
-                    if (userStats!.rank_score == 0)
-                        return;
-
-                    await Processor.UpdateUserStatsAsync(userStats, RulesetId, db);
-                    await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
-                }
-
-                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
-            }, cancellationToken);
-
+            await ProcessUserTotals(userIds, cancellationToken);
             return 0;
         }
     }

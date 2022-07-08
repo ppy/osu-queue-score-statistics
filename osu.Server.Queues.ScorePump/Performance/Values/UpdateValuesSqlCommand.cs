@@ -1,7 +1,6 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
@@ -20,30 +19,14 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
         [Argument(0, Description = "The SQL statement selecting the user ids to compute.")]
         public string Statement { get; set; } = string.Empty;
 
-        [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
-        public int RulesetId { get; set; }
-
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
-            uint[] userIds;
+            int[] userIds;
 
             using (var db = Queue.GetDatabaseConnection())
-                userIds = (await db.QueryAsync<uint>(Statement)).ToArray();
+                userIds = (await db.QueryAsync<int>(Statement)).ToArray();
 
-            if (userIds.Length == 0)
-                throw new InvalidOperationException("SQL query returned 0 users to process.");
-
-            Console.WriteLine($"Processed 0 of {userIds.Length}");
-
-            int processedCount = 0;
-
-            await ProcessPartitioned(userIds, async id =>
-            {
-                using (var db = Queue.GetDatabaseConnection())
-                    await Processor.ProcessUserScoresAsync(id, RulesetId, db);
-                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
-            }, cancellationToken);
-
+            await ProcessUserScores(userIds, cancellationToken);
             return 0;
         }
     }
