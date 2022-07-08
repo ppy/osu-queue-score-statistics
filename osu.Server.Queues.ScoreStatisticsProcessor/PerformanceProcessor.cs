@@ -16,11 +16,10 @@ using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
-using osu.Server.Queues.ScoreStatisticsProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
-namespace osu.Server.Queues.ScorePump.Performance
+namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
     /// <summary>
     /// A helper class which can be used to compute scores' raw PP values and users' total PP values.
