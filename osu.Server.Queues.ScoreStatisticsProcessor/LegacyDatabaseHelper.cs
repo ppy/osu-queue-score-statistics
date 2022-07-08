@@ -43,8 +43,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 LeadersTable = $"`osu`.`osu_leaders{tableSuffix}`";
                 UserStatsTable = $"`osu`.`osu_user_stats{tableSuffix}`";
                 ReplayTable = $"`osu`.`osu_replays{tableSuffix}`";
-                LastProcessedPpUserCount = $"`osu`.`pp_last_user_id{tableSuffix}`";
-                LastProcessedPpScoreCount = $"`osu`.`pp_last_score_id{tableSuffix}`";
+                LastProcessedPpUserCount = $"pp_last_user_id{tableSuffix}";
+                LastProcessedPpScoreCount = $"pp_last_score_id{tableSuffix}";
             }
         }
     }
