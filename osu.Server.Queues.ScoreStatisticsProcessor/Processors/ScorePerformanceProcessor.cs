@@ -18,6 +18,9 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
+    /// <summary>
+    /// Computes the performance points of scores.
+    /// </summary>
     public class ScorePerformanceProcessor : IProcessor
     {
         private BeatmapStore? beatmapStore;
