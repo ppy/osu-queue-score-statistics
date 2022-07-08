@@ -6,10 +6,10 @@ using osu.Server.Queues.ScorePump.Performance;
 
 namespace osu.Server.Queues.ScorePump
 {
-    [Command(Name = "update-pp", Description = "Computes the performance (pp) of scores.")]
+    [Command(Name = "batch", Description = "Runs batch processing on pp scores / user totals.")]
     [Subcommand(typeof(UpdateScoresCommands))]
     [Subcommand(typeof(UpdateUserTotalsCommands))]
-    public sealed class PerformanceCommands
+    public sealed class BatchCommands
     {
         public int OnExecute(CommandLineApplication app)
         {
