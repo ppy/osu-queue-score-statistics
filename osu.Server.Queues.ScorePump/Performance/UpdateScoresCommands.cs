@@ -2,15 +2,16 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.Queues.ScorePump.Performance.Totals;
-using osu.Server.Queues.ScorePump.Performance.Values;
+using osu.Server.Queues.ScorePump.Performance.Scores;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
-    [Command(Name = "update-pp", Description = "Computes the performance (pp) of scores.")]
-    [Subcommand(typeof(UpdateValuesCommands))]
-    [Subcommand(typeof(UpdateTotalsCommands))]
-    public sealed class PerformanceCommands
+    [Command("scores", Description = "Updates individual score PP values.")]
+    [Subcommand(typeof(UpdateAllScores))]
+    [Subcommand(typeof(UpdateScoresFromList))]
+    [Subcommand(typeof(UpdateScoresFromSql))]
+    [Subcommand(typeof(UpdateScoresForUsers))]
+    public sealed class UpdateScoresCommands
     {
         public int OnExecute(CommandLineApplication app)
         {

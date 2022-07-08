@@ -8,14 +8,14 @@ using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScorePump
+namespace osu.Server.Queues.ScorePump.Queue
 {
     /// <summary>
     /// Keep in mind that this command is intended to be a temporary stand-in until osu-web
     /// pushes to the score processing queue directly.
     /// </summary>
     [Command("watch", Description = "Watch for new scores and queue as they arrive.")]
-    public class WatchNewScores : ScorePump
+    public class WatchNewScores : QueueCommand
     {
         [Option("--start_id")]
         public long? StartId { get; set; }

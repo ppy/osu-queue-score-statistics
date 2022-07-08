@@ -5,10 +5,10 @@ using System;
 using System.Threading;
 using McMaster.Extensions.CommandLineUtils;
 
-namespace osu.Server.Queues.ScorePump
+namespace osu.Server.Queues.ScorePump.Queue
 {
     [Command("clear-queue", Description = "Completely empties the processing queue")]
-    public class ClearQueue : ScorePump
+    public class ClearQueue : QueueCommand
     {
         public int OnExecute(CancellationToken cancellationToken)
         {

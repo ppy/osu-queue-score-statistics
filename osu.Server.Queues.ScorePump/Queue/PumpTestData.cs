@@ -6,10 +6,10 @@ using System.Threading;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScorePump
+namespace osu.Server.Queues.ScorePump.Queue
 {
-    [Command("test", Description = "Pumps test scores")]
-    public class PumpTestDataCommand : ScorePump
+    [Command("test", Description = "Pumps empty test scores to the queue")]
+    public class PumpTestData : QueueCommand
     {
         public int OnExecute(CancellationToken cancellationToken)
         {

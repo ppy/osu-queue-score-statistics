@@ -7,10 +7,10 @@ using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScorePump
+namespace osu.Server.Queues.ScorePump.Queue
 {
     [Command("all", Description = "Pumps scores through the queue for reprocessing")]
-    public class PumpAllScores : ScorePump
+    public class PumpAllScores : QueueCommand
     {
         [Option("--start_id")]
         public long StartId { get; set; }
