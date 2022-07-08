@@ -208,9 +208,9 @@ namespace osu.Server.Queues.ScorePump.Performance
                 rawDifficultyAttributes = attributeCache[key] = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
                     $"SELECT * FROM {BeatmapDifficultyAttribute.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
                     {
-                        BeatmapId = key.BeatmapId,
-                        RulesetId = key.RulesetId,
-                        ModValue = key.ModValue
+                        key.BeatmapId,
+                        key.RulesetId,
+                        key.ModValue
                     }, transaction: transaction)).ToArray();
             }
 
@@ -264,8 +264,8 @@ namespace osu.Server.Queues.ScorePump.Performance
             List<SoloScoreWithPerformance> scores = (await connection.QueryAsync<SoloScoreWithPerformance>(
                 $"SELECT `s`.*, `p`.`pp` AS `pp` FROM {SoloScore.TABLE_NAME} `s` "
                 + $"JOIN {SoloScorePerformance.TABLE_NAME} `p` ON `s`.`id` = `p`.`score_id` "
-                + $"WHERE `s`.`user_id` = @UserId "
-                + $"AND `s`.`ruleset_id` = @RulesetId", new
+                + "WHERE `s`.`user_id` = @UserId "
+                + "AND `s`.`ruleset_id` = @RulesetId", new
                 {
                     UserId = userStats.user_id,
                     RulesetId = rulesetId
