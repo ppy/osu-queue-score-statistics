@@ -16,23 +16,25 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
     {
         [UsedImplicitly]
         [Required]
-        [Argument(0, Description = "A space-separated list of users to compute PP for.")]
-        public int[] UserIds { get; set; } = null!;
+        [Argument(0, Description = "A comma-separated list of users to compute PP for.")]
+        public string UsersString { get; set; } = string.Empty;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
-            Console.WriteLine($"Processed 0 of {UserIds.Length}");
+            ulong[] userIds = ParseIds(UsersString);
+
+            Console.WriteLine($"Processed 0 of {userIds.Length}");
 
             int processedCount = 0;
 
-            await ProcessPartitioned(UserIds, async id =>
+            await ProcessPartitioned(userIds, async id =>
             {
                 using (var db = Queue.GetDatabaseConnection())
                 {
-                    var userStats = await DatabaseHelper.GetUserStatsAsync(id, RulesetId, db);
+                    var userStats = await DatabaseHelper.GetUserStatsAsync((int)id, RulesetId, db);
 
                     // Only process users with an existing rank_score.
                     if (userStats!.rank_score == 0)
@@ -42,7 +44,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Totals
                     await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
                 }
 
-                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {UserIds.Length}");
+                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
 
             return 0;

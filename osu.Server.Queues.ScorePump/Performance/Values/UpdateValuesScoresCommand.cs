@@ -15,20 +15,22 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
     {
         [UsedImplicitly]
         [Required]
-        [Argument(0, Description = "A space-separated list of scores to compute PP for.")]
-        public ulong[] ScoreIds { get; set; } = null!;
+        [Argument(0, Description = "A comma-separated list of scores to compute PP for.")]
+        public string ScoresString { get; set; } = string.Empty;
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
-            Console.WriteLine($"Processed 0 of {ScoreIds.Length}");
+            ulong[] scoreIds = ParseIds(ScoresString);
+
+            Console.WriteLine($"Processed 0 of {scoreIds.Length}");
 
             int processedCount = 0;
 
-            await ProcessPartitioned(ScoreIds, async id =>
+            await ProcessPartitioned(scoreIds, async id =>
             {
                 using (var db = Queue.GetDatabaseConnection())
                     await Processor.ProcessScoreAsync(id, db);
-                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {ScoreIds.Length}");
+                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {scoreIds.Length}");
             }, cancellationToken);
 
             return 0;

@@ -27,6 +27,13 @@ namespace osu.Server.Queues.ScorePump.Performance
 
         protected abstract Task<int> ExecuteAsync(CancellationToken cancellationToken);
 
+        /// <summary>
+        /// Parses a comma-separated list of IDs from a given input string.
+        /// </summary>
+        /// <param name="input">The input string.</param>
+        /// <returns>The IDs.</returns>
+        protected ulong[] ParseIds(string input) => input.Split(',').Select(ulong.Parse).ToArray();
+
         protected async Task ProcessPartitioned<T>(IEnumerable<T> values, Func<T, Task> processFunc, CancellationToken cancellationToken)
         {
             await Task.WhenAll(Partitioner

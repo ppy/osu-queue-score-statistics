@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
+using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 
 namespace osu.Server.Queues.ScorePump.Performance.Values
@@ -14,9 +15,10 @@ namespace osu.Server.Queues.ScorePump.Performance.Values
     [Command(Name = "sql", Description = "Computes pp of users given by an SQL select statement.")]
     public class UpdateValuesSqlCommand : PerformanceCommand
     {
+        [UsedImplicitly]
         [Required]
         [Argument(0, Description = "The SQL statement selecting the user ids to compute.")]
-        public string Statement { get; set; } = null!;
+        public string Statement { get; set; } = string.Empty;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
