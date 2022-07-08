@@ -29,7 +29,7 @@ namespace osu.Server.Queues.ScorePump.Performance.Scores
             await ProcessPartitioned(scoreIds, async id =>
             {
                 using (var db = Queue.GetDatabaseConnection())
-                    await Processor.ProcessScoreAsync(id, db);
+                    await ScoreProcessor.ProcessScoreAsync(id, db);
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {scoreIds.Length}");
             }, cancellationToken);
 

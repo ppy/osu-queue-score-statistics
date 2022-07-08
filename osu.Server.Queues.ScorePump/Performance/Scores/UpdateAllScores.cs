@@ -28,11 +28,11 @@ namespace osu.Server.Queues.ScorePump.Performance.Scores
             using (var db = Queue.GetDatabaseConnection())
             {
                 if (Continue)
-                    currentUserId = await Processor.GetCountAsync(databaseInfo.LastProcessedPpUserCount, db);
+                    currentUserId = await DatabaseHelper.GetCountAsync(databaseInfo.LastProcessedPpUserCount, db);
                 else
                 {
                     currentUserId = 0;
-                    await Processor.SetCountAsync(databaseInfo.LastProcessedPpUserCount, 0, db);
+                    await DatabaseHelper.SetCountAsync(databaseInfo.LastProcessedPpUserCount, 0, db);
                 }
             }
 
@@ -72,14 +72,14 @@ namespace osu.Server.Queues.ScorePump.Performance.Scores
                 await ProcessPartitioned(userIds, async userId =>
                 {
                     using (var db = Queue.GetDatabaseConnection())
-                        await Processor.ProcessUserScoresAsync(userId, RulesetId, db);
+                        await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
                     Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
                 }, cancellationToken);
 
                 currentUserId = userIds.Max();
 
                 using (var db = Queue.GetDatabaseConnection())
-                    await Processor.SetCountAsync(databaseInfo.LastProcessedPpUserCount, currentUserId, db);
+                    await DatabaseHelper.SetCountAsync(databaseInfo.LastProcessedPpUserCount, currentUserId, db);
             }
 
             return 0;

@@ -10,12 +10,14 @@ using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScorePump.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor;
+using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
     public abstract class PerformanceCommand : QueueCommand
     {
-        protected PerformanceProcessor Processor { get; private set; } = null!;
+        protected ScorePerformanceProcessor ScoreProcessor { get; private set; } = null!;
+        protected UserTotalPerformanceProcessor TotalProcessor { get; private set; } = null!;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
@@ -25,8 +27,8 @@ namespace osu.Server.Queues.ScorePump.Performance
 
         public virtual async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using (var db = Queue.GetDatabaseConnection())
-                Processor = await PerformanceProcessor.CreateAsync(db);
+            ScoreProcessor = new ScorePerformanceProcessor();
+            TotalProcessor = new UserTotalPerformanceProcessor();
             return await ExecuteAsync(cancellationToken);
         }
 
@@ -68,7 +70,7 @@ namespace osu.Server.Queues.ScorePump.Performance
                     if (userStats!.rank_score == 0)
                         return;
 
-                    await Processor.UpdateUserStatsAsync(userStats, RulesetId, db);
+                    await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db);
                     await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
                 }
 
@@ -91,7 +93,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             await ProcessPartitioned(userIds, async userId =>
             {
                 using (var db = Queue.GetDatabaseConnection())
-                    await Processor.ProcessUserScoresAsync(userId, RulesetId, db);
+                    await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
         }
