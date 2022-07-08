@@ -2,16 +2,11 @@
 using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.Queues.ScorePump.Queue;
 
 namespace osu.Server.Queues.ScorePump
 {
     [Command]
-    [Subcommand(typeof(PumpTestData))]
-    [Subcommand(typeof(PumpAllScores))]
-    [Subcommand(typeof(WatchNewScores))]
-    [Subcommand(typeof(ClearQueue))]
-    [Subcommand(typeof(ImportHighScores))]
+    [Subcommand(typeof(QueueCommands))]
     [Subcommand(typeof(PerformanceCommands))]
     public class Program
     {
