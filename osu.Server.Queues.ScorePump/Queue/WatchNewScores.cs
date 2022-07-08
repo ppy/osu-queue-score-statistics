@@ -8,7 +8,7 @@ using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScorePump
+namespace osu.Server.Queues.ScorePump.Queue
 {
     /// <summary>
     /// Keep in mind that this command is intended to be a temporary stand-in until osu-web

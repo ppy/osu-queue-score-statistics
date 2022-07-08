@@ -9,7 +9,7 @@ using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor;
 
-namespace osu.Server.Queues.ScorePump.Performance.Values
+namespace osu.Server.Queues.ScorePump.Performance.Scores
 {
     [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateAllScores : PerformanceCommand

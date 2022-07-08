@@ -21,7 +21,7 @@ using osu.Game.Scoring.Legacy;
 using osu.Server.Queues.ScoreStatisticsProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScorePump
+namespace osu.Server.Queues.ScorePump.Queue
 {
     [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo_scores table.")]
     public class ImportHighScores : QueueCommand
