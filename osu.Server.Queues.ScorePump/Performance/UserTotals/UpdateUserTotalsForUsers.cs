@@ -9,7 +9,7 @@ using McMaster.Extensions.CommandLineUtils;
 
 namespace osu.Server.Queues.ScorePump.Performance.UserTotals
 {
-    [Command("users", Description = "Updates the total PP of specific users.")]
+    [Command("list", Description = "Updates the total PP of specific users.")]
     public class UpdateUserTotalsForUsers : PerformanceCommand
     {
         [UsedImplicitly]

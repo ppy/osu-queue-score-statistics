@@ -6,7 +6,7 @@ using osu.Server.Queues.ScorePump.Performance.Scores;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
-    [Command("values", Description = "Updates score PP values.")]
+    [Command("scores", Description = "Updates individual score PP values.")]
     [Subcommand(typeof(UpdateAllScores))]
     [Subcommand(typeof(UpdateScoresFromList))]
     [Subcommand(typeof(UpdateScoresFromSql))]

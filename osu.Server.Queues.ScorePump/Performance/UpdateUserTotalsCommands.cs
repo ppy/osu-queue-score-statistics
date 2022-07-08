@@ -6,7 +6,7 @@ using osu.Server.Queues.ScorePump.Performance.UserTotals;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
-    [Command("totals", Description = "Updates user total PP values.")]
+    [Command("user-totals", Description = "Updates user total PP values.")]
     [Subcommand(typeof(UpdateAllUserTotals))]
     [Subcommand(typeof(UpdateUserTotalsForUsers))]
     public sealed class UpdateUserTotalsCommands
