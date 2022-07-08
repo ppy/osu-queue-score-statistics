@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
@@ -19,8 +20,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <param name="db">The database connection.</param>
         /// <param name="transaction">The database transaction, if one exists.</param>
         /// <returns>The retrieved user stats. Null if the ruleset or user was not valid.</returns>
-        public static UserStats? GetUserStats(SoloScoreInfo score, MySqlConnection db, MySqlTransaction? transaction = null)
-            => GetUserStats(score.user_id, score.ruleset_id, db, transaction);
+        public static Task<UserStats?> GetUserStatsAsync(SoloScoreInfo score, MySqlConnection db, MySqlTransaction? transaction = null)
+            => GetUserStatsAsync(score.user_id, score.ruleset_id, db, transaction);
 
         /// <summary>
         /// Retrieve user stats for a user based for a given ruleset.
@@ -31,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <param name="db">The database connection.</param>
         /// <param name="transaction">The database transaction, if one exists.</param>
         /// <returns>The retrieved user stats. Null if the ruleset or user was not valid.</returns>
-        public static UserStats? GetUserStats(int userId, int rulesetId, MySqlConnection db, MySqlTransaction? transaction = null)
+        public static async Task<UserStats?> GetUserStatsAsync(int userId, int rulesetId, MySqlConnection db, MySqlTransaction? transaction = null)
         {
             switch (rulesetId)
             {
@@ -40,26 +41,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     return null;
 
                 case 0:
-                    return getUserStats<UserStatsOsu>(userId, rulesetId, db, transaction);
+                    return await getUserStatsAsync<UserStatsOsu>(userId, rulesetId, db, transaction);
 
                 case 1:
-                    return getUserStats<UserStatsTaiko>(userId, rulesetId, db, transaction);
+                    return await getUserStatsAsync<UserStatsTaiko>(userId, rulesetId, db, transaction);
 
                 case 2:
-                    return getUserStats<UserStatsCatch>(userId, rulesetId, db, transaction);
+                    return await getUserStatsAsync<UserStatsCatch>(userId, rulesetId, db, transaction);
 
                 case 3:
-                    return getUserStats<UserStatsMania>(userId, rulesetId, db, transaction);
+                    return await getUserStatsAsync<UserStatsMania>(userId, rulesetId, db, transaction);
             }
         }
 
-        private static T getUserStats<T>(int userId, int rulesetId, MySqlConnection db, MySqlTransaction? transaction = null)
+        private static async Task<T> getUserStatsAsync<T>(int userId, int rulesetId, MySqlConnection db, MySqlTransaction? transaction = null)
             where T : UserStats, new()
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
 
             // for simplicity, let's ensure the row already exists as a separate step.
-            var userStats = db.QuerySingleOrDefault<T>($"SELECT * FROM {dbInfo.UserStatsTable} WHERE user_id = @UserId FOR UPDATE", new
+            var userStats = await db.QuerySingleOrDefaultAsync<T>($"SELECT * FROM {dbInfo.UserStatsTable} WHERE user_id = @UserId FOR UPDATE", new
             {
                 UserId = userId
             }, transaction);
@@ -69,13 +70,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 userStats = new T
                 {
                     user_id = userId,
-                    country_acronym = db.QueryFirstOrDefault<string>("SELECT country_acronym FROM phpbb_users WHERE user_id = @UserId", new
+                    country_acronym = await db.QueryFirstOrDefaultAsync<string>("SELECT country_acronym FROM phpbb_users WHERE user_id = @UserId", new
                     {
                         UserId = userId
                     }, transaction) ?? "XX",
                 };
 
-                db.Insert(userStats, transaction);
+                await db.InsertAsync(userStats, transaction);
             }
 
             return userStats;
@@ -84,24 +85,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <summary>
         /// Update stats in database with the correct generic type, because dapper is stupid.
         /// </summary>
-        public static void UpdateUserStats(UserStats stats, MySqlConnection db, MySqlTransaction? transaction = null)
+        public static async Task UpdateUserStatsAsync(UserStats stats, MySqlConnection db, MySqlTransaction? transaction = null)
         {
             switch (stats)
             {
                 case UserStatsOsu userStatsOsu:
-                    db.Update(userStatsOsu, transaction);
+                    await db.UpdateAsync(userStatsOsu, transaction);
                     break;
 
                 case UserStatsTaiko userStatsTaiko:
-                    db.Update(userStatsTaiko, transaction);
+                    await db.UpdateAsync(userStatsTaiko, transaction);
                     break;
 
                 case UserStatsCatch userStatsCatch:
-                    db.Update(userStatsCatch, transaction);
+                    await db.UpdateAsync(userStatsCatch, transaction);
                     break;
 
                 case UserStatsMania userStatsMania:
-                    db.Update(userStatsMania, transaction);
+                    await db.UpdateAsync(userStatsMania, transaction);
                     break;
             }
         }

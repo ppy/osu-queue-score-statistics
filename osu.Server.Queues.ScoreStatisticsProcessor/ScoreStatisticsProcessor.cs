@@ -60,7 +60,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                     using (var transaction = conn.BeginTransaction())
                     {
-                        var userStats = DatabaseHelper.GetUserStats(score, conn, transaction);
+                        var userStats = DatabaseHelper.GetUserStatsAsync(score, conn, transaction).Result;
 
                         if (userStats == null)
                             // ruleset could be invalid
@@ -84,7 +84,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         foreach (var p in processors)
                             p.ApplyToUserStats(score, userStats, conn, transaction);
 
-                        DatabaseHelper.UpdateUserStats(userStats, conn, transaction);
+                        DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
                         updateHistoryEntry(item, conn, transaction);
 
                         transaction.Commit();
