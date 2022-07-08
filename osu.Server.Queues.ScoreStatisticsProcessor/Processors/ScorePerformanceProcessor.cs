@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
-using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
@@ -31,17 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.ruleset_id);
-            Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
-            ScoreInfo scoreInfo = score.ToScoreInfo(mods);
-
-            double performance = computePerformance(ruleset, mods, scoreInfo, conn, transaction);
-
-            conn.Execute($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @PP) ON DUPLICATE KEY UPDATE `pp` = @PP", new
-            {
-                ScoreId = score.id,
-                PP = performance
-            }, transaction);
+            ProcessScoreAsync(score, conn, transaction).Wait();
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
@@ -120,6 +109,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
                 Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
 
+                if (!AllModsValidForPerformance(mods))
+                    return;
+
                 DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
                 if (difficultyAttributes == null)
                     return;
@@ -139,33 +131,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             {
                 await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
             }
-        }
-
-        private double computePerformance(Ruleset ruleset, Mod[] mods, ScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
-        {
-            if (!AllModsValidForPerformance(mods))
-                return 0;
-
-            var beatmap = conn.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE beatmap_id = @BeatmapId", new
-            {
-                BeatmapId = score.BeatmapInfo.OnlineID
-            }, transaction);
-
-            // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
-            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), score.RulesetID != beatmap.playmode, score.RulesetID);
-
-            var rawDifficultyAttribs = conn.Query<BeatmapDifficultyAttribute>(
-                "SELECT * FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId AND mods = @ModValue", new
-                {
-                    BeatmapId = score.BeatmapInfo.OnlineID,
-                    RulesetId = score.RulesetID,
-                    ModValue = (uint)legacyModValue
-                }, transaction).ToArray();
-
-            DifficultyAttributes attributes = LegacyRulesetHelper.CreateDifficultyAttributes(score.RulesetID);
-            attributes.FromDatabaseAttributes(rawDifficultyAttribs.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap.ToAPIBeatmap());
-
-            return ruleset.CreatePerformanceCalculator()?.Calculate(score, attributes).Total ?? 0;
         }
 
         /// <summary>
