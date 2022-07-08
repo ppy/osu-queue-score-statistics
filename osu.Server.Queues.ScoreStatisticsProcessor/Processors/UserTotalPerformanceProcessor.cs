@@ -32,15 +32,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
 
-            UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
-
             int warnings = conn.QuerySingleOrDefault<int>($"SELECT `user_warnings` FROM {dbInfo.UsersTable} WHERE `user_id` = @UserId", new
             {
                 UserId = userStats.user_id
             }, transaction);
 
             if (warnings > 0)
-                userStats.rank_score = 0;
+                return;
+
+            UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
