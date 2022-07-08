@@ -67,7 +67,7 @@ namespace osu.Server.Queues.ScorePump.Performance
         public async Task SetCountAsync(string key, long value, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             await connection.ExecuteAsync("INSERT INTO `osu_counts` (`name`,`count`) VALUES (@Name, @Count) "
-                                          + "ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `count` = VALUES(`count`)", new
+                                          + "ON DUPLICATE KEY UPDATE `count` = VALUES(`count`)", new
             {
                 Name = key,
                 Count = value
@@ -262,7 +262,7 @@ namespace osu.Server.Queues.ScorePump.Performance
         public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             List<SoloScoreWithPerformance> scores = (await connection.QueryAsync<SoloScoreWithPerformance>(
-                $"SELECT `s`.*, `p`.`pp` AS `pp` FROM {SoloScore.TABLE_NAME} `s` "
+                $"SELECT `s`.*, `p`.`pp` FROM {SoloScore.TABLE_NAME} `s` "
                 + $"JOIN {SoloScorePerformance.TABLE_NAME} `p` ON `s`.`id` = `p`.`score_id` "
                 + "WHERE `s`.`user_id` = @UserId "
                 + "AND `s`.`ruleset_id` = @RulesetId", new
