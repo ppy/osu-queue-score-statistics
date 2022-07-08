@@ -15,6 +15,9 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
+    /// <summary>
+    /// Populates the pp value for a score.
+    /// </summary>
     public class ScorePerformanceProcessor : IProcessor
     {
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
