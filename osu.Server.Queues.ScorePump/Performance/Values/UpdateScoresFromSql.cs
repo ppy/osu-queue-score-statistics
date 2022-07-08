@@ -12,7 +12,7 @@ using McMaster.Extensions.CommandLineUtils;
 namespace osu.Server.Queues.ScorePump.Performance.Values
 {
     [Command(Name = "sql", Description = "Computes pp of users given by an SQL select statement.")]
-    public class UpdateValuesSqlCommand : PerformanceCommand
+    public class UpdateScoresFromSql : PerformanceCommand
     {
         [UsedImplicitly]
         [Required]

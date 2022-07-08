@@ -15,7 +15,7 @@ namespace osu.Server.Queues.ScorePump
     /// pushes to the score processing queue directly.
     /// </summary>
     [Command("watch", Description = "Watch for new scores and queue as they arrive.")]
-    public class WatchNewScores : ScorePump
+    public class WatchNewScores : QueueCommand
     {
         [Option("--start_id")]
         public long? StartId { get; set; }

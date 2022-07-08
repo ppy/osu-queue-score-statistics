@@ -7,7 +7,7 @@ using osu.Server.Queues.ScorePump.Performance;
 namespace osu.Server.Queues.ScorePump
 {
     [Command]
-    [Subcommand(typeof(PumpTestDataCommand))]
+    [Subcommand(typeof(PumpTestData))]
     [Subcommand(typeof(PumpAllScores))]
     [Subcommand(typeof(WatchNewScores))]
     [Subcommand(typeof(ClearQueue))]

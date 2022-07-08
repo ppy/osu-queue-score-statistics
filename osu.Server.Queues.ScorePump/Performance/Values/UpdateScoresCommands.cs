@@ -6,11 +6,11 @@ using McMaster.Extensions.CommandLineUtils;
 namespace osu.Server.Queues.ScorePump.Performance.Values
 {
     [Command("values", Description = "Updates score PP values.")]
-    [Subcommand(typeof(UpdateValuesAllCommand))]
-    [Subcommand(typeof(UpdateValuesScoresCommand))]
-    [Subcommand(typeof(UpdateValuesSqlCommand))]
-    [Subcommand(typeof(UpdateValuesUsersCommand))]
-    public sealed class UpdateValuesCommands
+    [Subcommand(typeof(UpdateAllScores))]
+    [Subcommand(typeof(UpdateScoresFromList))]
+    [Subcommand(typeof(UpdateScoresFromSql))]
+    [Subcommand(typeof(UpdateScoresForUsers))]
+    public sealed class UpdateScoresCommands
     {
         public int OnExecute(CommandLineApplication app)
         {

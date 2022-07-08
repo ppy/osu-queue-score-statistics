@@ -12,7 +12,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor;
 namespace osu.Server.Queues.ScorePump.Performance.Totals
 {
     [Command("all", Description = "Updates the total PP of all users.")]
-    public class UpdateTotalsAllCommand : PerformanceCommand
+    public class UpdateAllUserTotals : PerformanceCommand
     {
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {

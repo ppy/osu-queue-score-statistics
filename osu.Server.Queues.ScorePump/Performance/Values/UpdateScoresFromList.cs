@@ -11,7 +11,7 @@ using McMaster.Extensions.CommandLineUtils;
 namespace osu.Server.Queues.ScorePump.Performance.Values
 {
     [Command("scores", Description = "Computes pp of specific scores.")]
-    public class UpdateValuesScoresCommand : PerformanceCommand
+    public class UpdateScoresFromList : PerformanceCommand
     {
         [UsedImplicitly]
         [Required]

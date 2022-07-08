@@ -12,7 +12,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
-    public abstract class PerformanceCommand : ScorePump
+    public abstract class PerformanceCommand : QueueCommand
     {
         protected PerformanceProcessor Processor { get; private set; } = null!;
 

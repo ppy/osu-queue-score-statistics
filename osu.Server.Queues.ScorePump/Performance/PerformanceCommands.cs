@@ -8,8 +8,8 @@ using osu.Server.Queues.ScorePump.Performance.Values;
 namespace osu.Server.Queues.ScorePump.Performance
 {
     [Command(Name = "update-pp", Description = "Computes the performance (pp) of scores.")]
-    [Subcommand(typeof(UpdateValuesCommands))]
-    [Subcommand(typeof(UpdateTotalsCommands))]
+    [Subcommand(typeof(UpdateScoresCommands))]
+    [Subcommand(typeof(UpdateUserTotalsCommands))]
     public sealed class PerformanceCommands
     {
         public int OnExecute(CommandLineApplication app)
