@@ -31,6 +31,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             public readonly string LeadersTable;
             public readonly string UserStatsTable;
             public readonly string ReplayTable;
+            public readonly string LastProcessedPpUserCount;
+            public readonly string LastProcessedPpScoreCount;
 
             public RulesetDatabaseInfo(int rulesetId, string rulesetIdentifier, bool legacySuffix)
             {
@@ -41,6 +43,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 LeadersTable = $"`osu`.`osu_leaders{tableSuffix}`";
                 UserStatsTable = $"`osu`.`osu_user_stats{tableSuffix}`";
                 ReplayTable = $"`osu`.`osu_replays{tableSuffix}`";
+                LastProcessedPpUserCount = $"`osu`.`pp_last_user_id{tableSuffix}`";
+                LastProcessedPpScoreCount = $"`osu`.`pp_last_score_id{tableSuffix}`";
             }
         }
     }

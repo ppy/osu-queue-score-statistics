@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
 using osu.Game.Rulesets;
@@ -61,7 +60,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                     using (var transaction = conn.BeginTransaction())
                     {
-                        var userStats = GetUserStats(score, conn, transaction);
+                        var userStats = DatabaseHelper.GetUserStatsAsync(score, conn, transaction).Result;
 
                         if (userStats == null)
                             // ruleset could be invalid
@@ -85,7 +84,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         foreach (var p in processors)
                             p.ApplyToUserStats(score, userStats, conn, transaction);
 
-                        updateUserStats(userStats, conn, transaction);
+                        DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
                         updateHistoryEntry(item, conn, transaction);
 
                         transaction.Commit();
@@ -112,83 +111,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 db.Update(item.ProcessHistory, transaction);
             else
                 db.Insert(item.ProcessHistory, transaction);
-        }
-
-        /// <summary>
-        /// Retrieve user stats for a user based on a score context.
-        /// Creates a new entry if the user does not yet have one.
-        /// </summary>
-        /// <param name="score">The score to use for the user and ruleset lookup.</param>
-        /// <param name="db">The database connection.</param>
-        /// <param name="transaction">The database transaction, if one exists.</param>
-        /// <returns>The retrieved user stats. Null if the ruleset or user was not valid.</returns>
-        public static UserStats? GetUserStats(SoloScoreInfo score, MySqlConnection db, MySqlTransaction? transaction = null)
-        {
-            switch (score.ruleset_id)
-            {
-                default:
-                    Console.WriteLine($"Item {score} is for an unsupported ruleset {score.ruleset_id}");
-                    return null;
-
-                case 0:
-                    return getUserStats<UserStatsOsu>(score, db, transaction);
-
-                case 1:
-                    return getUserStats<UserStatsTaiko>(score, db, transaction);
-
-                case 2:
-                    return getUserStats<UserStatsCatch>(score, db, transaction);
-
-                case 3:
-                    return getUserStats<UserStatsMania>(score, db, transaction);
-            }
-        }
-
-        private static T getUserStats<T>(SoloScoreInfo score, MySqlConnection db, MySqlTransaction? transaction = null)
-            where T : UserStats, new()
-        {
-            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
-
-            // for simplicity, let's ensure the row already exists as a separate step.
-            var userStats = db.QuerySingleOrDefault<T>($"SELECT * FROM {dbInfo.UserStatsTable} WHERE user_id = @user_id FOR UPDATE", score, transaction);
-
-            if (userStats == null)
-            {
-                userStats = new T
-                {
-                    user_id = score.user_id,
-                    country_acronym = db.QueryFirstOrDefault<string>("SELECT country_acronym FROM phpbb_users WHERE user_id = @user_id", score, transaction) ?? "XX",
-                };
-
-                db.Insert(userStats, transaction);
-            }
-
-            return userStats;
-        }
-
-        /// <summary>
-        /// Update stats in database with the correct generic type, because dapper is stupid.
-        /// </summary>
-        private static void updateUserStats(UserStats stats, MySqlConnection db, MySqlTransaction transaction)
-        {
-            switch (stats)
-            {
-                case UserStatsOsu userStatsOsu:
-                    db.Update(userStatsOsu, transaction);
-                    break;
-
-                case UserStatsTaiko userStatsTaiko:
-                    db.Update(userStatsTaiko, transaction);
-                    break;
-
-                case UserStatsCatch userStatsCatch:
-                    db.Update(userStatsCatch, transaction);
-                    break;
-
-                case UserStatsMania userStatsMania:
-                    db.Update(userStatsMania, transaction);
-                    break;
-            }
         }
 
         private static List<Ruleset> getRulesets()

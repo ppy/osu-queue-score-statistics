@@ -4,15 +4,18 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using Dapper.Contrib.Extensions;
+using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table("osu_beatmaps")]
+    [Table(TABLE_NAME)]
     public class Beatmap
     {
+        public const string TABLE_NAME = "osu_beatmaps";
+
         [ExplicitKey]
         public uint beatmap_id { get; set; }
 
@@ -25,6 +28,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public float diff_overall { get; set; }
         public float diff_approach { get; set; }
         public byte playmode { get; set; }
+        public BeatmapOnlineStatus approved { get; set; }
         public float difficultyrating { get; set; }
 
         public APIBeatmap ToAPIBeatmap() => new APIBeatmap

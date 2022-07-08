@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.Queues.ScorePump.Performance;
 
 namespace osu.Server.Queues.ScorePump
 {
@@ -11,6 +12,7 @@ namespace osu.Server.Queues.ScorePump
     [Subcommand(typeof(WatchNewScores))]
     [Subcommand(typeof(ClearQueue))]
     [Subcommand(typeof(ImportHighScores))]
+    [Subcommand(typeof(PerformanceCommands))]
     public class Program
     {
         private static readonly CancellationTokenSource cts = new CancellationTokenSource();
