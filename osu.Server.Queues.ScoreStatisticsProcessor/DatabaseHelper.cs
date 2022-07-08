@@ -106,5 +106,43 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     break;
             }
         }
+
+        /// <summary>
+        /// Sets a count in the database.
+        /// </summary>
+        /// <param name="key">The count's key.</param>
+        /// <param name="value">The count's value.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public static async Task SetCountAsync(string key, long value, MySqlConnection connection, MySqlTransaction? transaction = null)
+        {
+            await connection.ExecuteAsync("INSERT INTO `osu_counts` (`name`,`count`) VALUES (@Name, @Count) "
+                                          + "ON DUPLICATE KEY UPDATE `count` = VALUES(`count`)", new
+            {
+                Name = key,
+                Count = value
+            }, transaction: transaction);
+        }
+
+        /// <summary>
+        /// Retrieves a count value from the database.
+        /// </summary>
+        /// <param name="key">The count's key.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        /// <returns>The count for the provided key.</returns>
+        /// <exception cref="InvalidOperationException">If the key wasn't found in the database.</exception>
+        public static async Task<long> GetCountAsync(string key, MySqlConnection connection, MySqlTransaction? transaction = null)
+        {
+            long? res = await connection.QuerySingleOrDefaultAsync<long?>("SELECT `count` FROM `osu_counts` WHERE `name` = @Name", new
+            {
+                Name = key
+            }, transaction: transaction);
+
+            if (res == null)
+                throw new InvalidOperationException($"Unable to retrieve count '{key}'.");
+
+            return res.Value;
+        }
     }
 }

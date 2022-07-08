@@ -2,22 +2,14 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
-using osu.Game.Beatmaps;
-using osu.Game.Beatmaps.Legacy;
-using osu.Game.Online.API.Requests.Responses;
-using osu.Game.Rulesets;
-using osu.Game.Rulesets.Difficulty;
-using osu.Game.Rulesets.Mods;
-using osu.Game.Scoring;
-using osu.Server.Queues.ScoreStatisticsProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScorePump.Performance
@@ -27,16 +19,13 @@ namespace osu.Server.Queues.ScorePump.Performance
     /// </summary>
     public class PerformanceProcessor
     {
-        private readonly ConcurrentDictionary<int, Beatmap?> beatmapCache = new ConcurrentDictionary<int, Beatmap?>();
-        private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
-
+        private readonly BeatmapStore beatmapStore;
         private readonly IReadOnlyDictionary<int, bool> builds;
-        private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
 
-        private PerformanceProcessor(IEnumerable<KeyValuePair<int, bool>> builds, IEnumerable<KeyValuePair<BlacklistEntry, byte>> blacklist)
+        private PerformanceProcessor(BeatmapStore beatmapStore, IEnumerable<KeyValuePair<int, bool>> builds)
         {
+            this.beatmapStore = beatmapStore;
             this.builds = new Dictionary<int, bool>(builds);
-            this.blacklist = new Dictionary<BlacklistEntry, byte>(blacklist);
         }
 
         /// <summary>
@@ -48,205 +37,12 @@ namespace osu.Server.Queues.ScorePump.Performance
         public static async Task<PerformanceProcessor> CreateAsync(MySqlConnection? connection, MySqlTransaction? transaction = null)
         {
             var dbBuilds = await connection.QueryAsync<Build>($"SELECT * FROM {Build.TABLE_NAME}", transaction: transaction);
-            var dbBlacklist = await connection.QueryAsync<PerformanceBlacklistEntry>($"SELECT * FROM {PerformanceBlacklistEntry.TABLE_NAME}", transaction: transaction);
 
             return new PerformanceProcessor
             (
-                dbBuilds.Select(b => new KeyValuePair<int, bool>(b.build_id, b.allow_performance)),
-                dbBlacklist.Select(b => new KeyValuePair<BlacklistEntry, byte>(new BlacklistEntry(b.beatmap_id, b.mode), 1))
+                await BeatmapStore.CreateAsync(connection, transaction),
+                dbBuilds.Select(b => new KeyValuePair<int, bool>(b.build_id, b.allow_performance))
             );
-        }
-
-        /// <summary>
-        /// Sets a count in the database.
-        /// </summary>
-        /// <param name="key">The count's key.</param>
-        /// <param name="value">The count's value.</param>
-        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">An existing transaction.</param>
-        public async Task SetCountAsync(string key, long value, MySqlConnection connection, MySqlTransaction? transaction = null)
-        {
-            await connection.ExecuteAsync("INSERT INTO `osu_counts` (`name`,`count`) VALUES (@Name, @Count) "
-                                          + "ON DUPLICATE KEY UPDATE `count` = VALUES(`count`)", new
-            {
-                Name = key,
-                Count = value
-            }, transaction: transaction);
-        }
-
-        /// <summary>
-        /// Retrieves a count value from the database.
-        /// </summary>
-        /// <param name="key">The count's key.</param>
-        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">An existing transaction.</param>
-        /// <returns>The count for the provided key.</returns>
-        /// <exception cref="InvalidOperationException">If the key wasn't found in the database.</exception>
-        public async Task<long> GetCountAsync(string key, MySqlConnection connection, MySqlTransaction? transaction = null)
-        {
-            long? res = await connection.QuerySingleOrDefaultAsync<long?>("SELECT `count` FROM `osu_counts` WHERE `name` = @Name", new
-            {
-                Name = key
-            }, transaction: transaction);
-
-            if (res == null)
-                throw new InvalidOperationException($"Unable to retrieve count '{key}'.");
-
-            return res.Value;
-        }
-
-        /// <summary>
-        /// Processes the raw PP value of all scores from a specified user.
-        /// </summary>
-        /// <param name="userId">The user to process all scores of.</param>
-        /// <param name="rulesetId">The ruleset for which scores should be processed.</param>
-        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">An existing transaction.</param>
-        public async Task ProcessUserScoresAsync(int userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
-        {
-            var scores = (await connection.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
-            {
-                UserId = userId,
-                RulesetId = rulesetId
-            }, transaction: transaction)).ToArray();
-
-            foreach (SoloScore score in scores)
-                await ProcessScoreAsync(score, connection, transaction);
-        }
-
-        /// <summary>
-        /// Processes the raw PP value of a given score.
-        /// </summary>
-        /// <param name="scoreId">The score to process.</param>
-        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">An existing transaction.</param>
-        public async Task ProcessScoreAsync(ulong scoreId, MySqlConnection connection, MySqlTransaction? transaction = null)
-        {
-            var score = await connection.QuerySingleOrDefaultAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `id` = @ScoreId", new
-            {
-                ScoreId = scoreId
-            }, transaction: transaction);
-
-            if (score == null)
-            {
-                await Console.Error.WriteLineAsync($"Could not find score ID {scoreId}.");
-                return;
-            }
-
-            await ProcessScoreAsync(score, connection, transaction);
-        }
-
-        /// <summary>
-        /// Processes the raw PP value of a given score.
-        /// </summary>
-        /// <param name="score">The score to process.</param>
-        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">An existing transaction.</param>
-        public Task ProcessScoreAsync(SoloScore score, MySqlConnection connection, MySqlTransaction? transaction = null) => ProcessScoreAsync(score.ScoreInfo, connection, transaction);
-
-        /// <summary>
-        /// Processes the raw PP value of a given score.
-        /// </summary>
-        /// <param name="score">The score to process.</param>
-        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">An existing transaction.</param>
-        public async Task ProcessScoreAsync(SoloScoreInfo score, MySqlConnection connection, MySqlTransaction? transaction = null)
-        {
-            try
-            {
-                Beatmap? beatmap = await GetBeatmapAsync(score.beatmap_id, connection, transaction);
-
-                if (beatmap == null)
-                    return;
-
-                if (!IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
-                    return;
-
-                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
-                Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
-
-                DifficultyAttributes? difficultyAttributes = await GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
-                if (difficultyAttributes == null)
-                    return;
-
-                ScoreInfo scoreInfo = score.ToScoreInfo(mods);
-                PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
-                if (performanceAttributes == null)
-                    return;
-
-                await connection.ExecuteAsync($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
-                {
-                    ScoreId = score.id,
-                    Pp = performanceAttributes.Total
-                }, transaction: transaction);
-            }
-            catch (Exception ex)
-            {
-                await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
-            }
-        }
-
-        /// <summary>
-        /// Retrieves difficulty attributes from the database.
-        /// </summary>
-        /// <param name="beatmap">The beatmap.</param>
-        /// <param name="ruleset">The score's ruleset.</param>
-        /// <param name="mods">The score's mods.</param>
-        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">An existing transaction.</param>
-        /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
-        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
-        {
-            BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
-
-            // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
-            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), ruleset.RulesetInfo.OnlineID != beatmap.playmode, ruleset.RulesetInfo.OnlineID);
-            DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
-
-            if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
-            {
-                rawDifficultyAttributes = attributeCache[key] = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
-                    $"SELECT * FROM {BeatmapDifficultyAttribute.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
-                    {
-                        key.BeatmapId,
-                        key.RulesetId,
-                        key.ModValue
-                    }, transaction: transaction)).ToArray();
-            }
-
-            if (rawDifficultyAttributes == null)
-                return null;
-
-            DifficultyAttributes difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
-            difficultyAttributes.FromDatabaseAttributes(rawDifficultyAttributes.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), new APIBeatmap
-            {
-                ApproachRate = beatmap.diff_approach,
-                DrainRate = beatmap.diff_drain,
-                OverallDifficulty = beatmap.diff_overall,
-                CircleCount = beatmap.countNormal,
-                SliderCount = beatmap.countSlider,
-                SpinnerCount = beatmap.countSpinner
-            });
-
-            return difficultyAttributes;
-        }
-
-        /// <summary>
-        /// Retrieves a beatmap from the database.
-        /// </summary>
-        /// <param name="beatmapId">The beatmap's ID.</param>
-        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">An existing transaction.</param>
-        /// <returns>The retrieved beatmap, or <c>null</c> if not existing.</returns>
-        public async Task<Beatmap?> GetBeatmapAsync(int beatmapId, MySqlConnection connection, MySqlTransaction? transaction = null)
-        {
-            if (beatmapCache.TryGetValue(beatmapId, out var beatmap))
-                return beatmap;
-
-            return beatmapCache[beatmapId] = await connection.QuerySingleOrDefaultAsync<Beatmap?>($"SELECT * FROM {Beatmap.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId", new
-            {
-                BeatmapId = beatmapId
-            }, transaction: transaction);
         }
 
         /// <summary>
@@ -278,7 +74,7 @@ namespace osu.Server.Queues.ScorePump.Performance
                 if (beatmaps.ContainsKey(score.beatmap_id))
                     continue;
 
-                beatmaps[score.beatmap_id] = await GetBeatmapAsync(score.beatmap_id, connection, transaction);
+                beatmaps[score.beatmap_id] = await beatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction);
             }
 
             // Filter out invalid scores.
@@ -293,7 +89,7 @@ namespace osu.Server.Queues.ScorePump.Performance
                     return true;
 
                 // Given beatmap needs to be allowed to give performance.
-                if (!IsBeatmapValidForPerformance(beatmap, s.ruleset_id))
+                if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, s.ruleset_id))
                     return true;
 
                 // Scores with no build were imported from the legacy high scores tables and are always valid.
@@ -338,31 +134,6 @@ namespace osu.Server.Queues.ScorePump.Performance
             userStats.rank_score = (float)totalPp;
             userStats.accuracy_new = (float)totalAccuracy;
         }
-
-        /// <summary>
-        /// Whether performance points may be awarded for the given beatmap and ruleset combination.
-        /// </summary>
-        /// <param name="beatmap">The beatmap.</param>
-        /// <param name="rulesetId">The ruleset.</param>
-        public bool IsBeatmapValidForPerformance(Beatmap beatmap, int rulesetId)
-        {
-            if (blacklist.ContainsKey(new BlacklistEntry((int)beatmap.beatmap_id, rulesetId)))
-                return false;
-
-            switch (beatmap.approved)
-            {
-                case BeatmapOnlineStatus.Ranked:
-                case BeatmapOnlineStatus.Approved:
-                    return true;
-
-                default:
-                    return false;
-            }
-        }
-
-        private record struct DifficultyAttributeKey(uint BeatmapId, int RulesetId, uint ModValue);
-
-        private record struct BlacklistEntry(int BeatmapId, int RulesetId);
 
         [SuppressMessage("ReSharper", "InconsistentNaming")]
         [Serializable]

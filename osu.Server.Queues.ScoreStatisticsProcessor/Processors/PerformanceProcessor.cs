@@ -1,7 +1,9 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
 using osu.Game.Beatmaps.Legacy;
@@ -12,11 +14,14 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
     public class PerformanceProcessor : IProcessor
     {
+        private BeatmapStore? beatmapStore;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -38,6 +43,99 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
+        }
+
+        /// <summary>
+        /// Processes the raw PP value of all scores from a specified user.
+        /// </summary>
+        /// <param name="userId">The user to process all scores of.</param>
+        /// <param name="rulesetId">The ruleset for which scores should be processed.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public async Task ProcessUserScoresAsync(int userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
+        {
+            var scores = (await connection.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
+            {
+                UserId = userId,
+                RulesetId = rulesetId
+            }, transaction: transaction)).ToArray();
+
+            foreach (SoloScore score in scores)
+                await ProcessScoreAsync(score, connection, transaction);
+        }
+
+        /// <summary>
+        /// Processes the raw PP value of a given score.
+        /// </summary>
+        /// <param name="scoreId">The score to process.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public async Task ProcessScoreAsync(ulong scoreId, MySqlConnection connection, MySqlTransaction? transaction = null)
+        {
+            var score = await connection.QuerySingleOrDefaultAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `id` = @ScoreId", new
+            {
+                ScoreId = scoreId
+            }, transaction: transaction);
+
+            if (score == null)
+            {
+                await Console.Error.WriteLineAsync($"Could not find score ID {scoreId}.");
+                return;
+            }
+
+            await ProcessScoreAsync(score, connection, transaction);
+        }
+
+        /// <summary>
+        /// Processes the raw PP value of a given score.
+        /// </summary>
+        /// <param name="score">The score to process.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public Task ProcessScoreAsync(SoloScore score, MySqlConnection connection, MySqlTransaction? transaction = null) => ProcessScoreAsync(score.ScoreInfo, connection, transaction);
+
+        /// <summary>
+        /// Processes the raw PP value of a given score.
+        /// </summary>
+        /// <param name="score">The score to process.</param>
+        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">An existing transaction.</param>
+        public async Task ProcessScoreAsync(SoloScoreInfo score, MySqlConnection connection, MySqlTransaction? transaction = null)
+        {
+            beatmapStore ??= await BeatmapStore.CreateAsync(connection, transaction);
+
+            try
+            {
+                Beatmap? beatmap = await beatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction);
+
+                if (beatmap == null)
+                    return;
+
+                if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
+                    return;
+
+                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
+                Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
+
+                DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
+                if (difficultyAttributes == null)
+                    return;
+
+                ScoreInfo scoreInfo = score.ToScoreInfo(mods);
+                PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
+                if (performanceAttributes == null)
+                    return;
+
+                await connection.ExecuteAsync($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
+                {
+                    ScoreId = score.id,
+                    Pp = performanceAttributes.Total
+                }, transaction: transaction);
+            }
+            catch (Exception ex)
+            {
+                await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
+            }
         }
 
         private double computePerformance(Ruleset ruleset, Mod[] mods, ScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)

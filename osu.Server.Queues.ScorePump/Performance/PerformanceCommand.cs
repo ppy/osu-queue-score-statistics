@@ -15,6 +15,7 @@ namespace osu.Server.Queues.ScorePump.Performance
 {
     public abstract class PerformanceCommand : QueueCommand
     {
+        protected ScoreStatisticsProcessor.Processors.PerformanceProcessor ScoreProcessor { get; private set; } = null!;
         protected PerformanceProcessor Processor { get; private set; } = null!;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
@@ -91,7 +92,7 @@ namespace osu.Server.Queues.ScorePump.Performance
             await ProcessPartitioned(userIds, async userId =>
             {
                 using (var db = Queue.GetDatabaseConnection())
-                    await Processor.ProcessUserScoresAsync(userId, RulesetId, db);
+                    await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
         }
