@@ -88,7 +88,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     return false;
 
                 // Performance needs to be allowed for the build.
-                return buildStore.GetBuild(s.ScoreInfo.build_id.Value)?.allow_performance == true;
+                return buildStore.GetBuild(s.ScoreInfo.build_id.Value)?.allow_performance != true;
             });
 
             SoloScoreWithPerformance[] groupedItems = scores
