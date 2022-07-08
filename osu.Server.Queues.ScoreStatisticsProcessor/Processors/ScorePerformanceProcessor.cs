@@ -18,7 +18,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
-    public class PerformanceProcessor : IProcessor
+    public class ScorePerformanceProcessor : IProcessor
     {
         private BeatmapStore? beatmapStore;
 

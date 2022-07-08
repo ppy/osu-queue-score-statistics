@@ -15,7 +15,7 @@ namespace osu.Server.Queues.ScorePump.Performance
 {
     public abstract class PerformanceCommand : QueueCommand
     {
-        protected ScoreStatisticsProcessor.Processors.PerformanceProcessor ScoreProcessor { get; private set; } = null!;
+        protected ScoreStatisticsProcessor.Processors.ScorePerformanceProcessor ScoreProcessor { get; private set; } = null!;
         protected PerformanceProcessor Processor { get; private set; } = null!;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]

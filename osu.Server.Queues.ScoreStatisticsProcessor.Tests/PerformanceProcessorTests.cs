@@ -68,7 +68,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.True(PerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -100,7 +100,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.False(PerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -128,7 +128,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.False(PerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -156,7 +156,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.True(PerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
         }
     }
 }
