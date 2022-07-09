@@ -43,13 +43,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                 // If using the dumps, set this environment variable to "sample_users".
                 string usersTable = Environment.GetEnvironmentVariable("DB_USERS_TABLE") ?? "phpbb_users";
+                string dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "osu";
 
-                UsersTable = $"`osu`.`{usersTable}`";
-                ScoreTable = $"`osu`.`osu_scores{tableSuffix}`";
-                HighScoreTable = $"`osu`.`osu_scores{tableSuffix}_high`";
-                LeadersTable = $"`osu`.`osu_leaders{tableSuffix}`";
-                UserStatsTable = $"`osu`.`osu_user_stats{tableSuffix}`";
-                ReplayTable = $"`osu`.`osu_replays{tableSuffix}`";
+                UsersTable = $"`{dbName}`.`{usersTable}`";
+                ScoreTable = $"`{dbName}`.`osu_scores{tableSuffix}`";
+                HighScoreTable = $"`{dbName}`.`osu_scores{tableSuffix}_high`";
+                LeadersTable = $"`{dbName}`.`osu_leaders{tableSuffix}`";
+                UserStatsTable = $"`{dbName}`.`osu_user_stats{tableSuffix}`";
+                ReplayTable = $"`{dbName}`.`osu_replays{tableSuffix}`";
                 LastProcessedPpUserCount = $"pp_last_user_id{tableSuffix}";
                 LastProcessedPpScoreCount = $"pp_last_score_id{tableSuffix}";
             }
