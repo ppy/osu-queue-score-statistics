@@ -30,7 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <returns>The created <see cref="BuildStore"/>.</returns>
         public static async Task<BuildStore> CreateAsync(MySqlConnection? connection, MySqlTransaction? transaction = null)
         {
-            var dbBuilds = await connection.QueryAsync<Build>($"SELECT * FROM {Build.TABLE_NAME}", transaction: transaction);
+            var dbBuilds = await connection.QueryAsync<Build>($"SELECT * FROM {Build.TABLE_NAME} WHERE `allow_ranking` = TRUE OR `allow_performance` = TRUE", transaction: transaction);
 
             return new BuildStore
             (

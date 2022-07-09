@@ -15,6 +15,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public const string TABLE_NAME = "osu_builds";
 
         public int build_id { get; set; }
+        public bool allow_ranking { get; set; }
         public bool allow_performance { get; set; }
     }
 }
