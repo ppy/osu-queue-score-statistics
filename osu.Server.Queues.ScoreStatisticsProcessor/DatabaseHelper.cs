@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
@@ -21,7 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <param name="transaction">The database transaction, if one exists.</param>
         /// <returns>The retrieved user stats. Null if the ruleset or user was not valid.</returns>
         public static Task<UserStats?> GetUserStatsAsync(SoloScoreInfo score, MySqlConnection db, MySqlTransaction? transaction = null)
-            => GetUserStatsAsync(score.user_id, score.ruleset_id, db, transaction);
+            => GetUserStatsAsync(score.UserID, score.RulesetID, db, transaction);
 
         /// <summary>
         /// Retrieve user stats for a user based for a given ruleset.

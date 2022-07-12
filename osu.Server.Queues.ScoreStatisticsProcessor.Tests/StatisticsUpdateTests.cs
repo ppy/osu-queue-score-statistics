@@ -1,10 +1,10 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using osu.Game.Online.API;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
@@ -77,13 +77,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // Beatmap used in test score is 158 seconds.
 
             var testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.ended_at = testScore.Score.ScoreInfo.started_at + TimeSpan.FromSeconds(50);
+            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt + TimeSpan.FromSeconds(50);
 
             processor.PushToQueue(testScore);
             waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 50, cts.Token);
 
             testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.ended_at = testScore.Score.ScoreInfo.started_at + TimeSpan.FromSeconds(100);
+            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt + TimeSpan.FromSeconds(100);
 
             processor.PushToQueue(testScore);
             waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 150, cts.Token);
@@ -97,7 +97,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // Beatmap used in test score is 158 seconds.
 
             var testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.ended_at = testScore.Score.ScoreInfo.started_at + TimeSpan.FromSeconds(200);
+            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt + TimeSpan.FromSeconds(200);
 
             processor.PushToQueue(testScore);
             waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 158, cts.Token);
@@ -112,11 +112,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // Double time means this is reduced to 105 seconds.
 
             var testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.mods = new List<APIMod>
+            testScore.Score.ScoreInfo.Mods = new[]
             {
                 new APIMod(new OsuModDoubleTime()),
             };
-            testScore.Score.ScoreInfo.ended_at = testScore.Score.ScoreInfo.started_at + TimeSpan.FromSeconds(200);
+            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt + TimeSpan.FromSeconds(200);
 
             processor.PushToQueue(testScore);
             waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 105, cts.Token);
@@ -131,11 +131,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // Double time with custom rate means this is reduced to 112 seconds.
 
             var testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.mods = new List<APIMod>
+            testScore.Score.ScoreInfo.Mods = new[]
             {
                 new APIMod(new OsuModDoubleTime { SpeedChange = { Value = 1.4 } }),
             };
-            testScore.Score.ScoreInfo.ended_at = testScore.Score.ScoreInfo.started_at + TimeSpan.FromSeconds(200);
+            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt + TimeSpan.FromSeconds(200);
 
             processor.PushToQueue(testScore);
             waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 112, cts.Token);
@@ -188,7 +188,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo, cts.Token);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.max_combo++;
+            score.Score.ScoreInfo.MaxCombo++;
 
             processor.PushToQueue(score);
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo + 1, cts.Token);
@@ -203,7 +203,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo, cts.Token);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.max_combo--;
+            score.Score.ScoreInfo.MaxCombo--;
 
             processor.PushToQueue(score);
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo, cts.Token);
@@ -215,8 +215,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.max_combo++;
-            score.Score.ScoreInfo.mods = new List<APIMod>
+            score.Score.ScoreInfo.MaxCombo++;
+            score.Score.ScoreInfo.Mods = new[]
             {
                 new APIMod(new OsuModRelax()),
             };
@@ -403,21 +403,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var startTime = new DateTimeOffset(new DateTime(2020, 02, 05));
             var scoreInfo = new SoloScoreInfo
             {
-                id = row.id,
-                user_id = row.user_id,
-                beatmap_id = row.beatmap_id,
-                ruleset_id = row.ruleset_id,
-                started_at = startTime,
-                ended_at = startTime + TimeSpan.FromSeconds(180),
-                max_combo = max_combo,
-                total_score = 100000,
-                rank = ScoreRank.S,
-                statistics =
+                ID = row.id,
+                UserID = row.user_id,
+                BeatmapID = row.beatmap_id,
+                RulesetID = row.ruleset_id,
+                StartedAt = startTime,
+                EndedAt = startTime + TimeSpan.FromSeconds(180),
+                MaxCombo = max_combo,
+                TotalScore = 100000,
+                Rank = ScoreRank.S,
+                Statistics =
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 0 }
                 },
-                passed = true
+                Passed = true
             };
 
             row.ScoreInfo = scoreInfo;

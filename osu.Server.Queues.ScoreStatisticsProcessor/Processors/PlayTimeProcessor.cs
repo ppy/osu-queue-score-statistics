@@ -7,6 +7,7 @@ using System.Linq;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -27,7 +28,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (score.ended_at == null)
+            if (score.EndedAt == null)
                 throw new InvalidOperationException("Attempting to increment play time when score was never finished.");
 
             userStats.total_seconds_played += getPlayLength(score, conn, transaction);
@@ -39,24 +40,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private static int getPlayLength(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
         {
-            Debug.Assert(score.ended_at != null);
+            Debug.Assert(score.EndedAt != null);
 
             // to ensure sanity, first get the maximum time feasible from the beatmap's length
             double totalLengthSeconds = conn.QueryFirstOrDefault<double>("SELECT total_length FROM osu_beatmaps WHERE beatmap_id = @beatmap_id", score, transaction);
 
-            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.ruleset_id);
+            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.RulesetID);
 
-            var rateAdjustMods = score.mods.Select(m => m.ToMod(ruleset)).OfType<ModRateAdjust>().ToArray();
+            var rateAdjustMods = score.Mods.Select(m => m.ToMod(ruleset)).OfType<ModRateAdjust>().ToArray();
 
             foreach (var mod in rateAdjustMods)
                 totalLengthSeconds /= mod.SpeedChange.Value;
 
-            if (score.started_at == null)
+            if (score.StartedAt == null)
                 return (int)totalLengthSeconds;
 
             // TODO: better handle failed plays once we have incoming data.
 
-            TimeSpan realTimePassed = score.ended_at.Value - score.started_at.Value;
+            TimeSpan realTimePassed = score.EndedAt.Value - score.StartedAt.Value;
             return (int)Math.Min(totalLengthSeconds, realTimePassed.TotalSeconds);
         }
     }

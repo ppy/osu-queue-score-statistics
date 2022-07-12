@@ -5,6 +5,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using Dapper.Contrib.Extensions;
 using Newtonsoft.Json;
+using osu.Game.Online.API.Requests.Responses;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
@@ -36,10 +37,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
                 ScoreInfo = scoreInfo;
 
-                ScoreInfo.id = id;
-                ScoreInfo.beatmap_id = beatmap_id;
-                ScoreInfo.user_id = user_id;
-                ScoreInfo.ruleset_id = ruleset_id;
+                ScoreInfo.ID = id;
+                ScoreInfo.BeatmapID = beatmap_id;
+                ScoreInfo.UserID = user_id;
+                ScoreInfo.RulesetID = ruleset_id;
             }
         }
 

@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
@@ -30,7 +31,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.RulesetID);
 
             int warnings = conn.QuerySingleOrDefault<int>($"SELECT `user_warnings` FROM {dbInfo.UsersTable} WHERE `user_id` = @UserId", new
             {
@@ -40,7 +41,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (warnings > 0)
                 return;
 
-            UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
+            UpdateUserStatsAsync(userStats, score.RulesetID, conn, transaction).Wait();
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
@@ -98,11 +99,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     return true;
 
                 // Scores with no build were imported from the legacy high scores tables and are always valid.
-                if (s.ScoreInfo.build_id == null)
+                if (s.ScoreInfo.BuildID == null)
                     return false;
 
                 // Performance needs to be allowed for the build.
-                return buildStore.GetBuild(s.ScoreInfo.build_id.Value)?.allow_performance != true;
+                return buildStore.GetBuild(s.ScoreInfo.BuildID.Value)?.allow_performance != true;
             });
 
             SoloScoreWithPerformance[] groupedItems = scores
@@ -122,7 +123,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             foreach (var item in groupedItems)
             {
                 totalPp += item.pp!.Value * factor;
-                totalAccuracy += item.ScoreInfo.accuracy * factor;
+                totalAccuracy += item.ScoreInfo.Accuracy * factor;
                 factor *= 0.95;
             }
 

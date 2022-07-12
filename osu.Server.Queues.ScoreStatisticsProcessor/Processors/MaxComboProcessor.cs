@@ -5,6 +5,7 @@ using System;
 using System.Linq;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -24,14 +25,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.ruleset_id);
+            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.RulesetID);
 
             // Automation mods should not count towards max combo statistic.
-            if (score.mods.Select(m => m.ToMod(ruleset)).Any(m => m.Type == ModType.Automation))
+            if (score.Mods.Select(m => m.ToMod(ruleset)).Any(m => m.Type == ModType.Automation))
                 return;
 
             // TODO: assert the user's score is not higher than the max combo for the beatmap.
-            userStats.max_combo = (short)Math.Max(userStats.max_combo, score.max_combo);
+            userStats.max_combo = (short)Math.Max(userStats.max_combo, score.MaxCombo);
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
