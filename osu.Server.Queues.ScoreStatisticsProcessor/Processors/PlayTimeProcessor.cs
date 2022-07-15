@@ -43,7 +43,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             Debug.Assert(score.EndedAt != null);
 
             // to ensure sanity, first get the maximum time feasible from the beatmap's length
-            double totalLengthSeconds = conn.QueryFirstOrDefault<double>("SELECT total_length FROM osu_beatmaps WHERE beatmap_id = @beatmap_id", score, transaction);
+            double totalLengthSeconds = conn.QueryFirstOrDefault<double>("SELECT total_length FROM osu_beatmaps WHERE beatmap_id = @beatmap_id", new
+            {
+                beatmap_id = score.BeatmapID
+            }, transaction);
 
             Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.RulesetID);
 
