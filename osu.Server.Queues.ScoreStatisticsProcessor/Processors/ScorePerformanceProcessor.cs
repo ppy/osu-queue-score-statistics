@@ -147,6 +147,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             {
                 switch (m)
                 {
+                    // Overrides for mods which would otherwise be allowed by the block below.
                     case ManiaModHardRock:
                     case ManiaModKey1:
                     case ManiaModKey2:
@@ -154,6 +155,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     case ManiaModKey10:
                         return false;
 
+                    // The mods which are allowed.
                     case ModEasy:
                     case ModNoFail:
                     case ModHalfTime:
@@ -165,11 +167,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     case ModFlashlight:
                     case ModMuted:
                     case ModClassic:
+                    // osu!-specific:
                     case OsuModSpunOut:
+                    case OsuModTouchDevice:
+                    // mania-specific:
                     case ManiaKeyMod:
                     case ManiaModMirror:
                         continue;
 
+                    // Any other mods not in the above list aren't allowed.
                     default:
                         return false;
                 }
