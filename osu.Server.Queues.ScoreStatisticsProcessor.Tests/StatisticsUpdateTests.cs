@@ -77,13 +77,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // Beatmap used in test score is 158 seconds.
 
             var testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt + TimeSpan.FromSeconds(50);
+            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(50);
 
             processor.PushToQueue(testScore);
             waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 50, cts.Token);
 
             testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt + TimeSpan.FromSeconds(100);
+            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(100);
 
             processor.PushToQueue(testScore);
             waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 150, cts.Token);
@@ -97,7 +97,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // Beatmap used in test score is 158 seconds.
 
             var testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt + TimeSpan.FromSeconds(200);
+            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(200);
 
             processor.PushToQueue(testScore);
             waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 158, cts.Token);
@@ -116,7 +116,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 new APIMod(new OsuModDoubleTime()),
             };
-            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt + TimeSpan.FromSeconds(200);
+            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(200);
 
             processor.PushToQueue(testScore);
             waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 105, cts.Token);
@@ -135,7 +135,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 new APIMod(new OsuModDoubleTime { SpeedChange = { Value = 1.4 } }),
             };
-            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt + TimeSpan.FromSeconds(200);
+            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(200);
 
             processor.PushToQueue(testScore);
             waitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 112, cts.Token);
