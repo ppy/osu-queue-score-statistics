@@ -14,6 +14,7 @@ using MySqlConnector;
 using Newtonsoft.Json;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Online.API;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
@@ -278,17 +279,17 @@ namespace osu.Server.Queues.ScorePump.Queue
                         data.Value = JsonConvert.SerializeObject(new SoloScoreInfo
                         {
                             // id will be written below in the UPDATE call.
-                            user_id = highScore.user_id,
-                            beatmap_id = highScore.beatmap_id,
-                            ruleset_id = ruleset.RulesetInfo.OnlineID,
-                            passed = true,
-                            total_score = highScore.score,
-                            accuracy = accuracy,
-                            max_combo = highScore.maxcombo,
-                            rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
-                            mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToList(),
-                            statistics = statistics,
-                            ended_at = highScore.date
+                            UserID = highScore.user_id,
+                            BeatmapID = highScore.beatmap_id,
+                            RulesetID = ruleset.RulesetInfo.OnlineID,
+                            Passed = true,
+                            TotalScore = highScore.score,
+                            Accuracy = accuracy,
+                            MaxCombo = highScore.maxcombo,
+                            Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
+                            Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToArray(),
+                            Statistics = statistics,
+                            EndedAt = highScore.date
                         });
 
                         insertCommand.Transaction = transaction;

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
@@ -102,16 +103,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             try
             {
-                Beatmap? beatmap = await beatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction);
+                Beatmap? beatmap = await beatmapStore.GetBeatmapAsync(score.BeatmapID, connection, transaction);
 
                 if (beatmap == null)
                     return;
 
-                if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
+                if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, score.RulesetID))
                     return;
 
-                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
-                Mod[] mods = score.mods.Select(m => m.ToMod(ruleset)).ToArray();
+                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.RulesetID);
+                Mod[] mods = score.Mods.Select(m => m.ToMod(ruleset)).ToArray();
 
                 if (!AllModsValidForPerformance(mods))
                     return;
@@ -127,13 +128,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                 await connection.ExecuteAsync($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
                 {
-                    ScoreId = score.id,
+                    ScoreId = score.ID,
                     Pp = performanceAttributes.Total
                 }, transaction: transaction);
             }
             catch (Exception ex)
             {
-                await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
+                await Console.Error.WriteLineAsync($"{score.ID} failed with: {ex}");
             }
         }
 

@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using MySqlConnector;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor

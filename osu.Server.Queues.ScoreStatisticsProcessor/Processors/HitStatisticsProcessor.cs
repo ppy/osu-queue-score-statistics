@@ -3,6 +3,7 @@
 
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -33,7 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             int multiplier = revert ? -1 : 1;
 
-            foreach (var (result, count) in score.statistics)
+            foreach (var (result, count) in score.Statistics)
             {
                 switch (result)
                 {

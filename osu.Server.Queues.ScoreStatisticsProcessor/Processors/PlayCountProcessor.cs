@@ -6,6 +6,7 @@ using System.Diagnostics;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
@@ -44,8 +45,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             conn.Execute(
                 "INSERT INTO osu_user_beatmap_playcount (beatmap_id, user_id, playcount) VALUES (@beatmap_id, @user_id, @add) ON DUPLICATE KEY UPDATE playcount = GREATEST(0, playcount + @adjust)", new
                 {
-                    score.beatmap_id,
-                    score.user_id,
+                    beatmap_id = score.BeatmapID,
+                    user_id = score.UserID,
                     add = revert ? 0 : 1,
                     adjust = revert ? -1 : 1,
                 }, transaction);
@@ -53,7 +54,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private static void adjustMonthlyPlaycount(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, bool revert = false)
         {
-            DateTimeOffset? date = score.started_at ?? score.ended_at;
+            DateTimeOffset? date = score.StartedAt ?? score.EndedAt;
 
             Debug.Assert(date != null);
 
@@ -61,7 +62,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 "INSERT INTO osu_user_month_playcount (`year_month`, user_id, playcount) VALUES (@yearmonth, @user_id, @add) ON DUPLICATE KEY UPDATE playcount = GREATEST(0, playcount + @adjust)", new
                 {
                     yearmonth = date.Value.ToString("yyMM"),
-                    score.user_id,
+                    user_id = score.UserID,
                     add = revert ? 0 : 1,
                     adjust = revert ? -1 : 1,
                 }, transaction);
