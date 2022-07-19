@@ -54,7 +54,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             // TODO: better handle failed plays once we have incoming data.
 
-            TimeSpan realTimePassed = score.EndedAt!.Value - score.StartedAt.Value;
+            TimeSpan realTimePassed = score.EndedAt - score.StartedAt.Value;
             return (int)Math.Min(totalLengthSeconds, realTimePassed.TotalSeconds);
         }
     }
