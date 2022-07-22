@@ -152,6 +152,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             internal ElasticQueueProcessor()
                 : base(new QueueConfiguration { InputQueueName = queue_name })
             {
+                // TODO: automate schema version lookup
+                // see https://github.com/ppy/osu-elastic-indexer/blob/316e3e2134933e22363f4911e0be4175984ae15e/osu.ElasticIndexer/Redis.cs#L10
             }
 
             protected override void ProcessResult(ElasticScoreItem scoreItem)
