@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
 using osu.Game.Rulesets;
@@ -89,7 +90,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                             p.ApplyToUserStats(score, userStats, conn, transaction);
 
                         DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
+
                         updateHistoryEntry(item, conn, transaction);
+
+                        if (score.Passed)
+                        {
+                            // For now, just assume all passing scores are to be preserved.
+                            conn.Execute($"UPDATE {SoloScore.TABLE_NAME} SET preserve = 1 WHERE id = @Id", new { Id = score.ID }, transaction);
+                        }
 
                         transaction.Commit();
                     }
