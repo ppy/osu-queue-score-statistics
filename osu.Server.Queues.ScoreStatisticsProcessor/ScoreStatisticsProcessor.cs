@@ -87,6 +87,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         foreach (var p in processors)
                             p.ApplyToUserStats(score, userStats, conn, transaction);
 
+                        if (score.passed)
+                        {
+                            // For now, just assume all passing scores are to be preserved.
+                            conn.Execute($"UPDATE {SoloScore.TABLE_NAME} SET preserve = 1 WHERE id = @Id", new { Id = score.id }, transaction);
+                        }
+
                         updateUserStats(userStats, conn, transaction);
                         updateHistoryEntry(item, conn, transaction);
 
