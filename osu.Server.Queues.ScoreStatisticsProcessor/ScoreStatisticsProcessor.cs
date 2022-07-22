@@ -30,6 +30,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         private readonly List<IProcessor> processors = new List<IProcessor>();
 
+        private readonly ElasticQueueProcessor elasticQueueProcessor = new ElasticQueueProcessor();
+
         public ScoreStatisticsProcessor()
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
         {
@@ -95,6 +97,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     foreach (var p in processors)
                         p.ApplyGlobal(score, conn);
                 }
+
+                elasticQueueProcessor.PushToQueue(new ElasticQueueProcessor.ElasticScoreItem
+                {
+                    ScoreId = item.Score.id,
+                });
             }
             catch (Exception e)
             {
@@ -136,6 +143,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             }
 
             return rulesetsToProcess;
+        }
+
+        private class ElasticQueueProcessor : QueueProcessor<ElasticQueueProcessor.ElasticScoreItem>
+        {
+            private static readonly string queue_name = $"score-index-{Environment.GetEnvironmentVariable("schema")}";
+
+            internal ElasticQueueProcessor()
+                : base(new QueueConfiguration { InputQueueName = queue_name })
+            {
+                // TODO: automate schema version lookup
+                // see https://github.com/ppy/osu-elastic-indexer/blob/316e3e2134933e22363f4911e0be4175984ae15e/osu.ElasticIndexer/Redis.cs#L10
+            }
+
+            protected override void ProcessResult(ElasticScoreItem scoreItem)
+            {
+                throw new NotImplementedException();
+            }
+
+            [Serializable]
+            public class ElasticScoreItem : QueueItem
+            {
+                public long? ScoreId { get; init; }
+            }
         }
     }
 }
