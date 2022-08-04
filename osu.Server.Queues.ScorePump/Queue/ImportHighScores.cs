@@ -322,7 +322,11 @@ namespace osu.Server.Queues.ScorePump.Queue
 
                 LegacyScoreDecoder.PopulateAccuracy(scoreInfo);
 
-                return (scoreInfo.Accuracy, scoreInfo.Statistics);
+                return
+                (
+                    scoreInfo.Accuracy,
+                    scoreInfo.Statistics.Where(kvp => kvp.Value != 0).ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
+                );
             }
         }
 
