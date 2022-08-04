@@ -32,7 +32,7 @@ namespace osu.Server.Queues.ScorePump
             else
             {
                 using (var db = Queue.GetDatabaseConnection())
-                    lastId = db.QuerySingle<long>("SELECT MAX(score_id) FROM solo_scores_process_history");
+                    lastId = db.QuerySingleOrDefault<long?>("SELECT MAX(score_id) FROM solo_scores_process_history") ?? 0;
             }
 
             while (true)
