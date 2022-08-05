@@ -22,6 +22,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private const int max_combo = 1337;
 
+        private const int test_beatmap_id = 172;
+
         public StatisticsUpdateTests()
         {
             processor = new ScoreStatisticsProcessor();
@@ -195,6 +197,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestMaxComboDoesntIncreaseIfNotRanked()
+        {
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
+
+            processor.PushToQueue(CreateTestScore());
+            waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo, cts.Token);
+
+            try
+            {
+                using (var db = processor.GetDatabaseConnection())
+                    db.Execute($"UPDATE osu_beatmaps SET approved = 0 WHERE beatmap_id = {test_beatmap_id}");
+
+                var testScore = CreateTestScore();
+                testScore.Score.ScoreInfo.MaxCombo++;
+
+                processor.PushToQueue(testScore);
+                waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo, cts.Token);
+            }
+            finally
+            {
+                using (var db = processor.GetDatabaseConnection())
+                    db.Execute($"UPDATE osu_beatmaps SET approved = 1 WHERE beatmap_id = {test_beatmap_id}");
+            }
+        }
+
+        [Fact]
         public void TestMaxComboDoesntIncreaseIfLower()
         {
             waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, cts.Token);
@@ -232,13 +260,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestUserBeatmapPlaycountIncrease()
         {
-            waitForDatabaseState("SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = 172", (int?)null, cts.Token);
+            waitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {test_beatmap_id}", (int?)null, cts.Token);
 
             processor.PushToQueue(CreateTestScore());
-            waitForDatabaseState("SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = 172", 1, cts.Token);
+            waitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {test_beatmap_id}", 1, cts.Token);
 
             processor.PushToQueue(CreateTestScore());
-            waitForDatabaseState("SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = 172", 2, cts.Token);
+            waitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {test_beatmap_id}", 2, cts.Token);
         }
 
         [Fact]
@@ -246,16 +274,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             var score = CreateTestScore();
 
-            waitForDatabaseState("SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = 172", (int?)null, cts.Token);
+            waitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {test_beatmap_id}", (int?)null, cts.Token);
 
             processor.PushToQueue(score);
-            waitForDatabaseState("SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = 172", 1, cts.Token);
+            waitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {test_beatmap_id}", 1, cts.Token);
 
             // the score will be marked as processed (in the database) at this point, so should not increase the playcount if processed a second time.
             score.MarkProcessed();
 
             processor.PushToQueue(score);
-            waitForDatabaseState("SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = 172", 1, cts.Token);
+            waitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {test_beatmap_id}", 1, cts.Token);
         }
 
         [Fact]
@@ -394,7 +422,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 id = Interlocked.Increment(ref scoreIDSource),
                 user_id = 2,
-                beatmap_id = 172,
+                beatmap_id = test_beatmap_id,
                 ruleset_id = rulesetId,
                 created_at = DateTimeOffset.Now,
                 updated_at = DateTimeOffset.Now,
