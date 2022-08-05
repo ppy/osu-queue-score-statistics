@@ -6,6 +6,7 @@ using System.Linq;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Beatmaps;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -32,9 +33,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (score.mods.Select(m => m.ToMod(ruleset)).Any(m => m.Type == ModType.Automation))
                 return;
 
-            var beatmap = conn.QuerySingleOrDefault<Beatmap?>($"SELECT * FROM {Beatmap.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId", new
+            var beatmap = conn.QuerySingleOrDefault<Beatmap?>($"SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
             {
-                BeatmapId = score.BeatmapID
+                BeatmapId = score.beatmap_id
             }, transaction: transaction);
 
             if (beatmap == null || beatmap.approved < BeatmapOnlineStatus.Ranked)
