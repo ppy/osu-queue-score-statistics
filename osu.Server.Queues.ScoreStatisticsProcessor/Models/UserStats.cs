@@ -34,7 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public int replay_popularity { get; set; }
         public int fail_count { get; set; }
         public int exit_count { get; set; }
-        public short max_combo { get; set; }
+        public ushort max_combo { get; set; }
         public string country_acronym { get; set; } = "XX";
         public float rank_score { get; set; }
         public int rank_score_index { get; set; }
