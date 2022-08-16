@@ -43,7 +43,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 return;
 
             // TODO: assert the user's score is not higher than the max combo for the beatmap.
-            userStats.max_combo = (short)Math.Max(userStats.max_combo, score.MaxCombo);
+            userStats.max_combo = Math.Max(userStats.max_combo, (ushort)score.MaxCombo);
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
