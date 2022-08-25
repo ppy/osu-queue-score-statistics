@@ -28,6 +28,12 @@ namespace osu.Server.Queues.ScorePump
         [Option(CommandOptionType.SingleValue)]
         public long StartId { get; set; }
 
+        /// <summary>
+        /// The amount of time to sleep between score batches.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue)]
+        public int Delay { get; set; }
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -60,6 +66,9 @@ namespace osu.Server.Queues.ScorePump
                         StartId = scores.Max(s => s.id) + 1;
                     }
                 }
+
+                if (Delay > 0)
+                    await Task.Delay(Delay, cancellationToken);
             }
 
             return 0;
