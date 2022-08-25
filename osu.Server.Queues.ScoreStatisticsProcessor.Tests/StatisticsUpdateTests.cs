@@ -210,7 +210,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     db.Execute($"UPDATE osu_beatmaps SET approved = 0 WHERE beatmap_id = {test_beatmap_id}");
 
                 var testScore = CreateTestScore();
-                testScore.Score.ScoreInfo.MaxCombo++;
+                testScore.Score.ScoreInfo.max_combo++;
 
                 processor.PushToQueue(testScore);
                 waitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", max_combo, cts.Token);
