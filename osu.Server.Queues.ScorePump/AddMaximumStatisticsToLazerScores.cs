@@ -50,10 +50,7 @@ namespace osu.Server.Queues.ScorePump
                         }, transaction)).ToArray();
 
                         if (scores.Length == 0)
-                        {
-                            Console.WriteLine("Finished.");
                             break;
-                        }
 
                         foreach (var score in scores)
                         {
@@ -68,9 +65,13 @@ namespace osu.Server.Queues.ScorePump
                 }
 
                 if (Delay > 0)
+                {
+                    Console.WriteLine($"Waiting {Delay}ms...");
                     await Task.Delay(Delay, cancellationToken);
+                }
             }
 
+            Console.WriteLine("Finished.");
             return 0;
         }
 
