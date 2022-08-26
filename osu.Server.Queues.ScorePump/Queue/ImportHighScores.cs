@@ -363,6 +363,11 @@ namespace osu.Server.Queues.ScorePump.Queue
                 // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
                 int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
+                // Note that using BeatmapStore will fail if a particular difficulty attribute value doesn't exist in the database.
+                // To get around this, we'll specifically look up the attribute directly from the database, utilising the most primitive mod lookup value
+                // for the ruleset in order to prevent an additional failures if some new mod combinations were added as difficulty adjustment mods.
+                // This is a little bit hacky and wouldn't be required if the databased attributes were always in-line with osu!lazer, but that's not the case.
+
                 int difficultyMods = 0;
 
                 switch (ruleset.RulesetInfo.OnlineID)
