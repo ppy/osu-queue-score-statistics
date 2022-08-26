@@ -393,7 +393,10 @@ namespace osu.Server.Queues.ScorePump.Queue
                     }, transaction);
 
                 if (maxComboFromAttributes == null)
-                    throw new InvalidOperationException($"{highScore.score_id}: Could not find difficulty attributes for beatmap {highScore.beatmap_id} in the database.");
+                {
+                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not find difficulty attributes for beatmap {highScore.beatmap_id} in the database.");
+                    return scoreInfo;
+                }
 
 #pragma warning disable CS0618
                 if (maxComboFromAttributes > maxComboFromStatistics)
