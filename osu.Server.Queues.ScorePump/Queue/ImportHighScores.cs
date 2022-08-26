@@ -270,7 +270,7 @@ namespace osu.Server.Queues.ScorePump.Queue
 
                     foreach (var highScore in scores)
                     {
-                        ScoreInfo referenceScore = await createScoreInfo(ruleset, highScore, db, transaction);
+                        ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
 
                         pp.Value = highScore.pp;
                         userId.Value = highScore.user_id;
@@ -308,7 +308,17 @@ namespace osu.Server.Queues.ScorePump.Queue
                 }
             }
 
-            private async Task<ScoreInfo> createScoreInfo(Ruleset ruleset, HighScore highScore, MySqlConnection connection, MySqlTransaction transaction)
+            /// <summary>
+            /// Creates a partially-populated "reference" score that provides:
+            /// <list type="bullet">
+            /// <item><term><see cref="ScoreInfo.Ruleset"/></term></item>
+            /// <item><term><see cref="ScoreInfo.Accuracy"/></term></item>
+            /// <item><term><see cref="ScoreInfo.Mods"/></term></item>
+            /// <item><term><see cref="ScoreInfo.Statistics"/></term></item>
+            /// <item><term><see cref="ScoreInfo.MaximumStatistics"/></term></item>
+            /// </list>
+            /// </summary>
+            private async Task<ScoreInfo> createReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection, MySqlTransaction transaction)
             {
                 var scoreInfo = new ScoreInfo
                 {
