@@ -44,7 +44,7 @@ namespace osu.Server.Queues.ScorePump
                 {
                     using (var transaction = await db.BeginTransactionAsync(cancellationToken))
                     {
-                        SoloScore[] scores = (await db.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `id` >= @StartId", new
+                        SoloScore[] scores = (await db.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `id` >= @StartId LIMIT {batch_size}", new
                         {
                             StartId = StartId
                         }, transaction)).ToArray();
