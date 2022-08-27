@@ -52,6 +52,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public Dictionary<HitResult, int> statistics { get; set; } = new Dictionary<HitResult, int>();
 
+        public Dictionary<HitResult, int> maximum_statistics { get; set; } = new Dictionary<HitResult, int>();
+
         public override string ToString() => $"score_id: {id} user_id: {user_id}";
 
         [JsonIgnore]
