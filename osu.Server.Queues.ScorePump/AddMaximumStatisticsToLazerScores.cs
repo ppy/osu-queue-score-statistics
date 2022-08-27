@@ -42,6 +42,8 @@ namespace osu.Server.Queues.ScorePump
 
                 using (var db = Queue.GetDatabaseConnection())
                 {
+                    int updateCount = 0;
+
                     using (var transaction = await db.BeginTransactionAsync(cancellationToken))
                     {
                         SoloScore[] scores = (await db.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `id` >= @StartId LIMIT {batch_size}", new
@@ -55,13 +57,18 @@ namespace osu.Server.Queues.ScorePump
                         foreach (var score in scores)
                         {
                             if (ensureMaximumStatistics(score))
+                            {
                                 await db.UpdateAsync(score, transaction);
+                                updateCount++;
+                            }
                         }
 
                         await transaction.CommitAsync(cancellationToken);
 
                         StartId = scores.Max(s => s.id) + 1;
                     }
+
+                    Console.WriteLine($"Updated {updateCount} rows");
                 }
 
                 if (Delay > 0)
