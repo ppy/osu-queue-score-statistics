@@ -284,14 +284,15 @@ namespace osu.Server.Queues.ScorePump.Queue
                             BeatmapID = highScore.beatmap_id,
                             RulesetID = ruleset.RulesetInfo.OnlineID,
                             Passed = true,
-                            TotalScore = highScore.score,
+                            TotalScore = (int)referenceScore.TotalScore,
                             Accuracy = referenceScore.Accuracy,
                             MaxCombo = highScore.maxcombo,
                             Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
                             Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
                             Statistics = referenceScore.Statistics,
                             MaximumStatistics = referenceScore.MaximumStatistics,
-                            EndedAt = highScore.date
+                            EndedAt = highScore.date,
+                            LegacyTotalScore = highScore.score
                         });
 
                         insertCommand.Transaction = transaction;
@@ -412,6 +413,13 @@ namespace osu.Server.Queues.ScorePump.Queue
                 if (maxComboFromAttributes > maxComboFromStatistics)
                     scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = maxComboFromAttributes.Value - maxComboFromStatistics;
 #pragma warning restore CS0618
+
+                ScoreProcessor scoreProcessor = ruleset.CreateScoreProcessor();
+                int baseScore = scoreInfo.Statistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
+                int maxBaseScore = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
+
+                scoreInfo.TotalScore = (int)scoreProcessor.ComputeScore(ScoringMode.Standardised, scoreInfo);
+                scoreInfo.Accuracy = maxBaseScore == 0 ? 1 : baseScore / (double)maxBaseScore;
 
                 return scoreInfo;
             }
