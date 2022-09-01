@@ -292,7 +292,9 @@ namespace osu.Server.Queues.ScorePump.Queue
                             Statistics = referenceScore.Statistics,
                             MaximumStatistics = referenceScore.MaximumStatistics,
                             EndedAt = highScore.date,
-                            LegacyTotalScore = highScore.score
+                            HasReplay = highScore.replay,
+                            LegacyTotalScore = highScore.score,
+                            LegacyScoreId = highScore.score_id
                         });
 
                         insertCommand.Transaction = transaction;
