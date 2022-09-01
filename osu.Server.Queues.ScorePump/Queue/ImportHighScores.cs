@@ -16,6 +16,7 @@ using osu.Game.Beatmaps.Legacy;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
@@ -269,7 +270,7 @@ namespace osu.Server.Queues.ScorePump.Queue
 
                     foreach (var highScore in scores)
                     {
-                        var (accuracy, statistics) = getAccuracyAndStatistics(ruleset, highScore);
+                        ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
 
                         pp.Value = highScore.pp;
                         userId.Value = highScore.user_id;
@@ -283,13 +284,15 @@ namespace osu.Server.Queues.ScorePump.Queue
                             BeatmapID = highScore.beatmap_id,
                             RulesetID = ruleset.RulesetInfo.OnlineID,
                             Passed = true,
-                            TotalScore = highScore.score,
-                            Accuracy = accuracy,
+                            TotalScore = (int)referenceScore.TotalScore,
+                            Accuracy = referenceScore.Accuracy,
                             MaxCombo = highScore.maxcombo,
                             Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
-                            Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Select(m => new APIMod(m)).ToArray(),
-                            Statistics = statistics,
-                            EndedAt = highScore.date
+                            Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
+                            Statistics = referenceScore.Statistics,
+                            MaximumStatistics = referenceScore.MaximumStatistics,
+                            EndedAt = highScore.date,
+                            LegacyTotalScore = highScore.score
                         });
 
                         insertCommand.Transaction = transaction;
@@ -306,27 +309,119 @@ namespace osu.Server.Queues.ScorePump.Queue
                 }
             }
 
-            private (double accuracy, Dictionary<HitResult, int> statistics) getAccuracyAndStatistics(Ruleset ruleset, HighScore highScore)
+            /// <summary>
+            /// Creates a partially-populated "reference" score that provides:
+            /// <list type="bullet">
+            /// <item><term><see cref="ScoreInfo.Ruleset"/></term></item>
+            /// <item><term><see cref="ScoreInfo.Accuracy"/></term></item>
+            /// <item><term><see cref="ScoreInfo.Mods"/></term></item>
+            /// <item><term><see cref="ScoreInfo.Statistics"/></term></item>
+            /// <item><term><see cref="ScoreInfo.MaximumStatistics"/></term></item>
+            /// </list>
+            /// </summary>
+            private async Task<ScoreInfo> createReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection, MySqlTransaction transaction)
             {
                 var scoreInfo = new ScoreInfo
                 {
                     Ruleset = ruleset.RulesetInfo,
+                    Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).ToArray(),
+                    Statistics = new Dictionary<HitResult, int>(),
+                    MaximumStatistics = new Dictionary<HitResult, int>(),
                 };
 
+                // Populate statistics and accuracy.
                 scoreInfo.SetCount50(highScore.count50);
                 scoreInfo.SetCount100(highScore.count100);
                 scoreInfo.SetCount300(highScore.count300);
                 scoreInfo.SetCountMiss(highScore.countmiss);
                 scoreInfo.SetCountGeki(highScore.countgeki);
                 scoreInfo.SetCountKatu(highScore.countkatu);
-
                 LegacyScoreDecoder.PopulateAccuracy(scoreInfo);
 
-                return
-                (
-                    scoreInfo.Accuracy,
-                    scoreInfo.Statistics.Where(kvp => kvp.Value != 0).ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
-                );
+                // Trim zero values from statistics.
+                scoreInfo.Statistics = scoreInfo.Statistics.Where(kvp => kvp.Value != 0).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+                // Populate the maximum statistics.
+                HitResult maxBasicResult = ruleset.GetHitResults().Select(h => h.result).Where(h => h.IsBasic()).MaxBy(Judgement.ToNumericResult);
+
+                foreach ((HitResult result, int count) in scoreInfo.Statistics)
+                {
+                    switch (result)
+                    {
+                        case HitResult.LargeTickHit:
+                        case HitResult.LargeTickMiss:
+                            scoreInfo.MaximumStatistics[HitResult.LargeTickHit] = scoreInfo.MaximumStatistics.GetValueOrDefault(HitResult.LargeTickHit) + count;
+                            break;
+
+                        case HitResult.SmallTickHit:
+                        case HitResult.SmallTickMiss:
+                            scoreInfo.MaximumStatistics[HitResult.SmallTickHit] = scoreInfo.MaximumStatistics.GetValueOrDefault(HitResult.SmallTickHit) + count;
+                            break;
+
+                        case HitResult.IgnoreHit:
+                        case HitResult.IgnoreMiss:
+                        case HitResult.SmallBonus:
+                        case HitResult.LargeBonus:
+                            break;
+
+                        default:
+                            scoreInfo.MaximumStatistics[maxBasicResult] = scoreInfo.MaximumStatistics.GetValueOrDefault(maxBasicResult) + count;
+                            break;
+                    }
+                }
+
+                // In osu! and osu!mania, some judgements affect combo but aren't stored to scores.
+                // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
+                int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
+
+                // Note that using BeatmapStore will fail if a particular difficulty attribute value doesn't exist in the database.
+                // To get around this, we'll specifically look up the attribute directly from the database, utilising the most primitive mod lookup value
+                // for the ruleset in order to prevent an additional failures if some new mod combinations were added as difficulty adjustment mods.
+                // This is a little bit hacky and wouldn't be required if the databased attributes were always in-line with osu!lazer, but that's not the case.
+
+                int difficultyMods = 0;
+
+                switch (ruleset.RulesetInfo.OnlineID)
+                {
+                    case 0:
+                    case 1:
+                    case 2:
+                        // In these rulesets, every mod combination has the same max combo. So use the attribute with mods=0.
+                        break;
+
+                    case 3:
+                        // In mania, only keymods affect the number of objects and thus the max combo.
+                        difficultyMods = highScore.enabled_mods & (int)LegacyModsHelper.KEY_MODS;
+                        break;
+                }
+
+                int? maxComboFromAttributes = await connection.QuerySingleOrDefaultAsync<int?>(
+                    $"SELECT `value` FROM {BeatmapDifficultyAttribute.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods AND `attrib_id` = 9", new
+                    {
+                        BeatmapId = highScore.beatmap_id,
+                        RulesetId = ruleset.RulesetInfo.OnlineID,
+                        Mods = difficultyMods
+                    }, transaction);
+
+                if (maxComboFromAttributes == null)
+                {
+                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not find difficulty attributes for beatmap {highScore.beatmap_id} in the database.");
+                    return scoreInfo;
+                }
+
+#pragma warning disable CS0618
+                if (maxComboFromAttributes > maxComboFromStatistics)
+                    scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = maxComboFromAttributes.Value - maxComboFromStatistics;
+#pragma warning restore CS0618
+
+                ScoreProcessor scoreProcessor = ruleset.CreateScoreProcessor();
+                int baseScore = scoreInfo.Statistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
+                int maxBaseScore = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
+
+                scoreInfo.TotalScore = (int)scoreProcessor.ComputeScore(ScoringMode.Standardised, scoreInfo);
+                scoreInfo.Accuracy = maxBaseScore == 0 ? 1 : baseScore / (double)maxBaseScore;
+
+                return scoreInfo;
             }
         }
 
