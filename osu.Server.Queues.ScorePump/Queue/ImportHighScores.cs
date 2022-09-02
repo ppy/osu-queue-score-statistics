@@ -252,8 +252,8 @@ namespace osu.Server.Queues.ScorePump.Queue
                 {
                     insertCommand.CommandText =
                         // main score insert
-                        $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) "
-                        + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, 1, @date, @date);"
+                        $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, updated_at) "
+                        + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, @has_replay, 1, @date, @date);"
                         // pp insert
                         + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
                         // mapping insert
@@ -264,6 +264,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                     var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
                     var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
                     var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
+                    var hasReplay = insertCommand.Parameters.Add("has_replay", MySqlDbType.Bool);
                     var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
 
                     await insertCommand.PrepareAsync();
@@ -277,6 +278,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                         oldScoreId.Value = highScore.score_id;
                         beatmapId.Value = highScore.beatmap_id;
                         date.Value = highScore.date;
+                        hasReplay.Value = highScore.replay;
                         data.Value = JsonConvert.SerializeObject(new SoloScoreInfo
                         {
                             // id will be written below in the UPDATE call.
@@ -292,7 +294,6 @@ namespace osu.Server.Queues.ScorePump.Queue
                             Statistics = referenceScore.Statistics,
                             MaximumStatistics = referenceScore.MaximumStatistics,
                             EndedAt = highScore.date,
-                            HasReplay = highScore.replay,
                             LegacyTotalScore = highScore.score,
                             LegacyScoreId = highScore.score_id
                         });
