@@ -84,7 +84,7 @@ namespace osu.Server.Queues.ScorePump
 
         private bool ensureMaximumStatistics(SoloScore score)
         {
-            if (score.ScoreInfo.maximum_statistics.Count > 0)
+            if (score.ScoreInfo.maximum_statistics.Sum(s => s.Value) > 0)
                 return false;
 
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
