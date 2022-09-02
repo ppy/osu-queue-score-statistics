@@ -296,6 +296,9 @@ namespace osu.Server.Queues.ScorePump.Queue
                             EndedAt = highScore.date,
                             LegacyTotalScore = highScore.score,
                             LegacyScoreId = highScore.score_id
+                        }, new JsonSerializerSettings
+                        {
+                            DefaultValueHandling = DefaultValueHandling.Ignore
                         });
 
                         insertCommand.Transaction = transaction;
