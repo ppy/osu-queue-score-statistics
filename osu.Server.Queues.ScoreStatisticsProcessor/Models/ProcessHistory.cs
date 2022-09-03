@@ -7,9 +7,11 @@ using Dapper.Contrib.Extensions;
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    [Table("solo_scores_process_history")]
+    [Table(TABLE_NAME)]
     public class ProcessHistory
     {
+        public const string TABLE_NAME = $"{SoloScore.TABLE_NAME}_process_history";
+
         [ExplicitKey]
         public long score_id { get; set; }
 
