@@ -155,7 +155,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         private class ElasticQueueProcessor : QueueProcessor<ElasticQueueProcessor.ElasticScoreItem>
         {
-            private static readonly string queue_name = $"score-index-{Environment.GetEnvironmentVariable("schema")}";
+            private static readonly string queue_name = $"score-index-{Environment.GetEnvironmentVariable("SCHEMA")}";
 
             internal ElasticQueueProcessor()
                 : base(new QueueConfiguration { InputQueueName = queue_name })
