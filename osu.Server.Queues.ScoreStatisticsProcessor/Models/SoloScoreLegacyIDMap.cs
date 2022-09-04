@@ -12,7 +12,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     [Table(TABLE_NAME)]
     public class SoloScoreLegacyIDMap
     {
-        public const string TABLE_NAME = "solo_scores_legacy_id_map";
+        public const string TABLE_NAME = $"{SoloScore.TABLE_NAME}_legacy_id_map";
 
         [ExplicitKey]
         public ushort ruleset_id { get; set; }

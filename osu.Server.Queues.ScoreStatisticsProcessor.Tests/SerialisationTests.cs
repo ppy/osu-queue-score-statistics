@@ -23,7 +23,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Query<int>("SELECT * FROM test_database");
 
                 db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
-                db.Execute("TRUNCATE TABLE solo_scores_process_history");
+                db.Execute($"TRUNCATE TABLE {ProcessHistory.TABLE_NAME}");
             }
         }
 
@@ -38,7 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 db.Insert(score.ProcessHistory);
 
-                db.QueryFirst<ProcessHistory>("SELECT * FROM solo_scores_process_history").ShouldDeepEqual(score.ProcessHistory);
+                db.QueryFirst<ProcessHistory>($"SELECT * FROM {ProcessHistory.TABLE_NAME}").ShouldDeepEqual(score.ProcessHistory);
             }
         }
 
