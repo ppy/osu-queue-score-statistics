@@ -40,8 +40,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_beatmap_playcount");
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
                 db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
-                db.Execute("TRUNCATE TABLE solo_scores_process_history");
-                db.Execute("TRUNCATE TABLE solo_scores_performance");
+                db.Execute($"TRUNCATE TABLE {ProcessHistory.TABLE_NAME}");
+                db.Execute($"TRUNCATE TABLE {SoloScorePerformance.TABLE_NAME}");
             }
 
             Task.Run(() => processor.Run(cts.Token), cts.Token);
