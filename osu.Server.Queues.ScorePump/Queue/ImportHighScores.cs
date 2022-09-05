@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
@@ -102,7 +101,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                         break;
                     }
 
-                    List<Task> waitingTasks = new List<Task>();
+                    List<BatchInserter> runningBatches = new List<BatchInserter>();
 
                     var orderedHighScores = highScores.OrderBy(s => s.beatmap_id).ThenBy(s => s.score_id);
 
@@ -127,7 +126,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                     // update StartId to allow the next bulk query to start from the correct location.
                     StartId = highScores.Max(s => s.score_id);
 
-                    while (!waitingTasks.All(t => t.IsCompleted))
+                    while (!runningBatches.All(t => t.Task.IsCompleted))
                     {
                         long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
 
@@ -136,7 +135,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                             int inserted = Interlocked.Exchange(ref currentReportInsertCount, 0);
 
                             Console.WriteLine($"Inserting up to {StartId:N0} "
-                                              + $"[{waitingTasks.Count(t => t.IsCompleted),-2}/{waitingTasks.Count}] "
+                                              + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
                                               + $"{totalInsertCount:N0} inserted (+{inserted:N0} new {inserted / seconds_between_report:N0}/s)");
 
                             lastCommitTimestamp = currentTimestamp;
@@ -145,15 +144,23 @@ namespace osu.Server.Queues.ScorePump.Queue
                         Thread.Sleep(10);
                     }
 
-                    foreach (var erroredTask in waitingTasks.Where(t => t.IsFaulted))
+                    if (runningBatches.Any(t => t.Task.IsFaulted))
                     {
-                        Console.WriteLine("ERROR: At least one tasks were faulted.");
+                        Console.WriteLine("ERROR: At least one tasks were faulted. Aborting for safety.");
+                        Console.WriteLine($"Running batches were processing up to {StartId}.");
+                        Console.WriteLine();
 
-                        // TODO: potentially rewrite scores rather than hard bailing.
-                        Debug.Assert(erroredTask.Exception != null);
+                        for (int i = 0; i < runningBatches.Count; i++)
+                        {
+                            var batchInserter = runningBatches[i];
 
-                        Console.WriteLine($"ERROR: {erroredTask.Exception}");
-                        throw erroredTask.Exception;
+                            string status = batchInserter.Task.IsFaulted ? $"FAILED ({batchInserter.Task.Exception?.Message})" : "success";
+                            Console.WriteLine($"{i,-3} {batchInserter.Scores.First().score_id} - {batchInserter.Scores.Last().score_id}: {status}");
+                        }
+
+                        Console.WriteLine();
+                        Console.WriteLine(runningBatches.First(t => t.Task.IsFaulted).Task.Exception?.ToString());
+                        return -1;
                     }
 
                     Console.WriteLine($"Transaction commit at score_id {StartId}");
@@ -164,7 +171,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                         if (batch.Count == 0)
                             return;
 
-                        waitingTasks.Add(new BatchInserter(ruleset, () => Queue.GetDatabaseConnection()).Run(batch.ToArray()));
+                        runningBatches.Add(new BatchInserter(ruleset, () => Queue.GetDatabaseConnection(), batch.ToArray()));
                         batch.Clear();
                     }
                 }
@@ -238,10 +245,17 @@ namespace osu.Server.Queues.ScorePump.Queue
             private readonly Ruleset ruleset;
             private readonly Func<MySqlConnection> getConnection;
 
-            public BatchInserter(Ruleset ruleset, Func<MySqlConnection> getConnection)
+            public HighScore[] Scores { get; }
+
+            public Task Task { get; }
+
+            public BatchInserter(Ruleset ruleset, Func<MySqlConnection> getConnection, HighScore[] scores)
             {
                 this.ruleset = ruleset;
                 this.getConnection = getConnection;
+
+                Scores = scores;
+                Task = Run(scores);
             }
 
             public async Task Run(HighScore[] scores)
