@@ -85,6 +85,11 @@ namespace osu.Server.Queues.ScorePump.Queue
 
             DateTimeOffset start = DateTimeOffset.Now;
 
+            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {StartId}");
+            Console.WriteLine($"Inserting into {SoloScore.TABLE_NAME}");
+
+            Thread.Sleep(5000);
+
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
