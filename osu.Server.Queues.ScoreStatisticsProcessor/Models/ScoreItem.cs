@@ -24,7 +24,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public void MarkProcessed() =>
             ProcessHistory = new ProcessHistory
             {
-                score_id = Score.id,
+                score_id = (long)Score.id,
                 processed_version = ScoreStatisticsProcessor.VERSION
             };
 

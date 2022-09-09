@@ -18,12 +18,12 @@ namespace osu.Server.Queues.ScorePump.Queue
     public class WatchNewScores : QueueCommand
     {
         [Option("--start_id")]
-        public long? StartId { get; set; }
+        public ulong? StartId { get; set; }
 
         private const int count_per_run = 100;
 
         [UsedImplicitly]
-        private long lastId;
+        private ulong lastId;
 
         public int OnExecute(CancellationToken cancellationToken)
         {
@@ -32,7 +32,7 @@ namespace osu.Server.Queues.ScorePump.Queue
             else
             {
                 using (var db = Queue.GetDatabaseConnection())
-                    lastId = db.QuerySingleOrDefault<long?>($"SELECT MAX($score_id) FROM {ProcessHistory.TABLE_NAME}") ?? 0;
+                    lastId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX($score_id) FROM {ProcessHistory.TABLE_NAME}") ?? 0;
             }
 
             while (true)
