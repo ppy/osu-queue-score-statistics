@@ -414,7 +414,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, cts.Token);
         }
 
-        private static long scoreIDSource;
+        private static ulong scoreIDSource;
 
         public static ScoreItem CreateTestScore(int rulesetId = 0)
         {

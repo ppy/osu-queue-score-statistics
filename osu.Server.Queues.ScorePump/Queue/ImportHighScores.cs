@@ -37,7 +37,7 @@ namespace osu.Server.Queues.ScorePump.Queue
         /// The high score ID to start the import process from. This can be used to resume an existing job, or perform catch-up on new scores.
         /// </summary>
         [Option(CommandOptionType.SingleValue)]
-        public long StartId { get; set; }
+        public ulong StartId { get; set; }
 
         private long lastCommitTimestamp;
         private long lastLatencyCheckTimestamp;
@@ -279,7 +279,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                         + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
 
                     var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
-                    var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt32);
+                    var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt64);
                     var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
                     var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
                     var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
@@ -454,7 +454,7 @@ namespace osu.Server.Queues.ScorePump.Queue
         [Serializable]
         private class HighScore
         {
-            public uint score_id { get; set; }
+            public ulong score_id { get; set; }
             public int beatmap_id { get; set; }
             public int user_id { get; set; }
             public int score { get; set; }

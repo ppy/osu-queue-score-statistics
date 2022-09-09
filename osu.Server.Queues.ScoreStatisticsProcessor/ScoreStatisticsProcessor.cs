@@ -108,7 +108,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                 elasticQueueProcessor.PushToQueue(new ElasticQueueProcessor.ElasticScoreItem
                 {
-                    ScoreId = item.Score.id,
+                    ScoreId = (long)item.Score.id,
                 });
             }
             catch (Exception e)
