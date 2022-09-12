@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,7 @@ using McMaster.Extensions.CommandLineUtils;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -56,7 +58,10 @@ namespace osu.Server.Queues.ScorePump.Queue
 
                         foreach (var score in scores)
                         {
-                            if (ensureMaximumStatistics(score))
+                            bool requiresUpdate = ensureMaximumStatistics(score);
+                            requiresUpdate |= ensureCorrectTotalScore(score);
+
+                            if (requiresUpdate)
                             {
                                 await db.UpdateAsync(score, transaction);
                                 updateCount++;
@@ -115,6 +120,28 @@ namespace osu.Server.Queues.ScorePump.Queue
                         break;
                 }
             }
+
+            Trace.Assert(score.ScoreInfo.MaximumStatistics.Sum(s => s.Value) > 0);
+            return true;
+        }
+
+        private bool ensureCorrectTotalScore(SoloScore score)
+        {
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
+            ScoreInfo scoreInfo = score.ScoreInfo.ToScoreInfo(score.ScoreInfo.Mods.Select(m => m.ToMod(ruleset)).ToArray());
+            scoreInfo.Ruleset = ruleset.RulesetInfo;
+
+            ScoreProcessor scoreProcessor = ruleset.CreateScoreProcessor();
+            scoreProcessor.Mods.Value = scoreInfo.Mods;
+
+            int totalScore = (int)Math.Round(scoreProcessor.ComputeScore(ScoringMode.Standardised, scoreInfo));
+            double accuracy = scoreProcessor.ComputeAccuracy(scoreInfo);
+
+            if (totalScore == score.ScoreInfo.TotalScore && Math.Round(accuracy, 2) == Math.Round(score.ScoreInfo.Accuracy, 2))
+                return false;
+
+            score.ScoreInfo.TotalScore = totalScore;
+            score.ScoreInfo.Accuracy = accuracy;
 
             return true;
         }
