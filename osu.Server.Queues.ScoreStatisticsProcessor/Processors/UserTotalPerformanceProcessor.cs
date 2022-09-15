@@ -121,7 +121,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                                                       .ToArray();
 
             // Build the diminishing sum
-            double factor = 120;
+            double factor = 52.5;
             double totalPp = 0;
             double totalAccuracy = 0;
             double weightTotal = 0;
@@ -129,7 +129,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             foreach (var (item, i) in groupedItems.Select((value, i) => ( value, i )))
             {
                 // This sum is an unbounded logarithmic style summation that uses factor and the index to weight each score.
-                weight = (1 + factor / (i + 1)) / ((i + 1 + factor / (i + 1));
+                weight = (1 + Math.Pow(factor / (i + 1), 2)) / (i + 1 + Math.Pow(factor / (i + 1), 2));
                 totalPp += item.pp!.Value * weight;
                 totalAccuracy += item.ScoreInfo.Accuracy * weight;
                 weightTotal += weight;
