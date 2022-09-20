@@ -12,6 +12,7 @@ namespace osu.Server.Queues.ScorePump;
 [Subcommand(typeof(WatchNewScores))]
 [Subcommand(typeof(ClearQueue))]
 [Subcommand(typeof(ImportHighScores))]
+[Subcommand(typeof(UpgradeScores))]
 public sealed class QueueCommands
 {
     public int OnExecute(CommandLineApplication app)
