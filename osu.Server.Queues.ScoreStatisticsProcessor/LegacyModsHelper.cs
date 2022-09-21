@@ -21,9 +21,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             {
                 case 0:
                     if ((mods & LegacyMods.Flashlight) > 0)
-                        relevantMods |= LegacyMods.Flashlight | LegacyMods.Hidden;
+                        relevantMods |= LegacyMods.Flashlight | LegacyMods.Hidden | LegacyMods.TouchDevice;
                     else
-                        relevantMods |= LegacyMods.Flashlight;
+                        relevantMods |= LegacyMods.Flashlight | LegacyMods.TouchDevice;
                     break;
 
                 case 3:
