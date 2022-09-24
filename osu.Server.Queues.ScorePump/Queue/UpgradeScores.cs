@@ -121,7 +121,6 @@ namespace osu.Server.Queues.ScorePump.Queue
                 }
             }
 
-            Trace.Assert(score.ScoreInfo.MaximumStatistics.Sum(s => s.Value) > 0);
             return true;
         }
 
