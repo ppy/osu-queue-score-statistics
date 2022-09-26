@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -420,13 +421,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                         break;
                 }
 
-                int? maxComboFromAttributes = await connection.QuerySingleOrDefaultAsync<int?>(
-                    $"SELECT `value` FROM {BeatmapDifficultyAttribute.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods AND `attrib_id` = 9", new
-                    {
-                        BeatmapId = highScore.beatmap_id,
-                        RulesetId = ruleset.RulesetInfo.OnlineID,
-                        Mods = difficultyMods
-                    }, transaction);
+                int? maxComboFromAttributes = getMaxCombo(new MaxComboLookup(highScore.beatmap_id, ruleset.RulesetInfo.OnlineID, difficultyMods), connection, transaction);
 
                 if (maxComboFromAttributes == null)
                 {
@@ -447,6 +442,20 @@ namespace osu.Server.Queues.ScorePump.Queue
                 scoreInfo.Accuracy = maxBaseScore == 0 ? 1 : baseScore / (double)maxBaseScore;
 
                 return scoreInfo;
+            }
+
+            private static readonly ConcurrentDictionary<MaxComboLookup, int?> max_combo_cache = new ConcurrentDictionary<MaxComboLookup, int?>();
+
+            private int? getMaxCombo(MaxComboLookup lookup, MySqlConnection connection, MySqlTransaction transaction) =>
+                max_combo_cache.GetOrAdd(lookup, l => connection.QuerySingleOrDefault<int?>(
+                    $"SELECT `value` FROM {BeatmapDifficultyAttribute.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods AND `attrib_id` = 9", l, transaction));
+
+            private record MaxComboLookup(int BeatmapId, int RulesetId, int Mods)
+            {
+                public override string ToString()
+                {
+                    return $"{{ BeatmapId = {BeatmapId}, RulesetId = {RulesetId}, Mods = {Mods} }}";
+                }
             }
         }
 
