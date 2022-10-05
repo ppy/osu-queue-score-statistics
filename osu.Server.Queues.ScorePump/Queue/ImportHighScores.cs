@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
@@ -17,6 +18,7 @@ using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Judgements;
+using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
@@ -347,10 +349,13 @@ namespace osu.Server.Queues.ScorePump.Queue
             /// </summary>
             private async Task<ScoreInfo> createReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection, MySqlTransaction transaction)
             {
+                Mod? classicMod = ruleset.CreateMod<ModClassic>();
+                Debug.Assert(classicMod != null);
+
                 var scoreInfo = new ScoreInfo
                 {
                     Ruleset = ruleset.RulesetInfo,
-                    Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).ToArray(),
+                    Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Append(classicMod).ToArray(),
                     Statistics = new Dictionary<HitResult, int>(),
                     MaximumStatistics = new Dictionary<HitResult, int>(),
                 };
