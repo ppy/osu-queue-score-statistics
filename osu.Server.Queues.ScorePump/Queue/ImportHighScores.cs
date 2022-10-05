@@ -347,10 +347,13 @@ namespace osu.Server.Queues.ScorePump.Queue
             /// </summary>
             private async Task<ScoreInfo> createReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection, MySqlTransaction transaction)
             {
+                Mod? classicMod = ruleset.CreateMod<ModClassic>();
+                Debug.Assert(classicMod != null);
+
                 var scoreInfo = new ScoreInfo
                 {
                     Ruleset = ruleset.RulesetInfo,
-                    Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).ToArray(),
+                    Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Append(classicMod).ToArray(),
                     Statistics = new Dictionary<HitResult, int>(),
                     MaximumStatistics = new Dictionary<HitResult, int>(),
                 };
