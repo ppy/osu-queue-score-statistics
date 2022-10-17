@@ -2,6 +2,10 @@
 
 An [osu-queue-processor](https://github.com/ppy/osu-queue-processor) designed to handle updating general statistics updates from user scores.
 
+# Current Versions
+
+This is part of a group of projects which are used in live deployments where the deployed version is critical to producing correct results. The `master` branch tracks ongoing developments. If looking to use the correct version for matching live values, please [consult this wiki page](https://github.com/ppy/osu-infrastructure/wiki/Star-Rating-and-Performance-Points) for the latest information.
+
 # Contributing
 
 Contributions can be made via pull requests to this repository. We hope to credit and reward larger contributions via a [bounty system](https://www.bountysource.com/teams/ppy). If you're unsure of what you can help with, check out the [list of open issues](https://github.com/ppy/osu-queue-score-statistics-processor/issues).
