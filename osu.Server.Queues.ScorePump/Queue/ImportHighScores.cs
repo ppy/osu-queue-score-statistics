@@ -199,11 +199,13 @@ namespace osu.Server.Queues.ScorePump.Queue
             if (cancellationToken.IsCancellationRequested)
             {
                 Console.WriteLine($"Cancelled after {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
+                Console.WriteLine($"Final stats: {totalInsertCount} inserted, {totalSkipCount} skipped");
                 Console.WriteLine($"Resume from start id {StartId}");
             }
             else
             {
                 Console.WriteLine($"Finished in {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
+                Console.WriteLine($"Final stats: {totalInsertCount} inserted, {totalSkipCount} skipped");
             }
 
             Console.WriteLine();
