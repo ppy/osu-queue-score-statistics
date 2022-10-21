@@ -42,6 +42,12 @@ namespace osu.Server.Queues.ScorePump.Queue
         [Option(CommandOptionType.SingleValue)]
         public ulong StartId { get; set; }
 
+        /// <summary>
+        /// Whether existing legacy score IDs should be skipped rather than fail via an error. Defaults enabled.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--skip")]
+        public bool SkipExisting { get; set; } = true;
+
         private long lastCommitTimestamp;
         private long lastLatencyCheckTimestamp;
 
@@ -179,7 +185,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                         if (batch.Count == 0)
                             return;
 
-                        runningBatches.Add(new BatchInserter(ruleset, () => Queue.GetDatabaseConnection(), batch.ToArray()));
+                        runningBatches.Add(new BatchInserter(ruleset, () => Queue.GetDatabaseConnection(), batch.ToArray(), SkipExisting));
                         batch.Clear();
                     }
                 }
@@ -252,15 +258,17 @@ namespace osu.Server.Queues.ScorePump.Queue
         {
             private readonly Ruleset ruleset;
             private readonly Func<MySqlConnection> getConnection;
+            private readonly bool skipExisting;
 
             public HighScore[] Scores { get; }
 
             public Task Task { get; }
 
-            public BatchInserter(Ruleset ruleset, Func<MySqlConnection> getConnection, HighScore[] scores)
+            public BatchInserter(Ruleset ruleset, Func<MySqlConnection> getConnection, HighScore[] scores, bool skipExisting)
             {
                 this.ruleset = ruleset;
                 this.getConnection = getConnection;
+                this.skipExisting = skipExisting;
 
                 Scores = scores;
                 Task = Run(scores);
@@ -272,6 +280,14 @@ namespace osu.Server.Queues.ScorePump.Queue
                 using (var transaction = await db.BeginTransactionAsync())
                 using (var insertCommand = db.CreateCommand())
                 {
+                    // check for existing and skip
+                    ulong[] skipIDs = skipExisting
+                        ? db.Query<ulong>($"SELECT old_score_id FROM {SoloScoreLegacyIDMap.TABLE_NAME} WHERE ruleset_id =  {ruleset.RulesetInfo.OnlineID} AND old_score_id in @oldScoreIds", new
+                        {
+                            oldScoreIds = scores.Select(s => s.score_id)
+                        }, transaction).ToArray()
+                        : Array.Empty<ulong>();
+
                     insertCommand.CommandText =
                         // main score insert
                         $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, updated_at) "
@@ -293,6 +309,9 @@ namespace osu.Server.Queues.ScorePump.Queue
 
                     foreach (var highScore in scores)
                     {
+                        if (skipIDs.Contains(highScore.score_id))
+                            continue;
+
                         ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
 
                         pp.Value = highScore.pp;
