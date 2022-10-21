@@ -54,6 +54,8 @@ namespace osu.Server.Queues.ScorePump.Queue
         private static int currentReportInsertCount;
         private static int totalInsertCount;
 
+        private static int totalSkipCount;
+
         /// <summary>
         /// The number of scores done in a single processing query. These scores are read in one go, then distributed to parallel insertion workers.
         /// May be adjusted at runtime based on the replication state.
@@ -150,7 +152,7 @@ namespace osu.Server.Queues.ScorePump.Queue
 
                             Console.WriteLine($"Inserting up to {StartId:N0} "
                                               + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
-                                              + $"{totalInsertCount:N0} inserted (+{inserted:N0} new {inserted / seconds_between_report:N0}/s)");
+                                              + $"{totalInsertCount:N0} inserted {totalSkipCount:N0} skipped (+{inserted:N0} new {inserted / seconds_between_report:N0}/s)");
 
                             lastCommitTimestamp = currentTimestamp;
                         }
@@ -310,7 +312,10 @@ namespace osu.Server.Queues.ScorePump.Queue
                     foreach (var highScore in scores)
                     {
                         if (skipIDs.Contains(highScore.score_id))
+                        {
+                            Interlocked.Increment(ref totalSkipCount);
                             continue;
+                        }
 
                         ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
 
