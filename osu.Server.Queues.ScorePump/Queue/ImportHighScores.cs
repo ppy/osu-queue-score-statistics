@@ -309,7 +309,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                             RulesetID = ruleset.RulesetInfo.OnlineID,
                             Passed = true,
                             TotalScore = (int)referenceScore.TotalScore,
-                            Accuracy = referenceScore.Accuracy,
+                            Accuracy = Math.Round(referenceScore.Accuracy, 4, MidpointRounding.ToEven),
                             MaxCombo = highScore.maxcombo,
                             Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
                             Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
