@@ -286,7 +286,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                 {
                     // check for existing and skip
                     ulong[] skipIDs = skipExisting
-                        ? db.Query<ulong>($"SELECT old_score_id FROM {SoloScoreLegacyIDMap.TABLE_NAME} WHERE ruleset_id =  {ruleset.RulesetInfo.OnlineID} AND old_score_id in @oldScoreIds", new
+                        ? db.Query<ulong>($"SELECT `old_score_id` FROM {SoloScoreLegacyIDMap.TABLE_NAME} WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds", new
                         {
                             oldScoreIds = scores.Select(s => s.score_id)
                         }, transaction).ToArray()
