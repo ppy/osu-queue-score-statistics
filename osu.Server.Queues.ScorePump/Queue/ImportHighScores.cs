@@ -220,17 +220,22 @@ namespace osu.Server.Queues.ScorePump.Queue
             if (currentTimestamp - lastLatencyCheckTimestamp < seconds_between_latency_checks)
                 return;
 
+            lastLatencyCheckTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+
             // This latency is best-effort, and randomly queried from available hosts (with rough precedence of the importance of the host).
             // When we detect a high latency value, a recovery period should be introduced where we are pretty sure that we're back in a good
             // state before resuming operations.
-            int latency = db.QueryFirst<int>("SELECT `count` FROM `osu_counts` WHERE NAME = 'slave_latency'");
+            int? latency = db.QueryFirstOrDefault<int?>("SELECT `count` FROM `osu_counts` WHERE NAME = 'slave_latency'");
+
+            if (latency == null)
+                return;
 
             if (latency > maximum_slave_latency_seconds)
             {
                 Console.WriteLine($"Current slave latency of {latency} seconds exceeded maximum of {maximum_slave_latency_seconds} seconds.");
                 Console.WriteLine($"Sleeping for {latency} seconds to allow catch-up.");
 
-                Thread.Sleep(latency * 1000);
+                Thread.Sleep(latency.Value * 1000);
 
                 // greatly reduce processing rate to allow for recovery.
                 scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - 500);
@@ -245,8 +250,6 @@ namespace osu.Server.Queues.ScorePump.Queue
                 scoresPerQuery = Math.Min(maximum_scores_per_query, scoresPerQuery + 100);
                 Console.WriteLine($"Increasing processing rate to {scoresPerQuery} due to latency of {latency}");
             }
-
-            lastLatencyCheckTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
         }
 
         /// <summary>
