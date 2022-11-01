@@ -117,11 +117,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (!AllModsValidForPerformance(mods))
                     return;
 
-                DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
+                APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
+                DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, connection, transaction);
                 if (difficultyAttributes == null)
                     return;
 
-                ScoreInfo scoreInfo = score.ToScoreInfo(mods);
+                ScoreInfo scoreInfo = score.ToScoreInfo(mods, apiBeatmap);
                 PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
                 if (performanceAttributes == null)
                     return;

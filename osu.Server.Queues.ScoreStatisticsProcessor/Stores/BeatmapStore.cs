@@ -57,13 +57,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
-        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
+        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(APIBeatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
 
             // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
-            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), ruleset.RulesetInfo.OnlineID != beatmap.playmode, ruleset.RulesetInfo.OnlineID);
-            DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
+            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), ruleset.RulesetInfo.OnlineID != beatmap.RulesetID, ruleset.RulesetInfo.OnlineID);
+            DifficultyAttributeKey key = new DifficultyAttributeKey((uint)beatmap.OnlineID, ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
 
             if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
             {
@@ -80,15 +80,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 return null;
 
             DifficultyAttributes difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
-            difficultyAttributes.FromDatabaseAttributes(rawDifficultyAttributes.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), new APIBeatmap
-            {
-                ApproachRate = beatmap.diff_approach,
-                DrainRate = beatmap.diff_drain,
-                OverallDifficulty = beatmap.diff_overall,
-                CircleCount = beatmap.countNormal,
-                SliderCount = beatmap.countSlider,
-                SpinnerCount = beatmap.countSpinner
-            });
+            difficultyAttributes.FromDatabaseAttributes(rawDifficultyAttributes.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
 
             return difficultyAttributes;
         }
