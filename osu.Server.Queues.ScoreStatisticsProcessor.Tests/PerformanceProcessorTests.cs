@@ -79,7 +79,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 // Osu
                 new OsuModRelax(),
                 new OsuModAutopilot(),
-                new OsuModTarget(),
+                new OsuModTargetPractice(),
                 new OsuModAutoplay(),
                 new OsuModCinema(),
                 // Taiko
