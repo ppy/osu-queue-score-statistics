@@ -52,6 +52,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             // Perform LIO request to award the medal.
             Console.WriteLine($"Awarding medal {medal.name} to user {score.UserID} (score {score.ID})");
+            LegacyDatabaseHelper.RunLegacyIO($"user-achievement/{score.UserID}/{medal.achievement_id}/{score.BeatmapID}", "POST");
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
