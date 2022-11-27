@@ -19,11 +19,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class MedalProcessor : IProcessor
     {
+        private static readonly List<IMedalAwarder> medal_awarders = new List<IMedalAwarder>();
+
         private ImmutableArray<Medal>? availableMedals;
 
-        private IEnumerable<Medal> getAvailableMedals(MySqlConnection conn)
+        static MedalProcessor()
         {
-            return availableMedals ??= conn.Query<Medal>("SELECT * FROM osu_achievements WHERE enabled = 1").ToImmutableArray();
+            // add each processor automagically.
+            foreach (var t in typeof(ScoreStatisticsProcessor).Assembly.GetTypes().Where(t => !t.IsInterface && typeof(IMedalAwarder).IsAssignableFrom(t)))
+            {
+                if (Activator.CreateInstance(t) is IMedalAwarder awarder)
+                    medal_awarders.Add(awarder);
+            }
+
+            // TODO: ensure that every medal is accounted for.
         }
 
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
@@ -32,6 +41,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
+            // TODO: don't run for medals the user already has.
+
             var medals = getAvailableMedals(conn)
                 .Where(m => m.mode == null || m.mode == score.RulesetID);
 
@@ -39,13 +50,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             {
                 Console.WriteLine($"Checking medal {m.name}...");
 
-                bool shouldAward = false;
-
-                // process the medals
-
-                if (shouldAward)
-                    awardMedal(score, m);
+                foreach (var awarder in medal_awarders)
+                {
+                    if (awarder.Check(score, m, conn))
+                    {
+                        awardMedal(score, m);
+                        break;
+                    }
+                }
             }
+        }
+
+        private IEnumerable<Medal> getAvailableMedals(MySqlConnection conn)
+        {
+            return availableMedals ??= conn.Query<Medal>("SELECT * FROM osu_achievements WHERE enabled = 1").ToImmutableArray();
         }
 
         private void awardMedal(SoloScoreInfo score, Medal medal)
