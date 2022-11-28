@@ -8,7 +8,7 @@ using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
-    public class PlayTimeProcessorTests : StatisticsProcessorTest
+    public class PlayTimeProcessorTests : DatabaseTest
     {
         [Fact]
         public void TestPlayTimeIncrease()

@@ -5,7 +5,7 @@ using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
-    public class MaxComboProcessorTests : StatisticsProcessorTest
+    public class MaxComboProcessorTests : DatabaseTest
     {
         [Fact]
         public void TestMaxComboIncrease()

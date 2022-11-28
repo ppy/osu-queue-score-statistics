@@ -8,7 +8,7 @@ using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
-    public class SerialisationTests
+    public class SerialisationTests : DatabaseTest
     {
         private readonly ScoreStatisticsProcessor processor;
 
@@ -32,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             using (var db = processor.GetDatabaseConnection())
             {
-                var score = StatisticsProcessorTest.CreateTestScore();
+                var score = CreateTestScore();
 
                 score.MarkProcessed();
 
@@ -45,7 +45,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestSoloScoreDirectSerialisation()
         {
-            var score = StatisticsProcessorTest.CreateTestScore().Score;
+            var score = CreateTestScore().Score;
 
             var serialised = score.Serialize();
             var deserialised = serialised.Deserialize<SoloScore>();
@@ -64,7 +64,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             using (var db = processor.GetDatabaseConnection())
             {
-                var score = StatisticsProcessorTest.CreateTestScore().Score;
+                var score = CreateTestScore().Score;
 
                 db.Insert(score);
 

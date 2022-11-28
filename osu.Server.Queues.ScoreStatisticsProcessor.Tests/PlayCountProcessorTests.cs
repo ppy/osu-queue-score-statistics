@@ -3,7 +3,7 @@ using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
-    public class PlayCountProcessorTests : StatisticsProcessorTest
+    public class PlayCountProcessorTests : DatabaseTest
     {
         [Fact]
         public void TestPlaycountIncreaseMania()

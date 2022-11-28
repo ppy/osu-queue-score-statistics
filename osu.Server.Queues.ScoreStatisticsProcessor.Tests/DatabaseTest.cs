@@ -16,7 +16,7 @@ using Xunit.Sdk;
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
     [Collection("Database tests")] // Ensure all tests hitting the database are run sequentially (no parallel execution).
-    public abstract class StatisticsProcessorTest : IDisposable
+    public abstract class DatabaseTest : IDisposable
     {
         protected readonly ScoreStatisticsProcessor Processor;
 
@@ -26,9 +26,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         protected const int TEST_BEATMAP_ID = 172;
 
-        protected const int TEST_BEATMAP_SET_ID = 76;
-
-        protected StatisticsProcessorTest()
+        protected DatabaseTest()
         {
             Processor = new ScoreStatisticsProcessor();
             Processor.ClearQueue();
@@ -77,14 +75,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 MaxCombo = MAX_COMBO,
                 TotalScore = 100000,
                 Rank = ScoreRank.S,
-                Beatmap = new APIBeatmap
-                {
-                    OnlineID = TEST_BEATMAP_ID,
-                    BeatmapSet = new APIBeatmapSet
-                    {
-                        OnlineID = TEST_BEATMAP_SET_ID,
-                    }
-                },
                 Statistics =
                 {
                     { HitResult.Perfect, 5 },

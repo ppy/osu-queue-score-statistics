@@ -3,7 +3,7 @@ using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
-    public class HitStatisticsProcessorTests : StatisticsProcessorTest
+    public class HitStatisticsProcessorTests : DatabaseTest
     {
         [Fact]
         public void TestHitStatisticsIncrease()
