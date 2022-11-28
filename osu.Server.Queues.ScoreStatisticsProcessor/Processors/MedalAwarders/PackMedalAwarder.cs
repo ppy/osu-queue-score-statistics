@@ -13,6 +13,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     {
         public bool Check(SoloScoreInfo info, Medal medal, MySqlConnection conn)
         {
+            //     //do a global check to see if this beatmapset is contained in *any* pack.
+            //     //this is a huge optimisation since we run this function many times over.
+            //     if ($checkedPacks === null)
+            //         $checkedPacks = $conn->queryMany("SELECT pack_id FROM osu_beatmappacks_items WHERE beatmapset_id = {$beatmapSetId}");
+
             switch (medal.achievement_id)
             {
                 case 7: //Pass all songs in Video Game Pack vol.1 (pack_id 40)
