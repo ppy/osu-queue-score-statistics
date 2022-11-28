@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Collections.Generic;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
@@ -11,73 +12,82 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     [UsedImplicitly]
     public class PackMedalAwarder : IMedalAwarder
     {
-        public bool Check(SoloScoreInfo info, Medal medal, MySqlConnection conn)
+        public IEnumerable<Medal> Check(SoloScoreInfo score, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
         {
             //     //do a global check to see if this beatmapset is contained in *any* pack.
             //     //this is a huge optimisation since we run this function many times over.
             //     if ($checkedPacks === null)
             //         $checkedPacks = $conn->queryMany("SELECT pack_id FROM osu_beatmappacks_items WHERE beatmapset_id = {$beatmapSetId}");
 
+            foreach (var medal in medals)
+            {
+                if (checkMedal(score, conn, transaction, medal))
+                    yield return medal;
+            }
+        }
+
+        private bool checkMedal(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, Medal medal)
+        {
             switch (medal.achievement_id)
             {
                 case 7: //Pass all songs in Video Game Pack vol.1 (pack_id 40)
-                    return checkPack(40, info, conn);
+                    return checkPack(40, score, conn, transaction);
 
                 case 8: //Pass all songs in Rhythm Game Pack vol.1 (pack_id 41)
-                    return checkPack(41, info, conn);
+                    return checkPack(41, score, conn, transaction);
 
                 case 9: //Pass all songs in Internet! Pack vol.1 (pack_id 42)
-                    return checkPack(42, info, conn);
+                    return checkPack(42, score, conn, transaction);
 
                 case 10: //Pass all songs in Anime Pack vol.1 (pack_id 43)
-                    return checkPack(43, info, conn);
+                    return checkPack(43, score, conn, transaction);
 
                 case 11: //Pass all songs in Game Music Pack vol.2 (pack_id 48)
-                    return checkPack(48, info, conn);
+                    return checkPack(48, score, conn, transaction);
 
                 case 12: //Pass all songs in Anime Pack vol.2 (pack_id 49)
-                    return checkPack(49, info, conn);
+                    return checkPack(49, score, conn, transaction);
 
                 case 18: //Pass all songs in Internet! Pack vol.2 (pack_id 93)
-                    return checkPack(93, info, conn);
+                    return checkPack(93, score, conn, transaction);
 
                 case 19: //Pass all songs in Rhythm Game Pack vol.2 (pack_id 94)
-                    return checkPack(94, info, conn);
+                    return checkPack(94, score, conn, transaction);
 
                 case 14: //Pass all songs in Game Music Pack vol.3 (pack_id 70)
-                    return checkPack(70, info, conn);
+                    return checkPack(70, score, conn, transaction);
 
                 case 25: //Pass all songs in Anime Pack vol.3 (pack_id 207)
-                    return checkPack(207, info, conn);
+                    return checkPack(207, score, conn, transaction);
 
                 case 27: //Pass all songs in Internet! Pack vol.3 (pack_id 209)
-                    return checkPack(209, info, conn);
+                    return checkPack(209, score, conn, transaction);
 
                 case 26: //Pass all songs in Rhythm Game Pack vol.3 (pack_id 208)
-                    return checkPack(208, info, conn);
+                    return checkPack(208, score, conn, transaction);
 
                 case 37: //Pass all songs in Video Game Pack vol.4
-                    return checkPack(364, info, conn);
+                    return checkPack(364, score, conn, transaction);
 
                 case 34: //Pass all songs in Anime vol.4
-                    return checkPack(363, info, conn);
+                    return checkPack(363, score, conn, transaction);
 
                 case 35: //Pass all songs in rhythm vol.4
-                    return checkPack(365, info, conn);
+                    return checkPack(365, score, conn, transaction);
 
                 case 36: //Pass all songs in internet vol.4
-                    return checkPack(366, info, conn);
+                    return checkPack(366, score, conn, transaction);
             }
 
             return false;
         }
 
-        private bool checkPack(int packId, SoloScoreInfo score, MySqlConnection conn, bool noReductionMods = false)
+        private bool checkPack(int packId, SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, bool noReductionMods = false)
         {
             //     global $conn, $highScoreTable, $checkedPacks;
             //
-            //     $beatmapSetId = info['beatmapset_id'];
-            //     $mode = info['mode'];
+            //     $beatmapSetId = score['beatmapset_id'];
+            //     $mode = score['mode'];
             //
             //     //do a global check to see if this beatmapset is contained in *any* pack.
             //     //this is a huge optimisation since we run this function many times over.
@@ -87,7 +97,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             //     if (!in_array($packId, $checkedPacks))
             //         return false;
             //
-            //     $userId = info['user_id'];
+            //     $userId = score['user_id'];
             //
             //     $modsCriteria = "";
             //

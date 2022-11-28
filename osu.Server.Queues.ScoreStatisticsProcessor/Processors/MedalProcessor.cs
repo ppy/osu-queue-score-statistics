@@ -46,17 +46,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             var medals = getAvailableMedals(conn)
                 .Where(m => m.mode == null || m.mode == score.RulesetID);
 
-            foreach (var m in medals)
+            foreach (var awarder in medal_awarders)
             {
-                Console.WriteLine($"Checking medal {m.name}...");
+                Console.WriteLine($"Running checks on {awarder.GetType().Name}...");
 
-                foreach (var awarder in medal_awarders)
+                foreach (var awardedMedal in awarder.Check(score, availableMedalsForUser, conn, transaction))
                 {
-                    if (awarder.Check(score, m, conn))
-                    {
-                        awardMedal(score, m);
-                        break;
-                    }
+                    awardMedal(score, awardedMedal);
+                    break;
                 }
             }
         }
