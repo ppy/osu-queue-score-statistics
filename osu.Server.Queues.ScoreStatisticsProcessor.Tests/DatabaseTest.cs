@@ -58,14 +58,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private static ulong scoreIDSource;
 
-        public static ScoreItem CreateTestScore(int rulesetId = 0)
+        public static ScoreItem CreateTestScore(int? rulesetId = null, int? beatmapId = null)
         {
             var row = new SoloScore
             {
                 id = Interlocked.Increment(ref scoreIDSource),
                 user_id = 2,
-                beatmap_id = TEST_BEATMAP_ID,
-                ruleset_id = rulesetId,
+                beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
+                ruleset_id = rulesetId ?? 0,
                 created_at = DateTimeOffset.Now,
                 updated_at = DateTimeOffset.Now,
             };
