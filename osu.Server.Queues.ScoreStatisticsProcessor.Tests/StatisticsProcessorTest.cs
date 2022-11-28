@@ -10,10 +10,12 @@ using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using Xunit;
 using Xunit.Sdk;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
+    [Collection("Database tests")] // Ensure all tests hitting the database are run sequentially (no parallel execution).
     public abstract class StatisticsProcessorTest : IDisposable
     {
         protected readonly ScoreStatisticsProcessor Processor;
