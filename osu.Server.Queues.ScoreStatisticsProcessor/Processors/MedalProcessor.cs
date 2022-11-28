@@ -41,10 +41,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            // TODO: don't run for medals the user already has.
+            int[] alreadyAchieved = conn.Query<int>("SELECT achievement_id FROM osu_user_achievements WHERE user_id = @userId", new
+            {
+                userId = score.UserID
+            }, transaction).ToArray();
 
-            var medals = getAvailableMedals(conn)
-                .Where(m => m.mode == null || m.mode == score.RulesetID);
+            var availableMedalsForUser = getAvailableMedals(conn)
+                                         .Where(m => m.mode == null || m.mode == score.RulesetID)
+                                         .Where(m => !alreadyAchieved.Contains(m.achievement_id))
+                                         .ToArray();
 
             foreach (var awarder in medal_awarders)
             {
