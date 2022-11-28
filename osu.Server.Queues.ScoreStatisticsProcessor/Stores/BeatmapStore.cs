@@ -76,7 +76,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                     }, transaction: transaction)).ToArray();
             }
 
-            if (rawDifficultyAttributes == null)
+            if (rawDifficultyAttributes == null || rawDifficultyAttributes.Length == 0)
                 return null;
 
             DifficultyAttributes difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
