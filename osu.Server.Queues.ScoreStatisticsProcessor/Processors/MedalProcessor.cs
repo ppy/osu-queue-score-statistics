@@ -44,9 +44,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             int[] alreadyAchieved = conn.Query<int>("SELECT achievement_id FROM osu_user_achievements WHERE user_id = @userId", new
             {
                 userId = score.UserID
-            }, transaction).ToArray();
+            }, transaction: transaction).ToArray();
 
-            var availableMedalsForUser = getAvailableMedals(conn)
+            var availableMedalsForUser = getAvailableMedals(conn, transaction)
                                          .Where(m => m.mode == null || m.mode == score.RulesetID)
                                          .Where(m => !alreadyAchieved.Contains(m.achievement_id))
                                          .ToArray();
@@ -63,9 +63,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
         }
 
-        private IEnumerable<Medal> getAvailableMedals(MySqlConnection conn)
+        private IEnumerable<Medal> getAvailableMedals(MySqlConnection conn, MySqlTransaction transaction)
         {
-            return availableMedals ??= conn.Query<Medal>("SELECT * FROM osu_achievements WHERE enabled = 1").ToImmutableArray();
+            return availableMedals ??= conn.Query<Medal>("SELECT * FROM osu_achievements WHERE enabled = 1", transaction: transaction).ToImmutableArray();
         }
 
         private void awardMedal(SoloScoreInfo score, Medal medal)
