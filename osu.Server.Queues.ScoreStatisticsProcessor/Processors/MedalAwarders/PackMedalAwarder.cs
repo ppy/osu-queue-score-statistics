@@ -126,47 +126,49 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
         private bool checkPack(int packId, SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, bool noReductionMods = false)
         {
-            //     global $conn, $highScoreTable, $checkedPacks;
-            //
-            //     $beatmapSetId = score['beatmapset_id'];
-            //     $mode = score['mode'];
-            //
-            //     if (!in_array($packId, $checkedPacks))
-            //         return false;
-            //
-            //     $userId = score['user_id'];
-            //
-            //     $modsCriteria = "";
-            //
-            //     if ($noReductionMods)
-            //     {
-            //         $diffReduction = NoFail | Easy | HalfTime | SpunOut;
-            //         $modsCriteria = "AND (enabled_mods & $diffReduction) = 0";
-            //     }
-            //
-            //     // ensure the correct mode, if one is specified
-            //     $packMode = $conn->queryOne("SELECT IFNULL(playmode, -1) FROM `osu_beatmappacks` WHERE pack_id = $packId");
-            //     $countForPack = $conn->queryOne("SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = $packId");
-            //
-            //     if ($packMode >= 0)
-            //     {
-            //         if ($mode != $packMode)
-            //             return false;
-            //
-            //         // can assume it's for the current mode only
-            //         $completed = $conn->queryOne("SELECT COUNT(distinct p.beatmapset_id) FROM osu_beatmappacks_items p JOIN osu_beatmaps b USING (beatmapset_id) JOIN $highScoreTable s USING (beatmap_id) WHERE s.user_id = {$userId} AND pack_id = {$packId} $modsCriteria");
-            //     }
-            //     else
-            //     {
-            //         $completed = $conn->queryOne("SELECT COUNT(*) FROM (
-            //         SELECT p.beatmapset_id FROM osu_beatmappacks_items p JOIN osu_beatmaps b USING (beatmapset_id) JOIN osu_scores_high s USING (beatmap_id) WHERE s.user_id = {$userId} AND b.playmode = 0 AND pack_id = {$packId} $modsCriteria UNION DISTINCT
-            //         SELECT p.beatmapset_id FROM osu_beatmappacks_items p JOIN osu_beatmaps b USING (beatmapset_id) JOIN osu_scores_taiko_high s USING (beatmap_id) WHERE s.user_id = {$userId} AND b.playmode = 1 AND pack_id = {$packId} $modsCriteria UNION DISTINCT
-            //         SELECT p.beatmapset_id FROM osu_beatmappacks_items p JOIN osu_beatmaps b USING (beatmapset_id) JOIN osu_scores_fruits_high s USING (beatmap_id) WHERE s.user_id = {$userId} AND b.playmode = 2 AND pack_id = {$packId} $modsCriteria UNION DISTINCT
-            //         SELECT p.beatmapset_id FROM osu_beatmappacks_items p JOIN osu_beatmaps b USING (beatmapset_id) JOIN osu_scores_mania_high s USING (beatmap_id) WHERE s.user_id = {$userId} AND b.playmode = 3 AND pack_id = {$packId} $modsCriteria) a");
-            //     }
-            //
-            //     return $completed >= $countForPack;
-            return false;
+            string modsCriteria = "";
+
+            if (noReductionMods)
+            {
+                // TODO: correct this to be valid for `solo_scores`.
+                modsCriteria = "AND (enabled_mods & $diffReduction) = 0";
+            }
+
+            // ensure the correct mode, if one is specified
+            int packRulesetId = conn.QuerySingle<int>("SELECT IFNULL(playmode, -1) FROM `osu_beatmappacks` WHERE pack_id = $packId", transaction);
+            int countForPack = conn.QuerySingle<int>("SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = $packId", transaction);
+            int completed;
+
+            if (packRulesetId >= 0)
+            {
+                if (score.RulesetID != packRulesetId)
+                    return false;
+
+                // can assume it's for the current ruleset only
+
+                // TODO: this query may require an index on (user_id, beatmap_id) to be efficient. right now it is going to be relying on
+                // (user_id, ruleset) and potentially (beatmap_id) if mysql is smart enough.
+                completed = conn.QuerySingle<int>(
+                    "SELECT COUNT(distinct p.beatmapset_id)"
+                    + "FROM osu_beatmappacks_items p "
+                    + "JOIN osu_beatmaps b USING (beatmapset_id) "
+                    + "JOIN solo_scores s USING (beatmap_id)"
+                    + $"WHERE s.user_id = {score.UserID} AND pack_id = {packId} AND ruleset_id = {score.RulesetID} {modsCriteria}");
+            }
+            else
+            {
+                // check across all rulesets
+
+                // TODO: confirm this is what we want. currently medals are NOT awarded for converts, but this will allow them to be.
+                completed = conn.QuerySingle<int>(
+                    "SELECT COUNT(distinct p.beatmapset_id)"
+                    + "FROM osu_beatmappacks_items p "
+                    + "JOIN osu_beatmaps b USING (beatmapset_id) "
+                    + "JOIN solo_scores s USING (beatmap_id)"
+                    + $"WHERE s.user_id = {score.UserID} AND pack_id = {packId} {modsCriteria}");
+            }
+
+            return completed >= countForPack;
         }
     }
 }
