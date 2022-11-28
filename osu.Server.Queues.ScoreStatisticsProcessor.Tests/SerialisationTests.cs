@@ -32,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             using (var db = processor.GetDatabaseConnection())
             {
-                var score = StatisticsUpdateTests.CreateTestScore();
+                var score = StatisticsProcessorTest.CreateTestScore();
 
                 score.MarkProcessed();
 
@@ -45,7 +45,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestSoloScoreDirectSerialisation()
         {
-            var score = StatisticsUpdateTests.CreateTestScore().Score;
+            var score = StatisticsProcessorTest.CreateTestScore().Score;
 
             var serialised = score.Serialize();
             var deserialised = serialised.Deserialize<SoloScore>();
@@ -64,7 +64,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             using (var db = processor.GetDatabaseConnection())
             {
-                var score = StatisticsUpdateTests.CreateTestScore().Score;
+                var score = StatisticsProcessorTest.CreateTestScore().Score;
 
                 db.Insert(score);
 
