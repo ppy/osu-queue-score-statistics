@@ -10,27 +10,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
     public class SerialisationTests : DatabaseTest
     {
-        private readonly ScoreStatisticsProcessor processor;
-
-        public SerialisationTests()
-        {
-            processor = new ScoreStatisticsProcessor();
-
-            using (var db = processor.GetDatabaseConnection())
-            {
-                // just a safety measure for now to ensure we don't hit production. since i was running on production until now.
-                // will throw if not on test database.
-                db.Query<int>("SELECT * FROM test_database");
-
-                db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
-                db.Execute($"TRUNCATE TABLE {ProcessHistory.TABLE_NAME}");
-            }
-        }
-
         [Fact]
         public void TestProcessHistorySerialisation()
         {
-            using (var db = processor.GetDatabaseConnection())
+            using (var db = Processor.GetDatabaseConnection())
             {
                 var score = CreateTestScore();
 
@@ -62,7 +45,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestSoloScoreDatabaseSerialisation()
         {
-            using (var db = processor.GetDatabaseConnection())
+            using (var db = Processor.GetDatabaseConnection())
             {
                 var score = CreateTestScore().Score;
 
