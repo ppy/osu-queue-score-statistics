@@ -16,6 +16,12 @@ x-env: &x-env
   MYSQL_ROOT_HOST: '%'
 
 services:
+  ready_for_use:
+    image: hello-world:latest
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+
   migrator:
     image: pppy/osu-web:latest-dev
     command: ['artisan', 'db:setup']
