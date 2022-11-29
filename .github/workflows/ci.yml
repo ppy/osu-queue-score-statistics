@@ -107,10 +107,6 @@ jobs:
 
       - run: ./build.sh
 
-      # This one's required for now because the processor has a safety guard to make sure it doesn't run on production.
-      # It probably shouldn't exist, but needs more thinking.
-      - run: mysql -u root -h 127.0.0.1 -e 'CREATE TABLE osu.test_database (`id` INT);'
-
       - name: Checkout
         uses: actions/checkout@v2
 
