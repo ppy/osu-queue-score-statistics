@@ -132,7 +132,7 @@ namespace osu.Server.Queues.ScorePump.Queue
             ScoreProcessor scoreProcessor = ruleset.CreateScoreProcessor();
             scoreProcessor.Mods.Value = scoreInfo.Mods;
 
-            int totalScore = (int)Math.Round(scoreProcessor.ComputeScore(ScoringMode.Standardised, scoreInfo));
+            long totalScore = scoreProcessor.ComputeScore(ScoringMode.Standardised, scoreInfo);
             double accuracy = scoreProcessor.ComputeAccuracy(scoreInfo);
 
             if (totalScore == score.ScoreInfo.TotalScore && Math.Round(accuracy, 2) == Math.Round(score.ScoreInfo.Accuracy, 2))
