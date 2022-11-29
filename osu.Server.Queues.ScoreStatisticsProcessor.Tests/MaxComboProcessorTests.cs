@@ -75,12 +75,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 new APIMod(new OsuModRelax()),
             };
 
-            // Due to how the waiting for database test works, we can't check, for null.
-            // Therefore push a non-automated score *after* the automated score, and ensure the combo matches the second.
             Processor.PushToQueue(score);
-            Processor.PushToQueue(CreateTestScore());
 
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, Cts.Token);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, Cts.Token);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 0, Cts.Token);
         }
     }
 }
