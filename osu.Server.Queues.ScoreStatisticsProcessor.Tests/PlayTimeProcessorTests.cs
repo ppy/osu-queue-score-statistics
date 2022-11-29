@@ -13,7 +13,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestPlayTimeIncrease()
         {
-            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, Cts.Token);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             // Beatmap used in test score is 158 seconds.
 
@@ -21,19 +21,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(50);
 
             Processor.PushToQueue(testScore);
-            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 50, Cts.Token);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 50, CancellationToken);
 
             testScore = CreateTestScore();
             testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(100);
 
             Processor.PushToQueue(testScore);
-            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 150, Cts.Token);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 150, CancellationToken);
         }
 
         [Fact]
         public void TestPlayTimeIncreaseHigherThanBeatmapLength()
         {
-            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, Cts.Token);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             // Beatmap used in test score is 158 seconds.
 
@@ -41,13 +41,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(200);
 
             Processor.PushToQueue(testScore);
-            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 158, Cts.Token);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 158, CancellationToken);
         }
 
         [Fact]
         public void TestPlayTimeIncreaseHigherThanBeatmapLengthWithModApplication()
         {
-            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, Cts.Token);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             // Beatmap used in test score is 158 seconds.
             // Double time means this is reduced to 105 seconds.
@@ -60,13 +60,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(200);
 
             Processor.PushToQueue(testScore);
-            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 105, Cts.Token);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 105, CancellationToken);
         }
 
         [Fact]
         public void TestPlayTimeIncreaseHigherThanBeatmapLengthWithModApplicationCustomRate()
         {
-            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, Cts.Token);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             // Beatmap used in test score is 158 seconds.
             // Double time with custom rate means this is reduced to 112 seconds.
@@ -79,7 +79,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(200);
 
             Processor.PushToQueue(testScore);
-            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 112, Cts.Token);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 112, CancellationToken);
         }
     }
 }
