@@ -9,10 +9,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
-            Processor.PushToQueue(CreateTestScore());
+            PushToQueueAndWaitForProcess(CreateTestScore());
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 100000, CancellationToken);
 
-            Processor.PushToQueue(CreateTestScore());
+            PushToQueueAndWaitForProcess(CreateTestScore());
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 200000, CancellationToken);
         }
 
@@ -23,12 +23,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
-            Processor.PushToQueue(score);
+            PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 100000, CancellationToken);
 
             score.MarkProcessed();
 
-            Processor.PushToQueue(score);
+            PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 100000, CancellationToken);
         }
     }

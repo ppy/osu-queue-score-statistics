@@ -65,6 +65,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private static ulong scoreIDSource;
 
+        protected void PushToQueueAndWaitForProcess(ScoreItem item)
+        {
+            // To keep the flow of tests simple, require single-file addition of items.
+            if (Processor.GetQueueSize() > 0)
+                throw new InvalidOperationException("Queue was still processing an item when attempting to push another one.");
+
+            long processedBefore = Processor.TotalProcessed;
+
+            Processor.PushToQueue(item);
+
+            WaitForDatabaseState($"SELECT score_id FROM {ProcessHistory.TABLE_NAME} WHERE score_id = {item.Score.id}", item.Score.id, CancellationToken);
+            WaitForTotalProcessed(processedBefore + 1, CancellationToken);
+        }
+
         public static ScoreItem CreateTestScore(int rulesetId = 0)
         {
             var row = new SoloScore
@@ -102,7 +116,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             return new ScoreItem(row);
         }
 
-        protected void WaitForTotalProcessed(int count, CancellationToken cancellationToken)
+        protected void WaitForTotalProcessed(long count, CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -119,12 +133,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             using (var db = Processor.GetDatabaseConnection())
             {
+                T? lastValue = default;
+
                 while (true)
                 {
                     if (!Debugger.IsAttached)
-                        cancellationToken.ThrowIfCancellationRequested();
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                            throw new TimeoutException($"Waiting for database state took too long (expected: {expected} last: {lastValue} sql: {sql})");
+                    }
 
-                    var lastValue = db.QueryFirstOrDefault<T>(sql);
+                    lastValue = db.QueryFirstOrDefault<T>(sql);
+
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;
 
