@@ -52,47 +52,22 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    services:
-      db:
-        image: mysql:8.0
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-          -e MYSQL_ALLOW_EMPTY_PASSWORD=1
-          --entrypoint sh mysql:8.0 -c "exec docker-entrypoint.sh mysqld --default-authentication-plugin=mysql_native_password"
-
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-
     env:
       DB_HOST: 127.0.0.1
-      DB_USERNAME: root
-      DB_USER: root
       REDIS_HOST: 127.0.0.1
+      DB_USER: root
 
     steps:
-      - name: Checkout osu-web
-        uses: actions/checkout@v2
-        with:
-          repository: 'ppy/osu-web'
-
-      - run: mysql -u root -h 127.0.0.1 < ./docker/development/db_setup.sql
-
-      - run: ./build.sh
-
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install .NET 6.0.x
         uses: actions/setup-dotnet@v1
         with:
           dotnet-version: "6.0.x"
+
+      - name: Docker compose
+        run: docker compose up -d
 
       - name: Test
         run: dotnet test

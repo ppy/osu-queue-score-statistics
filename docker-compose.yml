@@ -1,0 +1,60 @@
+version: '3.9'
+
+x-env: &x-env
+  DB_CONNECTION_STRING: Server=db;Database=osu;Uid=osuweb;
+  DB_HOST: db
+  DB_USERNAME: 'root'
+  APP_ENV: 'local'
+  GITHUB_TOKEN: "${GITHUB_TOKEN}"
+  BROADCAST_DRIVER: redis
+  CACHE_DRIVER: redis
+  NOTIFICATION_REDIS_HOST: redis
+  REDIS_HOST: redis
+  SESSION_DRIVER: redis
+  MYSQL_DATABASE: 'osu'
+  MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+  MYSQL_ROOT_HOST: '%'
+
+services:
+  ready_for_use:
+    image: hello-world:latest
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+
+  migrator:
+    image: pppy/osu-web:latest-dev
+    command: ['artisan', 'db:setup']
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *x-env
+
+  db:
+    image: mysql/mysql-server:8.0
+    environment:
+      <<: *x-env
+    ports:
+      - "${MYSQL_EXTERNAL_PORT:-3306}:3306"
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      # important to use 127.0.0.1 instead of localhost as mysql starts twice.
+      # the first time it listens on sockets but isn't actually ready
+      # see https://github.com/docker-library/mysql/issues/663
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 1s
+      timeout: 20s
+      retries: 10
+
+  redis:
+    image: redis:latest
+    ports:
+      - "${REDIS_EXTERNAL_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 1s
+      timeout: 20s
+      retries: 10
