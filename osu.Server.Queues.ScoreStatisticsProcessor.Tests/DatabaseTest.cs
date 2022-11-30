@@ -34,7 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         protected DatabaseTest()
         {
             Processor = new ScoreStatisticsProcessor();
-            Processor.Error += (exception, _) => firstError ??= exception;
+            Processor.Error += processorOnError;
 
             Processor.ClearQueue();
 
@@ -116,6 +116,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             return new ScoreItem(row);
         }
 
+        protected void IgnoreProcessorExceptions()
+        {
+            Processor.Error -= processorOnError;
+        }
+
         protected void WaitForTotalProcessed(long count, CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -154,6 +159,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 }
             }
         }
+
+        private void processorOnError(Exception? exception, ScoreItem _) => firstError ??= exception;
 
 #pragma warning disable CA1816
         public void Dispose()

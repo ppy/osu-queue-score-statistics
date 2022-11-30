@@ -32,6 +32,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestProcessingSameScoreTwiceRaceCondition()
         {
+            IgnoreProcessorExceptions();
+
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
