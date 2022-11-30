@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
+using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
@@ -28,9 +29,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private readonly CancellationTokenSource cancellationSource = new CancellationTokenSource(10000);
 
+        private Exception? firstError;
+
         protected DatabaseTest()
         {
             Processor = new ScoreStatisticsProcessor();
+            Processor.Error += (exception, _) => firstError ??= exception;
+
             Processor.ClearQueue();
 
             using (var db = Processor.GetDatabaseConnection())
@@ -122,6 +127,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     var lastValue = db.QueryFirstOrDefault<T>(sql);
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;
+
+                    firstError?.Rethrow();
 
                     Thread.Sleep(50);
                 }
