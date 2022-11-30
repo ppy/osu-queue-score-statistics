@@ -20,11 +20,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
     {
         protected readonly ScoreStatisticsProcessor Processor;
 
-        protected readonly CancellationTokenSource Cts = new CancellationTokenSource(10000);
+        protected CancellationToken CancellationToken => cancellationSource.Token;
 
         protected const int MAX_COMBO = 1337;
 
         protected const int TEST_BEATMAP_ID = 172;
+
+        private readonly CancellationTokenSource cancellationSource = new CancellationTokenSource(10000);
 
         protected DatabaseTest()
         {
@@ -53,7 +55,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     @"INSERT IGNORE INTO osu.osu_beatmapsets (beatmapset_id, user_id, thread_id, artist, artist_unicode, title, title_unicode, creator, source, tags, video, storyboard, epilepsy, bpm, versions_available, approved, approvedby_id, approved_date, submit_date, last_update, filename, active, rating, offset, displaytitle, genre_id, language_id, star_priority, filesize, filesize_novideo, body_hash, header_hash, osz2_hash, download_disabled, download_disabled_url, thread_icon_date, favourite_count, play_count, difficulty_names, cover_updated_at, discussion_enabled, discussion_locked, deleted_at, hype, nominations, previous_queue_duration, queued_at, storyboard_hash, nsfw, track_id, spotlight, comment_locked) VALUES (76, 857, 283, 'Sakamoto Maaya', null, 'Kazemachi Jet', null, 'KiraCatgirl', '', '', 0, 0, 0, 109.03, 1, 1, null, '2007-10-11 17:39:44', '2007-10-11 17:39:44', '2007-10-11 17:39:44', 'Sakamoto Maaya - Kazemachi Jet.osz', 1, 8.19219, 0, '[bold:0,size:20]Sakamoto Maaya|Kazemachi Jet', 3, 3, 0, 5487373, null, null, null, null, 0, null, null, 8, 34183, 'Normal ★2.3@0', '2021-05-26 08:33:05', 1, 0, null, 0, 0, 0, '2007-10-12 01:39:44', null, 0, null, 0, 0);");
             }
 
-            Task.Run(() => Processor.Run(Cts.Token), Cts.Token);
+            Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
         }
 
         private static ulong scoreIDSource;
@@ -130,7 +132,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void Dispose()
 #pragma warning restore CA1816
         {
-            Cts.Cancel();
+            cancellationSource.Cancel();
         }
     }
 }

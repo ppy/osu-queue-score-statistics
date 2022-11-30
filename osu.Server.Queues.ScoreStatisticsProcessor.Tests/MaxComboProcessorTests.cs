@@ -10,25 +10,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMaxComboIncrease()
         {
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, Cts.Token);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             Processor.PushToQueue(CreateTestScore());
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, Cts.Token);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, CancellationToken);
 
             var score = CreateTestScore();
             score.Score.ScoreInfo.MaxCombo++;
 
             Processor.PushToQueue(score);
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO + 1, Cts.Token);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO + 1, CancellationToken);
         }
 
         [Fact]
         public void TestMaxComboDoesntIncreaseIfNotRanked()
         {
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, Cts.Token);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             Processor.PushToQueue(CreateTestScore());
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, Cts.Token);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, CancellationToken);
 
             try
             {
@@ -39,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 testScore.Score.ScoreInfo.MaxCombo++;
 
                 Processor.PushToQueue(testScore);
-                WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, Cts.Token);
+                WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, CancellationToken);
             }
             finally
             {
@@ -51,22 +51,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMaxComboDoesntIncreaseIfLower()
         {
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, Cts.Token);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             Processor.PushToQueue(CreateTestScore());
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, Cts.Token);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, CancellationToken);
 
             var score = CreateTestScore();
             score.Score.ScoreInfo.MaxCombo--;
 
             Processor.PushToQueue(score);
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, Cts.Token);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, CancellationToken);
         }
 
         [Fact]
         public void TestMaxComboDoesntIncreaseIfAutomationMod()
         {
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, Cts.Token);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
             score.Score.ScoreInfo.MaxCombo++;
@@ -77,8 +77,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             Processor.PushToQueue(score);
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, Cts.Token);
-            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 0, Cts.Token);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, CancellationToken);
+            WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
         }
     }
 }
