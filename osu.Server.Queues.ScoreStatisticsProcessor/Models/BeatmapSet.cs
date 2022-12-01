@@ -4,6 +4,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using Dapper.Contrib.Extensions;
+using osu.Game.Beatmaps;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
@@ -16,5 +17,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         [ExplicitKey]
         public int beatmapset_id { get; set; }
+
+        public BeatmapOnlineStatus approved { get; set; }
     }
 }

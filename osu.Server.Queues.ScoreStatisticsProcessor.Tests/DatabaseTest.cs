@@ -7,12 +7,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
+using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
 using Xunit.Sdk;
+using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
@@ -25,7 +27,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         protected const int MAX_COMBO = 1337;
 
-        protected const int TEST_BEATMAP_ID = 172;
+        protected const int TEST_BEATMAP_ID = 1;
+        protected const int TEST_BEATMAP_SET_ID = 1;
 
         private readonly CancellationTokenSource cancellationSource = new CancellationTokenSource(10000);
 
@@ -51,7 +54,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute($"TRUNCATE TABLE {ProcessHistory.TABLE_NAME}");
                 db.Execute($"TRUNCATE TABLE {SoloScorePerformance.TABLE_NAME}");
 
-                AddBeatmap(TEST_BEATMAP_ID, 76);
+                AddBeatmap();
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
@@ -96,20 +99,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             return new ScoreItem(row);
         }
 
-        protected void AddBeatmap(int beatmapId, int beatmapSetId)
+        protected void AddBeatmap(Action<Beatmap, BeatmapSet>? setup = null)
         {
+            var beatmap = new Beatmap
+            {
+                beatmap_id = TEST_BEATMAP_ID,
+                beatmapset_id = TEST_BEATMAP_SET_ID,
+                approved = BeatmapOnlineStatus.Ranked,
+            };
+
+            var beatmapSet = new BeatmapSet
+            {
+                beatmapset_id = TEST_BEATMAP_SET_ID,
+                approved = BeatmapOnlineStatus.Ranked,
+            };
+
+            setup?.Invoke(beatmap, beatmapSet);
+
             using (var db = Processor.GetDatabaseConnection())
             {
-                db.Insert(new Beatmap
+                try
                 {
-                    beatmap_id = beatmapId,
-                    beatmapset_id = beatmapSetId
-                });
-
-                db.Insert(new BeatmapSet
+                    db.Insert(beatmap);
+                    db.Insert(beatmapSet);
+                }
+                catch
                 {
-                    beatmapset_id = beatmapSetId
-                });
+                    db.Update(beatmap);
+                    db.Update(beatmapSet);
+                }
             }
         }
 
