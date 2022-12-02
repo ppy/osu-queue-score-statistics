@@ -52,11 +52,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    env:
-      DB_HOST: 127.0.0.1
-      REDIS_HOST: 127.0.0.1
-      DB_USER: root
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
