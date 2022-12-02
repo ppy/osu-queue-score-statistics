@@ -46,8 +46,8 @@ services:
       # see https://github.com/docker-library/mysql/issues/663
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
       interval: 1s
-      timeout: 20s
-      retries: 10
+      timeout: 60s
+      start_period: 60s
 
   redis:
     image: redis:latest
@@ -56,5 +56,5 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 1s
-      timeout: 20s
-      retries: 10
+      timeout: 60s
+      start_period: 60s
