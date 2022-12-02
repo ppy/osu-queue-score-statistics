@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -123,22 +124,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Processor.Error -= processorOnError;
         }
 
-        protected void AddBeatmap(Action<Beatmap, BeatmapSet>? setup = null)
+        /// <summary>
+        /// All beatmaps which where added in this test via <see cref="AddBeatmap"/>.
+        /// </summary>
+        protected IReadOnlyList<Beatmap> AllBeatmaps => beatmaps;
+
+        private readonly List<Beatmap> beatmaps = new List<Beatmap>();
+
+        protected void AddBeatmap(Action<Beatmap>? beatmapSetup = null, Action<BeatmapSet>? beatmapSetSetup = null)
         {
-            var beatmap = new Beatmap
-            {
-                beatmap_id = TEST_BEATMAP_ID,
-                beatmapset_id = TEST_BEATMAP_SET_ID,
-                approved = BeatmapOnlineStatus.Ranked,
-            };
+            var beatmap = new Beatmap { approved = BeatmapOnlineStatus.Ranked };
+            var beatmapSet = new BeatmapSet { approved = BeatmapOnlineStatus.Ranked };
 
-            var beatmapSet = new BeatmapSet
-            {
-                beatmapset_id = TEST_BEATMAP_SET_ID,
-                approved = BeatmapOnlineStatus.Ranked,
-            };
+            beatmapSetup?.Invoke(beatmap);
+            beatmapSetSetup?.Invoke(beatmapSet);
 
-            setup?.Invoke(beatmap, beatmapSet);
+            if (beatmap.beatmap_id == 0) beatmap.beatmap_id = TEST_BEATMAP_ID;
+            if (beatmapSet.beatmapset_id == 0) beatmapSet.beatmapset_id = TEST_BEATMAP_SET_ID;
+
+            if (beatmap.beatmapset_id > 0 && beatmap.beatmapset_id != beatmapSet.beatmapset_id)
+                throw new ArgumentException($"{nameof(beatmapSetup)} method specified different {nameof(beatmap.beatmapset_id)} from the one specified in the {nameof(beatmapSetSetup)} method.");
+
+            // Copy over set ID for cases where the setup steps only set it on the beatmapSet.
+            beatmap.beatmapset_id = beatmapSet.beatmapset_id;
 
             using (var db = Processor.GetDatabaseConnection())
             {
@@ -151,7 +159,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 {
                     db.Update(beatmap);
                     db.Update(beatmapSet);
+                    beatmaps.RemoveAll(b => b.beatmap_id == beatmap.beatmap_id);
                 }
+
+                beatmaps.Add(beatmap);
             }
         }
 
