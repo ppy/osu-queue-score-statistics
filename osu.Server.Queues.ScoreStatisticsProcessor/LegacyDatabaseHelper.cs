@@ -71,7 +71,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         public static HttpResponseMessage RunLegacyIO(string command, string method = "GET", dynamic? postObject = null)
         {
             if (string.IsNullOrEmpty(legacy_io_secret))
+            {
+#if DEBUG
+                return null!;
+#endif
+
                 throw new InvalidOperationException("Attempted to award medal with no legacy IO secret set");
+            }
 
             int retryCount = 3;
 

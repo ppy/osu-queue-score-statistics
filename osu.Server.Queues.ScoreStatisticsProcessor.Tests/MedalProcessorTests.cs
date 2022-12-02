@@ -6,14 +6,19 @@ using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
     public class MedalProcessorTests : DatabaseTest
     {
+        private readonly List<MedalProcessor.AwardedMedal> awardedMedals = new List<MedalProcessor.AwardedMedal>();
+
         public MedalProcessorTests()
         {
+            MedalProcessor.MedalAwarded += onMedalAwarded;
+
             using (var db = Processor.GetDatabaseConnection())
             {
                 db.Execute("TRUNCATE TABLE osu_achievements");
@@ -27,6 +32,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestSimplePackAwarding()
         {
+            const int medal_id = 7;
+            const int pack_id = 40;
+
             AddBeatmap(b => b.beatmap_id = 71621, s => s.beatmapset_id = 13022);
             AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
             AddBeatmap(b => b.beatmap_id = 79288, s => s.beatmapset_id = 23073);
@@ -42,7 +50,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AddBeatmap(b => b.beatmap_id = 514849, s => s.beatmapset_id = 169848);
             AddBeatmap(b => b.beatmap_id = 497769, s => s.beatmapset_id = 211704);
 
-            addPackMedal(7, 40, AllBeatmaps);
+            addPackMedal(medal_id, pack_id, AllBeatmaps);
 
             foreach (var beatmap in AllBeatmaps)
             {
@@ -50,7 +58,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 pushAndInsert(beatmap.beatmap_id);
             }
 
-            assertAwarded();
+            assertAwarded(medal_id);
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", AllBeatmaps.Count, CancellationToken);
         }
@@ -67,14 +75,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
         }
 
-        private void assertAwarded()
+        private void assertAwarded(int medalId)
         {
-            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 2", 1, CancellationToken);
+            Assert.Collection(awardedMedals, a => Assert.Equal(medalId, a.Medal.achievement_id));
         }
 
         private void assertNotAwarded()
         {
-            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 3", 0, CancellationToken);
+            Assert.Empty(awardedMedals);
         }
 
         private void pushAndInsert(int beatmapId)
@@ -86,6 +94,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 conn.Insert(score.Score);
                 PushToQueueAndWaitForProcess(score);
             }
+        }
+
+        private void onMedalAwarded(MedalProcessor.AwardedMedal awarded)
+        {
+            awardedMedals.Add(awarded);
+        }
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            MedalProcessor.MedalAwarded -= onMedalAwarded;
         }
     }
 }

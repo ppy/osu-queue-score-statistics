@@ -207,7 +207,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         private void processorOnError(Exception? exception, ScoreItem _) => firstError ??= exception;
 
 #pragma warning disable CA1816
-        public void Dispose()
+        public virtual void Dispose()
 #pragma warning restore CA1816
         {
             cancellationSource.Cancel();

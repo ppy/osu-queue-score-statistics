@@ -23,6 +23,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private ImmutableArray<Medal>? availableMedals;
 
+        // For testing purposes.
+        public static Action<AwardedMedal>? MedalAwarded;
+
         static MedalProcessor()
         {
             // add each processor automagically.
@@ -73,10 +76,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             // Perform LIO request to award the medal.
             Console.WriteLine($"Awarding medal {medal.name} to user {score.UserID} (score {score.ID})");
             LegacyDatabaseHelper.RunLegacyIO($"user-achievement/{score.UserID}/{medal.achievement_id}/{score.BeatmapID}", "POST");
+            MedalAwarded?.Invoke(new AwardedMedal(medal, score));
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
         }
+
+        public record struct AwardedMedal(Medal Medal, SoloScoreInfo Score);
     }
 }
