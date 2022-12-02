@@ -16,6 +16,7 @@ x-env: &x-env
   MYSQL_ROOT_HOST: '%'
 
 services:
+  # just a placeholder service to ensure we wait for migrator to complete successfully.
   ready_for_use:
     image: hello-world:latest
     depends_on:
@@ -37,6 +38,8 @@ services:
     image: mysql/mysql-server:8.0
     environment:
       <<: *x-env
+    volumes:
+      - database:/var/lib/mysql
     ports:
       - "${MYSQL_EXTERNAL_PORT:-3306}:3306"
     command: --default-authentication-plugin=mysql_native_password
@@ -46,8 +49,8 @@ services:
       # see https://github.com/docker-library/mysql/issues/663
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
       interval: 1s
-      timeout: 20s
-      retries: 10
+      timeout: 60s
+      start_period: 60s
 
   redis:
     image: redis:latest
@@ -56,5 +59,8 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 1s
-      timeout: 20s
-      retries: 10
+      timeout: 60s
+      start_period: 60s
+
+volumes:
+  database:

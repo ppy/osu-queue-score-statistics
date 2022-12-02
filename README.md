@@ -12,6 +12,32 @@ Contributions can be made via pull requests to this repository. We hope to credi
 
 Note that while we already have certain standards in place, nothing is set in stone. If you have an issue with the way code is structured; with any libraries we are using; with any processes involved with contributing, *please* bring it up. I welcome all feedback so we can make contributing to this project as pain-free as possible.
 
+# Environment Setup
+
+## BYO
+
+To setup a testing environment, the minimum requirements are having a MySQL instance available at `localhost:3306` and a redis instance available at `localhost:6379`.
+
+Make sure all data is expendable. It ~~may~~ will be nuked without remorse.
+
+## Docker
+
+You can setup an environment and have it map to the correct localhost ports:
+
+```shell
+docker-compose up -d
+```
+
+You can stop the environment using:
+```shell
+docker-compose down
+```
+
+Alternatively, you can stop and remove all volumes (ie. nuke your test database) using:
+```shell
+docker-compose down -v
+```
+
 # Licence
 
 The osu! client code, framework, and server-side components are licensed under the [MIT licence](https://opensource.org/licenses/MIT). Please see [the licence file](LICENCE) for more information. [tl;dr](https://tldrlegal.com/license/mit-license) you can do whatever you want as long as you include the original copyright and license notice in any copy of the software/source.
