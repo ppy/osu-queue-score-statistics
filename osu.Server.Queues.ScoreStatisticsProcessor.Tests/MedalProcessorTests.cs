@@ -55,7 +55,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in AllBeatmaps)
             {
                 assertNotAwarded();
-                pushAndInsert(beatmap.beatmap_id);
+                setScoreForBeatmap(beatmap.beatmap_id);
             }
 
             assertAwarded(medal_id);
@@ -85,7 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Assert.Empty(awardedMedals);
         }
 
-        private void pushAndInsert(int beatmapId)
+        private void setScoreForBeatmap(int beatmapId)
         {
             using (MySqlConnection conn = Processor.GetDatabaseConnection())
             {
