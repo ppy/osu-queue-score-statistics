@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -123,7 +124,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Processor.Error -= processorOnError;
         }
 
-        protected void AddBeatmap(Action<Beatmap, BeatmapSet>? setup = null)
+        /// <summary>
+        /// All beatmaps which where added in this test via <see cref="AddBeatmap"/>.
+        /// </summary>
+        protected IReadOnlyList<Beatmap> AllBeatmaps => beatmaps;
+
+        private readonly List<Beatmap> beatmaps = new List<Beatmap>();
+
+        protected void AddBeatmap(Action<Beatmap>? beatmapSetup = null, Action<BeatmapSet>? beatmapSetSetup = null)
         {
             var beatmap = new Beatmap
             {
@@ -138,7 +146,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 approved = BeatmapOnlineStatus.Ranked,
             };
 
-            setup?.Invoke(beatmap, beatmapSet);
+            beatmapSetup?.Invoke(beatmap);
+            beatmapSetSetup?.Invoke(beatmapSet);
+
+            beatmaps.Add(beatmap);
 
             using (var db = Processor.GetDatabaseConnection())
             {

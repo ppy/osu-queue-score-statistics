@@ -14,7 +14,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         public PlayTimeProcessorTests()
         {
-            AddBeatmap((b, _) => b.total_length = beatmap_length);
+            AddBeatmap(b => b.total_length = beatmap_length);
         }
 
         [Fact]
