@@ -17,12 +17,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public const string TABLE_NAME = "osu_beatmaps";
 
         [ExplicitKey]
-        public uint beatmap_id { get; set; }
+        public int beatmap_id { get; set; }
+
+        public int beatmapset_id { get; set; }
 
         public ushort countTotal { get; set; }
         public ushort countNormal { get; set; }
         public ushort countSlider { get; set; }
         public ushort countSpinner { get; set; }
+        public int total_length { get; set; }
         public float diff_drain { get; set; }
         public float diff_size { get; set; }
         public float diff_overall { get; set; }
@@ -33,7 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public APIBeatmap ToAPIBeatmap() => new APIBeatmap
         {
-            OnlineID = (int)beatmap_id,
+            OnlineID = beatmap_id,
             CircleCount = countNormal,
             SliderCount = countSlider,
             SpinnerCount = countSpinner,
