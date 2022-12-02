@@ -16,6 +16,7 @@ x-env: &x-env
   MYSQL_ROOT_HOST: '%'
 
 services:
+  # just a placeholder service to ensure we wait for migrator to complete successfully.
   ready_for_use:
     image: hello-world:latest
     depends_on:
