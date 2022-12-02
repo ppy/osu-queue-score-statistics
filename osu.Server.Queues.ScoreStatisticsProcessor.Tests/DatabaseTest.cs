@@ -6,12 +6,16 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
+using Dapper.Contrib.Extensions;
+using osu.Framework.Extensions.ExceptionExtensions;
+using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
 using Xunit.Sdk;
+using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
@@ -24,13 +28,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         protected const int MAX_COMBO = 1337;
 
-        protected const int TEST_BEATMAP_ID = 172;
+        protected const int TEST_BEATMAP_ID = 1;
+        protected const int TEST_BEATMAP_SET_ID = 1;
 
         private readonly CancellationTokenSource cancellationSource = new CancellationTokenSource(10000);
+
+        private Exception? firstError;
 
         protected DatabaseTest()
         {
             Processor = new ScoreStatisticsProcessor();
+            Processor.Error += processorOnError;
+
             Processor.ClearQueue();
 
             using (var db = Processor.GetDatabaseConnection())
@@ -44,21 +53,33 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_stats_mania");
                 db.Execute("TRUNCATE TABLE osu_user_beatmap_playcount");
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
+                db.Execute($"TRUNCATE TABLE {Beatmap.TABLE_NAME}");
+                db.Execute($"TRUNCATE TABLE {BeatmapSet.TABLE_NAME}");
                 db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
                 db.Execute($"TRUNCATE TABLE {ProcessHistory.TABLE_NAME}");
                 db.Execute($"TRUNCATE TABLE {SoloScorePerformance.TABLE_NAME}");
 
-                db.Execute(
-                    @"INSERT IGNORE INTO osu.osu_beatmaps (beatmap_id, beatmapset_id, user_id, filename, checksum, version, total_length, hit_length, countTotal, countNormal, countSlider, countSpinner, diff_drain, diff_size, diff_overall, diff_approach, playmode, approved, last_update, difficultyrating, playcount, passcount, youtube_preview, score_version, deleted_at, bpm) VALUES (172, 76, 857, 'Sakamoto Maaya - Kazemachi Jet (KiraCatgirl).osu', '44abebf44f8c91189e679206615638a4', 'Normal', 158, 157, 227, 162, 63, 2, 5, 5, 5, 5, 0, 1, '2014-05-18 17:02:29', 2.29527, 34183, 7159, null, 1, null, 109.02);");
-
-                db.Execute(
-                    @"INSERT IGNORE INTO osu.osu_beatmapsets (beatmapset_id, user_id, thread_id, artist, artist_unicode, title, title_unicode, creator, source, tags, video, storyboard, epilepsy, bpm, versions_available, approved, approvedby_id, approved_date, submit_date, last_update, filename, active, rating, offset, displaytitle, genre_id, language_id, star_priority, filesize, filesize_novideo, body_hash, header_hash, osz2_hash, download_disabled, download_disabled_url, thread_icon_date, favourite_count, play_count, difficulty_names, cover_updated_at, discussion_enabled, discussion_locked, deleted_at, hype, nominations, previous_queue_duration, queued_at, storyboard_hash, nsfw, track_id, spotlight, comment_locked) VALUES (76, 857, 283, 'Sakamoto Maaya', null, 'Kazemachi Jet', null, 'KiraCatgirl', '', '', 0, 0, 0, 109.03, 1, 1, null, '2007-10-11 17:39:44', '2007-10-11 17:39:44', '2007-10-11 17:39:44', 'Sakamoto Maaya - Kazemachi Jet.osz', 1, 8.19219, 0, '[bold:0,size:20]Sakamoto Maaya|Kazemachi Jet', 3, 3, 0, 5487373, null, null, null, null, 0, null, null, 8, 34183, 'Normal ★2.3@0', '2021-05-26 08:33:05', 1, 0, null, 0, 0, 0, '2007-10-12 01:39:44', null, 0, null, 0, 0);");
+                AddBeatmap();
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
         }
 
         private static ulong scoreIDSource;
+
+        protected void PushToQueueAndWaitForProcess(ScoreItem item)
+        {
+            // To keep the flow of tests simple, require single-file addition of items.
+            if (Processor.GetQueueSize() > 0)
+                throw new InvalidOperationException("Queue was still processing an item when attempting to push another one.");
+
+            long processedBefore = Processor.TotalProcessed;
+
+            Processor.PushToQueue(item);
+
+            WaitForDatabaseState($"SELECT score_id FROM {ProcessHistory.TABLE_NAME} WHERE score_id = {item.Score.id}", item.Score.id, CancellationToken);
+            WaitForTotalProcessed(processedBefore + 1, CancellationToken);
+        }
 
         public static ScoreItem CreateTestScore(int? rulesetId = null, int? beatmapId = null)
         {
@@ -97,7 +118,44 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             return new ScoreItem(row);
         }
 
-        protected void WaitForTotalProcessed(int count, CancellationToken cancellationToken)
+        protected void IgnoreProcessorExceptions()
+        {
+            Processor.Error -= processorOnError;
+        }
+
+        protected void AddBeatmap(Action<Beatmap, BeatmapSet>? setup = null)
+        {
+            var beatmap = new Beatmap
+            {
+                beatmap_id = TEST_BEATMAP_ID,
+                beatmapset_id = TEST_BEATMAP_SET_ID,
+                approved = BeatmapOnlineStatus.Ranked,
+            };
+
+            var beatmapSet = new BeatmapSet
+            {
+                beatmapset_id = TEST_BEATMAP_SET_ID,
+                approved = BeatmapOnlineStatus.Ranked,
+            };
+
+            setup?.Invoke(beatmap, beatmapSet);
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                try
+                {
+                    db.Insert(beatmap);
+                    db.Insert(beatmapSet);
+                }
+                catch
+                {
+                    db.Update(beatmap);
+                    db.Update(beatmapSet);
+                }
+            }
+        }
+
+        protected void WaitForTotalProcessed(long count, CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -114,19 +172,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             using (var db = Processor.GetDatabaseConnection())
             {
+                T? lastValue = default;
+
                 while (true)
                 {
                     if (!Debugger.IsAttached)
-                        cancellationToken.ThrowIfCancellationRequested();
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                            throw new TimeoutException($"Waiting for database state took too long (expected: {expected} last: {lastValue} sql: {sql})");
+                    }
 
-                    var lastValue = db.QueryFirstOrDefault<T>(sql);
+                    lastValue = db.QueryFirstOrDefault<T>(sql);
+
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;
+
+                    firstError?.Rethrow();
 
                     Thread.Sleep(50);
                 }
             }
         }
+
+        private void processorOnError(Exception? exception, ScoreItem _) => firstError ??= exception;
 
 #pragma warning disable CA1816
         public void Dispose()

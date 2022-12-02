@@ -33,12 +33,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 | 40      | 211704        | 497769          |
              */
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 2", 0, Cts.Token);
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 2", 0, CancellationToken);
 
             pushAndInsert(71621);
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, Cts.Token);
-            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 2", 0, Cts.Token);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, CancellationToken);
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 2", 0, CancellationToken);
 
             pushAndInsert(59225);
             pushAndInsert(79288);
@@ -54,8 +54,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             pushAndInsert(514849);
             pushAndInsert(497769);
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 14, Cts.Token);
-            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 2", 1, Cts.Token);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 14, CancellationToken);
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 2", 1, CancellationToken);
         }
 
         private void pushAndInsert(int beatmapId)

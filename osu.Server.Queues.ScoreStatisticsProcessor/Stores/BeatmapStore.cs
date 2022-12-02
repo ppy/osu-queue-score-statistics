@@ -110,7 +110,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="rulesetId">The ruleset.</param>
         public bool IsBeatmapValidForPerformance(Beatmap beatmap, int rulesetId)
         {
-            if (blacklist.ContainsKey(new BlacklistEntry((int)beatmap.beatmap_id, rulesetId)))
+            if (blacklist.ContainsKey(new BlacklistEntry(beatmap.beatmap_id, rulesetId)))
                 return false;
 
             switch (beatmap.approved)
