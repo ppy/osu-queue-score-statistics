@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
+using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
@@ -32,9 +33,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private readonly CancellationTokenSource cancellationSource = new CancellationTokenSource(10000);
 
+        private Exception? firstError;
+
         protected DatabaseTest()
         {
             Processor = new ScoreStatisticsProcessor();
+            Processor.Error += processorOnError;
+
             Processor.ClearQueue();
 
             using (var db = Processor.GetDatabaseConnection())
@@ -61,6 +66,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         private static ulong scoreIDSource;
+
+        protected void PushToQueueAndWaitForProcess(ScoreItem item)
+        {
+            // To keep the flow of tests simple, require single-file addition of items.
+            if (Processor.GetQueueSize() > 0)
+                throw new InvalidOperationException("Queue was still processing an item when attempting to push another one.");
+
+            long processedBefore = Processor.TotalProcessed;
+
+            Processor.PushToQueue(item);
+
+            WaitForDatabaseState($"SELECT score_id FROM {ProcessHistory.TABLE_NAME} WHERE score_id = {item.Score.id}", item.Score.id, CancellationToken);
+            WaitForTotalProcessed(processedBefore + 1, CancellationToken);
+        }
 
         public static ScoreItem CreateTestScore(int rulesetId = 0)
         {
@@ -99,6 +118,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             return new ScoreItem(row);
         }
 
+        protected void IgnoreProcessorExceptions()
+        {
+            Processor.Error -= processorOnError;
+        }
+
         protected void AddBeatmap(Action<Beatmap, BeatmapSet>? setup = null)
         {
             var beatmap = new Beatmap
@@ -131,7 +155,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
         }
 
-        protected void WaitForTotalProcessed(int count, CancellationToken cancellationToken)
+        protected void WaitForTotalProcessed(long count, CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -148,19 +172,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             using (var db = Processor.GetDatabaseConnection())
             {
+                T? lastValue = default;
+
                 while (true)
                 {
                     if (!Debugger.IsAttached)
-                        cancellationToken.ThrowIfCancellationRequested();
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                            throw new TimeoutException($"Waiting for database state took too long (expected: {expected} last: {lastValue} sql: {sql})");
+                    }
 
-                    var lastValue = db.QueryFirstOrDefault<T>(sql);
+                    lastValue = db.QueryFirstOrDefault<T>(sql);
+
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;
+
+                    firstError?.Rethrow();
 
                     Thread.Sleep(50);
                 }
             }
         }
+
+        private void processorOnError(Exception? exception, ScoreItem _) => firstError ??= exception;
 
 #pragma warning disable CA1816
         public void Dispose()
