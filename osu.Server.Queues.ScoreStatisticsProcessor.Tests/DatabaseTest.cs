@@ -133,21 +133,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         protected void AddBeatmap(Action<Beatmap>? beatmapSetup = null, Action<BeatmapSet>? beatmapSetSetup = null)
         {
-            var beatmap = new Beatmap
-            {
-                beatmap_id = TEST_BEATMAP_ID,
-                beatmapset_id = TEST_BEATMAP_SET_ID,
-                approved = BeatmapOnlineStatus.Ranked,
-            };
-
-            var beatmapSet = new BeatmapSet
-            {
-                beatmapset_id = TEST_BEATMAP_SET_ID,
-                approved = BeatmapOnlineStatus.Ranked,
-            };
+            var beatmap = new Beatmap { approved = BeatmapOnlineStatus.Ranked };
+            var beatmapSet = new BeatmapSet { approved = BeatmapOnlineStatus.Ranked };
 
             beatmapSetup?.Invoke(beatmap);
             beatmapSetSetup?.Invoke(beatmapSet);
+
+            if (beatmap.beatmap_id == 0) beatmap.beatmap_id = TEST_BEATMAP_ID;
+            if (beatmapSet.beatmapset_id == 0) beatmapSet.beatmapset_id = TEST_BEATMAP_SET_ID;
+
+            if (beatmap.beatmapset_id > 0 && beatmap.beatmapset_id != beatmapSet.beatmapset_id)
+                throw new ArgumentException($"{nameof(beatmapSetup)} method specified different {nameof(beatmap.beatmapset_id)} from the one specified in the {nameof(beatmapSetSetup)} method.");
+
+            // Copy over set ID for cases where the setup steps only set it on the beatmapSet.
+            beatmap.beatmapset_id = beatmapSet.beatmapset_id;
 
             beatmaps.Add(beatmap);
 
