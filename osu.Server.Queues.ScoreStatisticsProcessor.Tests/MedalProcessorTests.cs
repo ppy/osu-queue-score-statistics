@@ -1,61 +1,80 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Collections.Generic;
+using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
     public class MedalProcessorTests : DatabaseTest
     {
+        public MedalProcessorTests()
+        {
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                db.Execute("TRUNCATE TABLE osu_achievements");
+                db.Execute("TRUNCATE TABLE osu_user_achievements");
+
+                db.Execute("TRUNCATE TABLE osu_beatmappacks");
+                db.Execute("TRUNCATE TABLE osu_beatmappacks_items");
+            }
+        }
+
         [Fact]
         public void TestSimplePackAwarding()
         {
-            /*
-                // Pass all songs in Video Game Pack vol.1
+            AddBeatmap(b => b.beatmap_id = 71621, s => s.beatmapset_id = 13022);
+            AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
+            AddBeatmap(b => b.beatmap_id = 79288, s => s.beatmapset_id = 23073);
+            AddBeatmap(b => b.beatmap_id = 101236, s => s.beatmapset_id = 27936);
+            AddBeatmap(b => b.beatmap_id = 105325, s => s.beatmapset_id = 32162);
+            AddBeatmap(b => b.beatmap_id = 127762, s => s.beatmapset_id = 40233);
+            AddBeatmap(b => b.beatmap_id = 132751, s => s.beatmapset_id = 42158);
+            AddBeatmap(b => b.beatmap_id = 134948, s => s.beatmapset_id = 42956);
+            AddBeatmap(b => b.beatmap_id = 177972, s => s.beatmapset_id = 59370);
+            AddBeatmap(b => b.beatmap_id = 204837, s => s.beatmapset_id = 71476);
+            AddBeatmap(b => b.beatmap_id = 206298, s => s.beatmapset_id = 72137);
+            AddBeatmap(b => b.beatmap_id = 271917, s => s.beatmapset_id = 102913);
+            AddBeatmap(b => b.beatmap_id = 514849, s => s.beatmapset_id = 169848);
+            AddBeatmap(b => b.beatmap_id = 497769, s => s.beatmapset_id = 211704);
 
-                | pack_id | beatmapset_id | min(beatmap_id) |
-                |---------|---------------|-----------------|
-                | 40      | 13022         | 71621           |
-                | 40      | 16520         | 59225           |
-                | 40      | 23073         | 79288           |
-                | 40      | 27936         | 101236          |
-                | 40      | 32162         | 105325          |
-                | 40      | 40233         | 127762          |
-                | 40      | 42158         | 132751          |
-                | 40      | 42956         | 134948          |
-                | 40      | 59370         | 177972          |
-                | 40      | 71476         | 204837          |
-                | 40      | 72137         | 206298          |
-                | 40      | 102913        | 271917          |
-                | 40      | 169848        | 514849          |
-                | 40      | 211704        | 497769          |
-             */
+            addPackMedal(7, 40, AllBeatmaps);
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 2", 0, CancellationToken);
+            foreach (var beatmap in AllBeatmaps)
+            {
+                assertNotAwarded();
+                pushAndInsert(beatmap.beatmap_id);
+            }
 
-            pushAndInsert(71621);
+            assertAwarded();
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, CancellationToken);
-            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 2", 0, CancellationToken);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", AllBeatmaps.Count, CancellationToken);
+        }
 
-            pushAndInsert(59225);
-            pushAndInsert(79288);
-            pushAndInsert(101236);
-            pushAndInsert(105325);
-            pushAndInsert(127762);
-            pushAndInsert(132751);
-            pushAndInsert(134948);
-            pushAndInsert(177972);
-            pushAndInsert(204837);
-            pushAndInsert(206298);
-            pushAndInsert(271917);
-            pushAndInsert(514849);
-            pushAndInsert(497769);
+        private void addPackMedal(int medalId, int packId, IReadOnlyList<Beatmap> beatmaps)
+        {
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                db.Execute($"INSERT INTO osu_achievements (achievement_id, slug, ordering, progression, name) VALUES ({medalId}, 'A', 1, 1, 'medal')");
+                db.Execute($"INSERT INTO osu_beatmappacks (pack_id, url, name, author, tag, date) VALUES ({packId}, 'https://osu.ppy.sh', 'pack', 'wang', 'PACK', NOW())");
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 14, CancellationToken);
+                foreach (var beatmap in beatmaps)
+                    db.Execute($"INSERT INTO osu_beatmappacks_items (pack_id, beatmapset_id) VALUES ({packId}, {beatmap.beatmapset_id})");
+            }
+        }
+
+        private void assertAwarded()
+        {
             WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 2", 1, CancellationToken);
+        }
+
+        private void assertNotAwarded()
+        {
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_achievements WHERE user_id = 3", 0, CancellationToken);
         }
 
         private void pushAndInsert(int beatmapId)
@@ -65,7 +84,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 var score = CreateTestScore(beatmapId: beatmapId);
 
                 conn.Insert(score.Score);
-                Processor.PushToQueue(score);
+                PushToQueueAndWaitForProcess(score);
             }
         }
     }
