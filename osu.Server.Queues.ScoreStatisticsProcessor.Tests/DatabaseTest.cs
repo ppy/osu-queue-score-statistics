@@ -148,8 +148,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // Copy over set ID for cases where the setup steps only set it on the beatmapSet.
             beatmap.beatmapset_id = beatmapSet.beatmapset_id;
 
-            beatmaps.Add(beatmap);
-
             using (var db = Processor.GetDatabaseConnection())
             {
                 try
@@ -161,7 +159,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 {
                     db.Update(beatmap);
                     db.Update(beatmapSet);
+                    beatmaps.RemoveAll(b => b.beatmap_id == beatmap.beatmap_id);
                 }
+
+                beatmaps.Add(beatmap);
             }
         }
 
