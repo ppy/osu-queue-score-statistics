@@ -72,11 +72,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         {
             if (string.IsNullOrEmpty(legacy_io_secret))
             {
-#if DEBUG
-                return null!;
-#endif
-
+#if !DEBUG
                 throw new InvalidOperationException("Attempted to award medal with no legacy IO secret set");
+#endif
+                return null!;
             }
 
             int retryCount = 3;
