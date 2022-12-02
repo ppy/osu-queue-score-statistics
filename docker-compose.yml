@@ -38,6 +38,8 @@ services:
     image: mysql/mysql-server:8.0
     environment:
       <<: *x-env
+    volumes:
+      - database:/var/lib/mysql
     ports:
       - "${MYSQL_EXTERNAL_PORT:-3306}:3306"
     command: --default-authentication-plugin=mysql_native_password
@@ -59,3 +61,6 @@ services:
       interval: 1s
       timeout: 60s
       start_period: 60s
+
+volumes:
+  database:
