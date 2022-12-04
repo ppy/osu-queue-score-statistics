@@ -33,7 +33,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestSimple()
+        public void TestOnlyAwardsOnce()
+        {
+            const int medal_id = 7;
+            const int pack_id = 40;
+
+            addPackMedal(medal_id, pack_id, AllBeatmaps);
+
+            assertNotAwarded();
+            setScoreForBeatmap(TEST_BEATMAP_ID);
+
+            assertAwarded(medal_id);
+
+            setScoreForBeatmap(TEST_BEATMAP_ID);
+            assertAwarded(medal_id);
+        }
+
+        [Fact]
+        public void TestSimplePack()
         {
             const int medal_id = 7;
             const int pack_id = 40;
@@ -67,7 +84,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestNoReductionMods()
+        public void TestNoReductionModsPack()
         {
             const int medal_id = 267;
             const int pack_id = 2036;
@@ -138,6 +155,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         private void onMedalAwarded(MedalProcessor.AwardedMedal awarded)
         {
             awardedMedals.Add(awarded);
+
+            // Usually osu-web would do this.
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                db.Execute($"INSERT INTO osu_user_achievements (achievement_id, user_id, beatmap_id) VALUES ({awarded.Medal.achievement_id}, {awarded.Score.UserID}, {awarded.Score.BeatmapID})");
+            }
         }
 
         public override void Dispose()
