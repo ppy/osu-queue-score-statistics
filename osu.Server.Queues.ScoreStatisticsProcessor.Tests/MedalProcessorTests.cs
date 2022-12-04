@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
@@ -84,6 +85,31 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestPlayMultipleBeatmapsFromSameSet()
+        {
+            const int medal_id = 7;
+            const int pack_id = 40;
+
+            AddBeatmap(b => b.beatmap_id = 71621, s => s.beatmapset_id = 13022);
+            AddBeatmap(b => b.beatmap_id = 71622, s => s.beatmapset_id = 13022);
+            AddBeatmap(b => b.beatmap_id = 71623, s => s.beatmapset_id = 13022);
+
+            AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
+
+            addPackMedal(medal_id, pack_id, AllBeatmaps);
+
+            foreach (var beatmap in AllBeatmaps)
+            {
+                assertNotAwarded();
+                setScoreForBeatmap(beatmap.beatmap_id);
+            }
+
+            assertAwarded(medal_id);
+
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", AllBeatmaps.Count, CancellationToken);
+        }
+
+        [Fact]
         public void TestNoReductionModsPack()
         {
             const int medal_id = 267;
@@ -124,8 +150,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute($"INSERT INTO osu_achievements (achievement_id, slug, ordering, progression, name) VALUES ({medalId}, 'A', 1, 1, 'medal')");
                 db.Execute($"INSERT INTO osu_beatmappacks (pack_id, url, name, author, tag, date) VALUES ({packId}, 'https://osu.ppy.sh', 'pack', 'wang', 'PACK', NOW())");
 
-                foreach (var beatmap in beatmaps)
-                    db.Execute($"INSERT INTO osu_beatmappacks_items (pack_id, beatmapset_id) VALUES ({packId}, {beatmap.beatmapset_id})");
+                foreach (int setId in beatmaps.GroupBy(b => b.beatmapset_id).Select(g => g.Key))
+                    db.Execute($"INSERT INTO osu_beatmappacks_items (pack_id, beatmapset_id) VALUES ({packId}, {setId})");
             }
         }
 
