@@ -236,8 +236,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
                 if (noReductionMods)
                 {
-                    // TODO: correct this to be valid for `solo_scores`.
-                    modsCriteria = "AND (enabled_mods & diff_reduction_mods) = 0";
+                    modsCriteria = @"AND json_search(data, 'one', 'EZ', null, '$.mods[*].acronym') IS NULL"
+                                   + " AND json_search(data, 'one', 'NF', null, '$.mods[*].acronym') IS NULL"
+                                   + " AND json_search(data, 'one', 'HT', null, '$.mods[*].acronym') IS NULL"
+                                   + " AND json_search(data, 'one', 'SO', null, '$.mods[*].acronym') IS NULL";
                 }
 
                 // ensure the correct mode, if one is specified
@@ -251,6 +253,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                     rulesetCriteria = $"AND ruleset_id = {packRulesetId}";
                 }
 
+                // TODO: no index on (beatmap_id, user_id) may mean this is too slow.
                 int completed = conn.QuerySingle<int>(
                     "SELECT COUNT(distinct p.beatmapset_id)"
                     + "FROM osu_beatmappacks_items p "
