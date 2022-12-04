@@ -1,10 +1,13 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Collections.Generic;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
+using osu.Game.Online.API;
+using osu.Game.Rulesets.Osu.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
@@ -30,7 +33,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestSimplePackAwarding()
+        public void TestSimple()
         {
             const int medal_id = 7;
             const int pack_id = 40;
@@ -63,6 +66,40 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", AllBeatmaps.Count, CancellationToken);
         }
 
+        [Fact]
+        public void TestNoReductionMods()
+        {
+            const int medal_id = 267;
+            const int pack_id = 2036;
+
+            AddBeatmap(b => b.beatmap_id = 2018512, s => s.beatmapset_id = 964134);
+            AddBeatmap(b => b.beatmap_id = 2051817, s => s.beatmapset_id = 980459);
+            AddBeatmap(b => b.beatmap_id = 2111505, s => s.beatmapset_id = 1008679);
+            AddBeatmap(b => b.beatmap_id = 2236260, s => s.beatmapset_id = 1068163);
+            AddBeatmap(b => b.beatmap_id = 2285281, s => s.beatmapset_id = 1093385);
+            AddBeatmap(b => b.beatmap_id = 2324126, s => s.beatmapset_id = 1112424);
+
+            addPackMedal(medal_id, pack_id, AllBeatmaps);
+
+            foreach (var beatmap in AllBeatmaps)
+            {
+                assertNotAwarded();
+                setScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModEasy()) });
+            }
+
+            assertNotAwarded();
+
+            foreach (var beatmap in AllBeatmaps)
+            {
+                assertNotAwarded();
+                setScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
+            }
+
+            assertAwarded(medal_id);
+
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", AllBeatmaps.Count * 2, CancellationToken);
+        }
+
         private void addPackMedal(int medalId, int packId, IReadOnlyList<Beatmap> beatmaps)
         {
             using (var db = Processor.GetDatabaseConnection())
@@ -85,11 +122,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Assert.Empty(awardedMedals);
         }
 
-        private void setScoreForBeatmap(int beatmapId)
+        private void setScoreForBeatmap(int beatmapId, Action<ScoreItem>? scoreSetup = null)
         {
             using (MySqlConnection conn = Processor.GetDatabaseConnection())
             {
                 var score = CreateTestScore(beatmapId: beatmapId);
+
+                scoreSetup?.Invoke(score);
 
                 conn.Insert(score.Score);
                 PushToQueueAndWaitForProcess(score);
