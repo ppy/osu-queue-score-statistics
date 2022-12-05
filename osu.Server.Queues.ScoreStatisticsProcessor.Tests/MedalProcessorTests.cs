@@ -33,6 +33,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
         }
 
+        /// <summary>
+        /// The medal processor should skip medals which have already been awarded.
+        /// There are no medals which should trigger more than once.
+        /// </summary>
         [Fact]
         public void TestOnlyAwardsOnce()
         {
@@ -50,6 +54,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertAwarded(medal_id);
         }
 
+        /// <summary>
+        /// This tests the simplest case of a medal being awarded for completing a pack.
+        /// This mimics the "video game" pack, but is intended to test the process rather than the
+        /// content of that pack specifically.
+        /// </summary>
         [Fact]
         public void TestSimplePack()
         {
@@ -84,16 +93,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", AllBeatmaps.Count, CancellationToken);
         }
 
+        /// <summary>
+        /// Beatmap packs are defined as a list of beatmap *set* IDs.
+        /// When checking whether we should award, there's a need group user's plays across a single set to avoid counting
+        /// plays on different difficulties of the same beatmap twice.
+        /// </summary>
         [Fact]
-        public void TestPlayMultipleBeatmapsFromSameSet()
+        public void TestPlayMultipleBeatmapsFromSameSetDoesNotAward()
         {
             const int medal_id = 7;
             const int pack_id = 40;
 
+            // Three beatmap difficulties in the same set.
             AddBeatmap(b => b.beatmap_id = 71621, s => s.beatmapset_id = 13022);
             AddBeatmap(b => b.beatmap_id = 71622, s => s.beatmapset_id = 13022);
             AddBeatmap(b => b.beatmap_id = 71623, s => s.beatmapset_id = 13022);
 
+            // A final beatmap in a different set.
             AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
 
             addPackMedal(medal_id, pack_id, AllBeatmaps);
@@ -104,11 +120,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 setScoreForBeatmap(beatmap.beatmap_id);
             }
 
+            // Awarding should only happen after the final set is hit.
             assertAwarded(medal_id);
-
-            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", AllBeatmaps.Count, CancellationToken);
         }
 
+        /// <summary>
+        /// Some beatmap packs (ie. "challenge" packs) require completion without using difficulty reduction mods.
+        /// This is specified as a flat in the medal's conditional.
+        ///
+        /// Using pack 267 as an example, this test ensures that plays with reduction mods are not counted towards completion.
+        /// </summary>
         [Fact]
         public void TestNoReductionModsPack()
         {
@@ -130,6 +151,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 setScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModEasy()) });
             }
 
+            // Even after completing all beatmaps with easy mod, the pack medal is not awarded.
             assertNotAwarded();
 
             foreach (var beatmap in AllBeatmaps)
@@ -138,6 +160,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 setScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
             }
 
+            // Only after completing each beatmap again without easy mod (double time arbitrarily added to mix things up)
+            // is the pack actually awarded.
             assertAwarded(medal_id);
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", AllBeatmaps.Count * 2, CancellationToken);
