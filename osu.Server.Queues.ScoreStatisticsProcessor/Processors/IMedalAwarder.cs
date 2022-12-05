@@ -13,7 +13,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     /// A class which handles conditional awarding of one of more medals.
     /// </summary>
     [UsedImplicitly]
-    internal interface IMedalAwarder
+    public interface IMedalAwarder
     {
         /// <summary>
         /// For a given score and collection of valid medals, check which should be awarded (if any).
