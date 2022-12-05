@@ -59,8 +59,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
                 db.Execute($"TRUNCATE TABLE {ProcessHistory.TABLE_NAME}");
                 db.Execute($"TRUNCATE TABLE {SoloScorePerformance.TABLE_NAME}");
-
-                AddBeatmap();
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
@@ -151,6 +149,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             using (var db = Processor.GetDatabaseConnection())
             {
                 db.Insert(beatmap);
+
                 db.Insert(beatmapSet);
 
                 beatmaps.Add(beatmap);

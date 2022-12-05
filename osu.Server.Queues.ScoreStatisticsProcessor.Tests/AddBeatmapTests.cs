@@ -12,7 +12,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestDefault()
         {
-            // A default is implicitly inserted by the base class.
+            AddBeatmap();
 
             Assert.Equal(1, AllBeatmaps.Count);
             Assert.Equal(TEST_BEATMAP_ID, AllBeatmaps.Single().beatmap_id);

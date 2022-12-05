@@ -40,17 +40,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestOnlyAwardsOnce()
         {
+            var beatmap = AddBeatmap();
+
             const int medal_id = 7;
             const int pack_id = 40;
 
             addPackMedal(medal_id, pack_id, AllBeatmaps);
 
             assertNotAwarded();
-            setScoreForBeatmap(TEST_BEATMAP_ID);
+            setScoreForBeatmap(beatmap.beatmap_id);
 
             assertAwarded(medal_id);
 
-            setScoreForBeatmap(TEST_BEATMAP_ID);
+            setScoreForBeatmap(beatmap.beatmap_id);
             assertAwarded(medal_id);
         }
 
