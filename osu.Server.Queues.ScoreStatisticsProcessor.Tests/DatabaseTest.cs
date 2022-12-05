@@ -131,7 +131,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private readonly List<Beatmap> beatmaps = new List<Beatmap>();
 
-        protected void AddBeatmap(Action<Beatmap>? beatmapSetup = null, Action<BeatmapSet>? beatmapSetSetup = null)
+        protected Beatmap AddBeatmap(Action<Beatmap>? beatmapSetup = null, Action<BeatmapSet>? beatmapSetSetup = null)
         {
             var beatmap = new Beatmap { approved = BeatmapOnlineStatus.Ranked };
             var beatmapSet = new BeatmapSet { approved = BeatmapOnlineStatus.Ranked };
@@ -150,20 +150,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             using (var db = Processor.GetDatabaseConnection())
             {
-                try
-                {
-                    db.Insert(beatmap);
-                    db.Insert(beatmapSet);
-                }
-                catch
-                {
-                    db.Update(beatmap);
-                    db.Update(beatmapSet);
-                    beatmaps.RemoveAll(b => b.beatmap_id == beatmap.beatmap_id);
-                }
+                db.Insert(beatmap);
+                db.Insert(beatmapSet);
 
                 beatmaps.Add(beatmap);
             }
+
+            return beatmap;
         }
 
         protected void WaitForTotalProcessed(long count, CancellationToken cancellationToken)
