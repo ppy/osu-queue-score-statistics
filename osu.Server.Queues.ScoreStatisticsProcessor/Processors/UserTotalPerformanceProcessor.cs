@@ -142,7 +142,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, groupedItems.Length)));
             }
 
-            userStats.rank_score = (float)totalPp;
+            userStats.rank_score_exp = (float)totalPp;
             userStats.accuracy_new = (float)totalAccuracy;
         }
 
