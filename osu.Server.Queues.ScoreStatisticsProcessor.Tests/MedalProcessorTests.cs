@@ -7,11 +7,13 @@ using System.Linq;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
+using osu.Game.Beatmaps;
 using osu.Game.Online.API;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
+using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
@@ -107,9 +109,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int pack_id = 40;
 
             // Three beatmap difficulties in the same set.
-            AddBeatmap(b => b.beatmap_id = 71621, s => s.beatmapset_id = 13022);
-            AddBeatmap(b => b.beatmap_id = 71622, s => s.beatmapset_id = 13022);
-            AddBeatmap(b => b.beatmap_id = 71623, s => s.beatmapset_id = 13022);
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                db.Insert(new BeatmapSet { approved = BeatmapOnlineStatus.Ranked, beatmapset_id = 13022 });
+
+                db.Insert(new Beatmap { approved = BeatmapOnlineStatus.Ranked, beatmap_id = 71621, beatmapset_id = 13022 });
+                db.Insert(new Beatmap { approved = BeatmapOnlineStatus.Ranked, beatmap_id = 71622, beatmapset_id = 13022 });
+                db.Insert(new Beatmap { approved = BeatmapOnlineStatus.Ranked, beatmap_id = 71623, beatmapset_id = 13022 });
+            }
 
             // A final beatmap in a different set.
             AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
@@ -123,6 +130,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
 
             // Awarding should only happen after the final set is hit.
+            assertAwarded(medal_id);
+        }
+
+        /// <summary>
+        /// We may have multiple scores in the database for a single user-beatmap combo.
+        /// Only one should be counted.
+        /// </summary>
+        [Fact]
+        public void TestPlayMultipleTimeOnSameSetDoesNotAward()
+        {
+            const int medal_id = 7;
+            const int pack_id = 40;
+
+            var beatmap1 = AddBeatmap(b => b.beatmap_id = 71623, s => s.beatmapset_id = 13022);
+            var beatmap2 = AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
+
+            addPackMedal(medal_id, pack_id, AllBeatmaps);
+
+            setScoreForBeatmap(beatmap1.beatmap_id);
+            assertNotAwarded();
+            setScoreForBeatmap(beatmap1.beatmap_id);
+            assertNotAwarded();
+            setScoreForBeatmap(beatmap1.beatmap_id);
+            assertNotAwarded();
+
+            setScoreForBeatmap(beatmap2.beatmap_id);
             assertAwarded(medal_id);
         }
 
