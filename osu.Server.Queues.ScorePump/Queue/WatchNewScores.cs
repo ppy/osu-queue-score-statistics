@@ -42,7 +42,7 @@ namespace osu.Server.Queues.ScorePump.Queue
 
                 using (var db = Queue.GetDatabaseConnection())
                 {
-                    var scores = db.Query<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE id > @lastId LIMIT @count_per_run", new
+                    var scores = db.Query<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE id > @lastId ORDER BY id LIMIT @count_per_run", new
                     {
                         lastId,
                         count_per_run
