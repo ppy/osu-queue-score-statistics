@@ -8,7 +8,7 @@ using McMaster.Extensions.CommandLineUtils;
 namespace osu.Server.Queues.ScorePump.Queue
 {
     [Command("clear-queue", Description = "Completely empties the processing queue")]
-    public class ClearQueue : QueueCommand
+    public class ClearQueueCommand : BaseCommand
     {
         public int OnExecute(CancellationToken cancellationToken)
         {

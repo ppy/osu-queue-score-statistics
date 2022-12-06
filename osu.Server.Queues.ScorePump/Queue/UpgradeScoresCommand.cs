@@ -19,7 +19,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 namespace osu.Server.Queues.ScorePump.Queue
 {
     [Command("upgrade-scores", Description = "Upgrades scores from the solo scores table, ensuring total score and accuracy values are up-to-date.")]
-    public class UpgradeScores : QueueCommand
+    public class UpgradeScoresCommand : BaseCommand
     {
         private const int batch_size = 10000;
 

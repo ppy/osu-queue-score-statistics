@@ -28,7 +28,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 namespace osu.Server.Queues.ScorePump.Queue
 {
     [Command("import-high-scores", Description = $"Imports high scores from the osu_scores_high tables into the new {SoloScore.TABLE_NAME} table.")]
-    public class ImportHighScores : QueueCommand
+    public class ImportHighScoresCommand : BaseCommand
     {
         /// <summary>
         /// The ruleset to run this import job for.

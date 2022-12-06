@@ -7,12 +7,12 @@ using osu.Server.Queues.ScorePump.Queue;
 namespace osu.Server.Queues.ScorePump;
 
 [Command(Name = "queue", Description = "Perform various operations on the processing queue.")]
-[Subcommand(typeof(PumpTestData))]
-[Subcommand(typeof(PumpAllScores))]
-[Subcommand(typeof(WatchNewScores))]
-[Subcommand(typeof(ClearQueue))]
-[Subcommand(typeof(ImportHighScores))]
-[Subcommand(typeof(UpgradeScores))]
+[Subcommand(typeof(PumpTestDataCommand))]
+[Subcommand(typeof(PumpAllScoresCommand))]
+[Subcommand(typeof(WatchNewScoresCommand))]
+[Subcommand(typeof(ClearQueueCommand))]
+[Subcommand(typeof(ImportHighScoresCommand))]
+[Subcommand(typeof(UpgradeScoresCommand))]
 public sealed class QueueCommands
 {
     public int OnExecute(CommandLineApplication app)

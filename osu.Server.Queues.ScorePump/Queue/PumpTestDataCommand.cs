@@ -9,7 +9,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 namespace osu.Server.Queues.ScorePump.Queue
 {
     [Command("test", Description = "Pumps empty test scores to the queue")]
-    public class PumpTestData : QueueCommand
+    public class PumpTestDataCommand : BaseCommand
     {
         public int OnExecute(CancellationToken cancellationToken)
         {

@@ -7,10 +7,10 @@ using osu.Server.Queues.ScorePump.Performance.Scores;
 namespace osu.Server.Queues.ScorePump.Performance
 {
     [Command("scores", Description = "Updates individual score PP values.")]
-    [Subcommand(typeof(UpdateAllScores))]
-    [Subcommand(typeof(UpdateScoresFromList))]
-    [Subcommand(typeof(UpdateScoresFromSql))]
-    [Subcommand(typeof(UpdateScoresForUsers))]
+    [Subcommand(typeof(UpdateAllScoresCommand))]
+    [Subcommand(typeof(UpdateScoresFromListCommand))]
+    [Subcommand(typeof(UpdateScoresFromSqlCommand))]
+    [Subcommand(typeof(UpdateScoresForUsersCommand))]
     public sealed class UpdateScoresCommands
     {
         public int OnExecute(CommandLineApplication app)

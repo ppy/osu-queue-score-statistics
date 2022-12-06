@@ -7,7 +7,7 @@ namespace osu.Server.Queues.ScorePump
 {
     [Command]
     [Subcommand(typeof(QueueCommands))]
-    [Subcommand(typeof(BatchCommands))]
+    [Subcommand(typeof(PerformanceCommands))]
     public class Program
     {
         private static readonly CancellationTokenSource cts = new CancellationTokenSource();
