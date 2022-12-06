@@ -7,11 +7,13 @@ using System.Linq;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
+using osu.Game.Beatmaps;
 using osu.Game.Online.API;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
+using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
@@ -40,17 +42,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestOnlyAwardsOnce()
         {
+            var beatmap = AddBeatmap();
+
             const int medal_id = 7;
             const int pack_id = 40;
 
-            addPackMedal(medal_id, pack_id, AllBeatmaps);
+            addPackMedal(medal_id, pack_id, new[] { beatmap });
 
             assertNotAwarded();
-            setScoreForBeatmap(TEST_BEATMAP_ID);
+            setScoreForBeatmap(beatmap.beatmap_id);
 
             assertAwarded(medal_id);
 
-            setScoreForBeatmap(TEST_BEATMAP_ID);
+            setScoreForBeatmap(beatmap.beatmap_id);
             assertAwarded(medal_id);
         }
 
@@ -65,24 +69,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id = 7;
             const int pack_id = 40;
 
-            AddBeatmap(b => b.beatmap_id = 71621, s => s.beatmapset_id = 13022);
-            AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
-            AddBeatmap(b => b.beatmap_id = 79288, s => s.beatmapset_id = 23073);
-            AddBeatmap(b => b.beatmap_id = 101236, s => s.beatmapset_id = 27936);
-            AddBeatmap(b => b.beatmap_id = 105325, s => s.beatmapset_id = 32162);
-            AddBeatmap(b => b.beatmap_id = 127762, s => s.beatmapset_id = 40233);
-            AddBeatmap(b => b.beatmap_id = 132751, s => s.beatmapset_id = 42158);
-            AddBeatmap(b => b.beatmap_id = 134948, s => s.beatmapset_id = 42956);
-            AddBeatmap(b => b.beatmap_id = 177972, s => s.beatmapset_id = 59370);
-            AddBeatmap(b => b.beatmap_id = 204837, s => s.beatmapset_id = 71476);
-            AddBeatmap(b => b.beatmap_id = 206298, s => s.beatmapset_id = 72137);
-            AddBeatmap(b => b.beatmap_id = 271917, s => s.beatmapset_id = 102913);
-            AddBeatmap(b => b.beatmap_id = 514849, s => s.beatmapset_id = 169848);
-            AddBeatmap(b => b.beatmap_id = 497769, s => s.beatmapset_id = 211704);
+            var allBeatmaps = new[]
+            {
+                AddBeatmap(b => b.beatmap_id = 71621, s => s.beatmapset_id = 13022),
+                AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520),
+                AddBeatmap(b => b.beatmap_id = 79288, s => s.beatmapset_id = 23073),
+                AddBeatmap(b => b.beatmap_id = 101236, s => s.beatmapset_id = 27936),
+                AddBeatmap(b => b.beatmap_id = 105325, s => s.beatmapset_id = 32162),
+                AddBeatmap(b => b.beatmap_id = 127762, s => s.beatmapset_id = 40233),
+                AddBeatmap(b => b.beatmap_id = 132751, s => s.beatmapset_id = 42158),
+                AddBeatmap(b => b.beatmap_id = 134948, s => s.beatmapset_id = 42956),
+                AddBeatmap(b => b.beatmap_id = 177972, s => s.beatmapset_id = 59370),
+                AddBeatmap(b => b.beatmap_id = 204837, s => s.beatmapset_id = 71476),
+                AddBeatmap(b => b.beatmap_id = 206298, s => s.beatmapset_id = 72137),
+                AddBeatmap(b => b.beatmap_id = 271917, s => s.beatmapset_id = 102913),
+                AddBeatmap(b => b.beatmap_id = 514849, s => s.beatmapset_id = 169848),
+                AddBeatmap(b => b.beatmap_id = 497769, s => s.beatmapset_id = 211704),
+            };
 
-            addPackMedal(medal_id, pack_id, AllBeatmaps);
+            addPackMedal(medal_id, pack_id, allBeatmaps);
 
-            foreach (var beatmap in AllBeatmaps)
+            foreach (var beatmap in allBeatmaps)
             {
                 assertNotAwarded();
                 setScoreForBeatmap(beatmap.beatmap_id);
@@ -90,7 +97,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             assertAwarded(medal_id);
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", AllBeatmaps.Count, CancellationToken);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length, CancellationToken);
         }
 
         /// <summary>
@@ -103,24 +110,64 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             const int medal_id = 7;
             const int pack_id = 40;
+            const int beatmapset_id = 13022;
 
-            // Three beatmap difficulties in the same set.
-            AddBeatmap(b => b.beatmap_id = 71621, s => s.beatmapset_id = 13022);
-            AddBeatmap(b => b.beatmap_id = 71622, s => s.beatmapset_id = 13022);
-            AddBeatmap(b => b.beatmap_id = 71623, s => s.beatmapset_id = 13022);
+            List<Beatmap> beatmaps = new List<Beatmap>
+            {
+                // Three beatmap difficulties in the same set.
+                // Added to database below due to shared set requiring special handling.
+                new Beatmap { approved = BeatmapOnlineStatus.Ranked, beatmap_id = 71621, beatmapset_id = beatmapset_id },
+                new Beatmap { approved = BeatmapOnlineStatus.Ranked, beatmap_id = 71622, beatmapset_id = beatmapset_id },
+                new Beatmap { approved = BeatmapOnlineStatus.Ranked, beatmap_id = 71623, beatmapset_id = beatmapset_id }
+            };
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                db.Insert(new BeatmapSet { approved = BeatmapOnlineStatus.Ranked, beatmapset_id = beatmapset_id });
+                foreach (var beatmap in beatmaps)
+                    db.Insert(beatmap);
+            }
 
             // A final beatmap in a different set.
-            AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
+            beatmaps.Add(AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520));
 
-            addPackMedal(medal_id, pack_id, AllBeatmaps);
+            Assert.Equal(4, beatmaps.Count);
 
-            foreach (var beatmap in AllBeatmaps)
+            addPackMedal(medal_id, pack_id, beatmaps);
+
+            foreach (var beatmap in beatmaps)
             {
                 assertNotAwarded();
                 setScoreForBeatmap(beatmap.beatmap_id);
             }
 
             // Awarding should only happen after the final set is hit.
+            assertAwarded(medal_id);
+        }
+
+        /// <summary>
+        /// We may have multiple scores in the database for a single user-beatmap combo.
+        /// Only one should be counted.
+        /// </summary>
+        [Fact]
+        public void TestPlayMultipleTimeOnSameSetDoesNotAward()
+        {
+            const int medal_id = 7;
+            const int pack_id = 40;
+
+            var beatmap1 = AddBeatmap(b => b.beatmap_id = 71623, s => s.beatmapset_id = 13022);
+            var beatmap2 = AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
+
+            addPackMedal(medal_id, pack_id, new[] { beatmap1, beatmap2 });
+
+            setScoreForBeatmap(beatmap1.beatmap_id);
+            assertNotAwarded();
+            setScoreForBeatmap(beatmap1.beatmap_id);
+            assertNotAwarded();
+            setScoreForBeatmap(beatmap1.beatmap_id);
+            assertNotAwarded();
+
+            setScoreForBeatmap(beatmap2.beatmap_id);
             assertAwarded(medal_id);
         }
 
@@ -136,16 +183,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id = 267;
             const int pack_id = 2036;
 
-            AddBeatmap(b => b.beatmap_id = 2018512, s => s.beatmapset_id = 964134);
-            AddBeatmap(b => b.beatmap_id = 2051817, s => s.beatmapset_id = 980459);
-            AddBeatmap(b => b.beatmap_id = 2111505, s => s.beatmapset_id = 1008679);
-            AddBeatmap(b => b.beatmap_id = 2236260, s => s.beatmapset_id = 1068163);
-            AddBeatmap(b => b.beatmap_id = 2285281, s => s.beatmapset_id = 1093385);
-            AddBeatmap(b => b.beatmap_id = 2324126, s => s.beatmapset_id = 1112424);
+            var allBeatmaps = new[]
+            {
+                AddBeatmap(b => b.beatmap_id = 2018512, s => s.beatmapset_id = 964134),
+                AddBeatmap(b => b.beatmap_id = 2051817, s => s.beatmapset_id = 980459),
+                AddBeatmap(b => b.beatmap_id = 2111505, s => s.beatmapset_id = 1008679),
+                AddBeatmap(b => b.beatmap_id = 2236260, s => s.beatmapset_id = 1068163),
+                AddBeatmap(b => b.beatmap_id = 2285281, s => s.beatmapset_id = 1093385),
+                AddBeatmap(b => b.beatmap_id = 2324126, s => s.beatmapset_id = 1112424),
+            };
 
-            addPackMedal(medal_id, pack_id, AllBeatmaps);
+            addPackMedal(medal_id, pack_id, allBeatmaps);
 
-            foreach (var beatmap in AllBeatmaps)
+            foreach (var beatmap in allBeatmaps)
             {
                 assertNotAwarded();
                 setScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModEasy()) });
@@ -154,7 +204,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // Even after completing all beatmaps with easy mod, the pack medal is not awarded.
             assertNotAwarded();
 
-            foreach (var beatmap in AllBeatmaps)
+            foreach (var beatmap in allBeatmaps)
             {
                 assertNotAwarded();
                 setScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
@@ -164,7 +214,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // is the pack actually awarded.
             assertAwarded(medal_id);
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", AllBeatmaps.Count * 2, CancellationToken);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length * 2, CancellationToken);
         }
 
         private void addPackMedal(int medalId, int packId, IReadOnlyList<Beatmap> beatmaps)
