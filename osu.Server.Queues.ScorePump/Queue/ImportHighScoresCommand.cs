@@ -55,12 +55,20 @@ namespace osu.Server.Queues.ScorePump.Queue
         public bool SkipExisting { get; set; } = true;
 
         /// <summary>
+        /// Whether to skip pushing imported score to the elasticsearch indexing queue.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--skip-indexing")]
+        public bool SkipIndexing { get; set; }
+
+        /// <summary>
         /// Whether to exit when there are no scores left at the tail end of the import. Defaults to <c>false</c>.
         /// </summary>
         public bool ExitOnCompletion { get; set; }
 
         private long lastCommitTimestamp;
         private long lastLatencyCheckTimestamp;
+
+        private ElasticQueueProcessor? elasticQueueProcessor;
 
         private static int currentReportInsertCount;
         private static int totalInsertCount;
@@ -122,6 +130,12 @@ namespace osu.Server.Queues.ScorePump.Queue
             Console.WriteLine();
             Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
             Console.WriteLine($"Inserting into {SoloScore.TABLE_NAME} and processing {(ExitOnCompletion ? "as single run" : "indefinitely")}");
+
+            if (!SkipIndexing)
+            {
+                elasticQueueProcessor = new ElasticQueueProcessor();
+                Console.WriteLine($"Indexing to elasticsearch queue {elasticQueueProcessor.QueueName}");
+            }
 
             Thread.Sleep(5000);
 
@@ -207,6 +221,22 @@ namespace osu.Server.Queues.ScorePump.Queue
                         Console.WriteLine();
                         Console.WriteLine(runningBatches.First(t => t.Task.IsFaulted).Task.Exception?.ToString());
                         return -1;
+                    }
+
+                    if (elasticQueueProcessor != null)
+                    {
+                        List<ElasticQueueProcessor.ElasticScoreItem> elasticItems = new List<ElasticQueueProcessor.ElasticScoreItem>();
+
+                        foreach (var b in runningBatches)
+                        {
+                            elasticItems.AddRange(b.InsertedSoloScoreIDs.Select(id => new ElasticQueueProcessor.ElasticScoreItem
+                            {
+                                ScoreId = id,
+                            }));
+                        }
+
+                        elasticQueueProcessor.PushToQueue(elasticItems);
+                        Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                     }
 
                     Console.WriteLine($"Transaction commit at score_id {lastId}");
@@ -301,6 +331,8 @@ namespace osu.Server.Queues.ScorePump.Queue
 
             public Task Task { get; }
 
+            public List<long> InsertedSoloScoreIDs { get; } = new List<long>();
+
             public BatchInserter(Ruleset ruleset, Func<MySqlConnection> getConnection, HighScore[] scores, bool skipExisting)
             {
                 this.ruleset = ruleset;
@@ -387,6 +419,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                         // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
                         // this does not improve throughput.
                         await insertCommand.ExecuteNonQueryAsync();
+                        InsertedSoloScoreIDs.Add(insertCommand.LastInsertedId);
 
                         Interlocked.Increment(ref currentReportInsertCount);
                         Interlocked.Increment(ref totalInsertCount);
