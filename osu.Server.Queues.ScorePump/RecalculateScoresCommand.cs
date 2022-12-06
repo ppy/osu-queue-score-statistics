@@ -16,10 +16,10 @@ using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScorePump.Queue
+namespace osu.Server.Queues.ScorePump
 {
-    [Command("upgrade-scores", Description = "Upgrades scores from the solo scores table, ensuring total score and accuracy values are up-to-date.")]
-    public class UpgradeScoresCommand : BaseCommand
+    [Command("recalculate-scores", Description = "Process all scores in the `solo_scores` table, recalculating and writing any changes in total score and accuracy values.")]
+    public class RecalculateScoresCommand : BaseCommand
     {
         private const int batch_size = 10000;
 
