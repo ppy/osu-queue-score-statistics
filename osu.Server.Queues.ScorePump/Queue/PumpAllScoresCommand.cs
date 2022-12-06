@@ -9,7 +9,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScorePump.Queue
 {
-    [Command("all", Description = "Pumps scores through the queue for reprocessing")]
+    [Command("pump-all", Description = "Pumps all existing `solo_scores` scores through the queue for reprocessing")]
     public class PumpAllScoresCommand : BaseCommand
     {
         [Option("--start_id")]
