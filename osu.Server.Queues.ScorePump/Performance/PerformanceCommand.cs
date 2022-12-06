@@ -8,13 +8,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.Queues.ScorePump.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScorePump.Performance
 {
-    public abstract class PerformanceCommand : QueueCommand
+    public abstract class PerformanceCommand : BaseCommand
     {
         protected ScorePerformanceProcessor ScoreProcessor { get; private set; } = null!;
         protected UserTotalPerformanceProcessor TotalProcessor { get; private set; } = null!;

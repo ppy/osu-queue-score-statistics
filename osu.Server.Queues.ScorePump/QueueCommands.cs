@@ -4,20 +4,20 @@
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScorePump.Queue;
 
-namespace osu.Server.Queues.ScorePump;
-
-[Command(Name = "queue", Description = "Perform various operations on the processing queue.")]
-[Subcommand(typeof(PumpTestData))]
-[Subcommand(typeof(PumpAllScores))]
-[Subcommand(typeof(WatchNewScores))]
-[Subcommand(typeof(ClearQueue))]
-[Subcommand(typeof(ImportHighScores))]
-[Subcommand(typeof(UpgradeScores))]
-public sealed class QueueCommands
+namespace osu.Server.Queues.ScorePump
 {
-    public int OnExecute(CommandLineApplication app)
+    [Command(Name = "queue", Description = "Perform various operations on the processing queue.")]
+    [Subcommand(typeof(PumpTestDataCommand))]
+    [Subcommand(typeof(PumpAllScoresCommand))]
+    [Subcommand(typeof(WatchNewScoresCommand))]
+    [Subcommand(typeof(ClearQueueCommand))]
+    [Subcommand(typeof(ImportHighScoresCommand))]
+    public sealed class QueueCommands
     {
-        app.ShowHelp(false);
-        return 1;
+        public int OnExecute(CommandLineApplication app)
+        {
+            app.ShowHelp(false);
+            return 1;
+        }
     }
 }

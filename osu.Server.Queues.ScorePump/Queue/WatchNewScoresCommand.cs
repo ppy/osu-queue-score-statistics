@@ -11,11 +11,10 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 namespace osu.Server.Queues.ScorePump.Queue
 {
     /// <summary>
-    /// Keep in mind that this command is intended to be a temporary stand-in until osu-web
-    /// pushes to the score processing queue directly.
+    /// This command is obsolete now that osu-web pushes directly to the queue.
     /// </summary>
-    [Command("watch", Description = "Watch for new scores and queue as they arrive.")]
-    public class WatchNewScores : QueueCommand
+    [Command("watch", Description = "Watch for new scores being inserted into `solo_scores` and queue for processing as they arrive.")]
+    public class WatchNewScoresCommand : BaseCommand
     {
         [Option("--start_id")]
         public ulong? StartId { get; set; }
