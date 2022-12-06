@@ -109,7 +109,7 @@ namespace osu.Server.Queues.ScorePump.Queue
 
                     Console.WriteLine($"Retrieving next {scoresPerQuery} scores from {StartId}");
 
-                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id >= @startId LIMIT {scoresPerQuery}", new { startId = StartId });
+                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id >= @startId ORDER BY score_id LIMIT {scoresPerQuery}", new { startId = StartId });
 
                     if (!highScores.Any())
                     {
