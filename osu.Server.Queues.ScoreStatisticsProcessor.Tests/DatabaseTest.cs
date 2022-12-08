@@ -37,6 +37,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         protected DatabaseTest()
         {
+            Environment.SetEnvironmentVariable("SCHEMA", "1");
+
             Processor = new ScoreStatisticsProcessor();
             Processor.Error += processorOnError;
 
