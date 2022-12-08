@@ -63,6 +63,7 @@ namespace osu.Server.Queues.ScorePump.Queue
         /// <summary>
         /// Whether to exit when there are no scores left at the tail end of the import. Defaults to <c>false</c>.
         /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--exit-on-completion")]
         public bool ExitOnCompletion { get; set; }
 
         private long lastCommitTimestamp;
