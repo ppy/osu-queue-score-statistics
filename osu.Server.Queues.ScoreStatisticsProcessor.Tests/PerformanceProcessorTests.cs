@@ -72,7 +72,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.ScoreInfo.Accuracy = 1;
             });
 
-            WaitForDatabaseState("SELECT rank_score_exp FROM osu_user_stats WHERE user_id = 2", 1082, CancellationToken);
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_stats WHERE rank_score_exp > 0 AND user_id = 2", 1, CancellationToken);
             WaitForDatabaseState("SELECT rank_score_index_exp FROM osu_user_stats WHERE user_id = 2", 1, CancellationToken);
         }
 
