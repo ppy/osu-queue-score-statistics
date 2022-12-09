@@ -19,6 +19,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class MedalProcessor : IProcessor
     {
+        private static readonly bool process_user_medals = Environment.GetEnvironmentVariable("PROCESS_USER_MEDALS") != "0";
+
         private static readonly List<IMedalAwarder> medal_awarders = new List<IMedalAwarder>();
 
         private ImmutableArray<Medal>? availableMedals;
@@ -44,6 +46,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
+            if (!process_user_medals)
+                return;
+
             int[] alreadyAchieved = conn.Query<int>("SELECT achievement_id FROM osu_user_achievements WHERE user_id = @userId", new
             {
                 userId = score.UserID
