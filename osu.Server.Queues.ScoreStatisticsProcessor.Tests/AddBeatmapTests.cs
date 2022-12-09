@@ -3,6 +3,9 @@
 
 using System;
 using System.Linq;
+using Dapper;
+using MySqlConnector;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
@@ -12,40 +15,53 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestDefault()
         {
-            // A default is implicitly inserted by the base class.
+            using var db = Processor.GetDatabaseConnection();
 
-            Assert.Equal(1, AllBeatmaps.Count);
-            Assert.Equal(TEST_BEATMAP_ID, AllBeatmaps.Single().beatmap_id);
-            Assert.Equal(TEST_BEATMAP_SET_ID, AllBeatmaps.Single().beatmapset_id);
+            var beatmap = AddBeatmap();
+            var databaseBeatmaps = db.Query<Beatmap>("SELECT * FROM osu_beatmaps");
+
+            Assert.Equal(beatmap.beatmap_id, databaseBeatmaps.Single().beatmap_id);
+            Assert.Equal(beatmap.beatmapset_id, databaseBeatmaps.Single().beatmapset_id);
         }
 
         [Fact]
-        public void TestUpdatePropertyOnDefault()
+        public void TestChangePropertyOnDefault()
         {
-            AddBeatmap(b => b.diff_overall = 123);
+            using var db = Processor.GetDatabaseConnection();
 
-            Assert.Equal(1, AllBeatmaps.Count);
-            Assert.Equal(TEST_BEATMAP_ID, AllBeatmaps.Single().beatmap_id);
-            Assert.Equal(123, AllBeatmaps.Single().diff_overall);
+            var beatmap = AddBeatmap(b => b.diff_overall = 123);
+            var databaseBeatmaps = db.Query<Beatmap>("SELECT * FROM osu_beatmaps");
+
+            Assert.Equal(123, databaseBeatmaps.Single().diff_overall);
+
+            Assert.Equal(beatmap.beatmap_id, databaseBeatmaps.Single().beatmap_id);
+            Assert.Equal(beatmap.diff_overall, databaseBeatmaps.Single().diff_overall);
         }
 
         [Fact]
-        public void TestDefaultDoesntAddTwice()
+        public void TestAddTwiceFails()
         {
-            AddBeatmap();
+            using var db = Processor.GetDatabaseConnection();
 
-            Assert.Equal(1, AllBeatmaps.Count);
-            Assert.Equal(TEST_BEATMAP_ID, AllBeatmaps.Single().beatmap_id);
-            Assert.Equal(TEST_BEATMAP_SET_ID, AllBeatmaps.Single().beatmapset_id);
+            var beatmap = AddBeatmap();
+
+            Assert.Throws<MySqlException>(() => AddBeatmap());
+
+            var databaseBeatmaps = db.Query<Beatmap>("SELECT * FROM osu_beatmaps");
+
+            Assert.Equal(beatmap.beatmap_id, databaseBeatmaps.Single().beatmap_id);
+            Assert.Equal(beatmap.beatmapset_id, databaseBeatmaps.Single().beatmapset_id);
         }
 
         [Fact]
         public void TestSetIdCopied()
         {
-            AddBeatmap(beatmapSetSetup: s => s.beatmapset_id = 12345);
+            using var db = Processor.GetDatabaseConnection();
 
-            Assert.Equal(1, AllBeatmaps.Count);
-            Assert.Equal(12345, AllBeatmaps.Single().beatmapset_id);
+            var beatmap = AddBeatmap(beatmapSetSetup: s => s.beatmapset_id = 12345);
+            var databaseBeatmaps = db.Query<Beatmap>("SELECT * FROM osu_beatmaps");
+
+            Assert.Equal(beatmap.beatmapset_id, databaseBeatmaps.Single().beatmapset_id);
         }
 
         [Fact]

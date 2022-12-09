@@ -10,6 +10,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMaxComboIncrease()
         {
+            AddBeatmap();
+
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -25,6 +27,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMaxComboDoesntIncreaseIfNotRanked()
         {
+            AddBeatmap();
+
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -51,6 +55,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMaxComboDoesntIncreaseIfLower()
         {
+            AddBeatmap();
+
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -66,6 +72,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMaxComboDoesntIncreaseIfAutomationMod()
         {
+            AddBeatmap();
+
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();

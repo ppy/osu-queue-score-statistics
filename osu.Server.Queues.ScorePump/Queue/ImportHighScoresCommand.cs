@@ -28,7 +28,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 namespace osu.Server.Queues.ScorePump.Queue
 {
     [Command("import-high-scores", Description = $"Imports high scores from the osu_scores_high tables into the new {SoloScore.TABLE_NAME} table.")]
-    public class ImportHighScores : QueueCommand
+    public class ImportHighScoresCommand : BaseCommand
     {
         /// <summary>
         /// The ruleset to run this import job for.
@@ -37,19 +37,39 @@ namespace osu.Server.Queues.ScorePump.Queue
         public int RulesetId { get; set; }
 
         /// <summary>
-        /// The high score ID to start the import process from. This can be used to resume an existing job, or perform catch-up on new scores.
+        /// The high score ID to start the import process from. This can be used to perform batch reimporting for special cases.
         /// </summary>
         [Option(CommandOptionType.SingleValue)]
-        public ulong StartId { get; set; }
+        public ulong? StartId { get; set; }
 
         /// <summary>
-        /// Whether existing legacy score IDs should be skipped rather than fail via an error. Defaults enabled.
+        /// Whether to adjust processing rate based on slave latency. Defaults to <c>false</c>.
         /// </summary>
-        [Option(CommandOptionType.SingleValue, Template = "--skip")]
+        [Option(CommandOptionType.SingleValue, Template = "--check-slave-latency")]
+        public bool CheckSlaveLatency { get; set; }
+
+        /// <summary>
+        /// Whether existing legacy score IDs should be skipped rather than fail via an error. Defaults to <c>true</c>.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--skip-existing")]
         public bool SkipExisting { get; set; } = true;
+
+        /// <summary>
+        /// Whether to skip pushing imported score to the elasticsearch indexing queue.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--skip-indexing")]
+        public bool SkipIndexing { get; set; }
+
+        /// <summary>
+        /// Whether to exit when there are no scores left at the tail end of the import. Defaults to <c>false</c>.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--exit-on-completion")]
+        public bool ExitOnCompletion { get; set; }
 
         private long lastCommitTimestamp;
         private long lastLatencyCheckTimestamp;
+
+        private ElasticQueueProcessor? elasticQueueProcessor;
 
         private static int currentReportInsertCount;
         private static int totalInsertCount;
@@ -96,8 +116,27 @@ namespace osu.Server.Queues.ScorePump.Queue
 
             DateTimeOffset start = DateTimeOffset.Now;
 
-            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {StartId}");
-            Console.WriteLine($"Inserting into {SoloScore.TABLE_NAME}");
+            ulong lastId;
+
+            if (StartId.HasValue)
+                lastId = StartId.Value;
+            else
+            {
+                using (var db = Queue.GetDatabaseConnection())
+                    lastId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM {SoloScoreLegacyIDMap.TABLE_NAME} WHERE ruleset_id = {RulesetId}") ?? 0;
+
+                Console.WriteLine($"StartId not provided, using last legacy ID map entry ({lastId})");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
+            Console.WriteLine($"Inserting into {SoloScore.TABLE_NAME} and processing {(ExitOnCompletion ? "as single run" : "indefinitely")}");
+
+            if (!SkipIndexing)
+            {
+                elasticQueueProcessor = new ElasticQueueProcessor();
+                Console.WriteLine($"Indexing to elasticsearch queue {elasticQueueProcessor.QueueName}");
+            }
 
             Thread.Sleep(5000);
 
@@ -105,16 +144,22 @@ namespace osu.Server.Queues.ScorePump.Queue
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    checkSlaveLatency(dbMainQuery);
+                    if (CheckSlaveLatency)
+                        checkSlaveLatency(dbMainQuery);
 
-                    Console.WriteLine($"Retrieving next {scoresPerQuery} scores from {StartId}");
-
-                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id >= @startId ORDER BY score_id LIMIT {scoresPerQuery}", new { startId = StartId });
+                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id >= @lastId ORDER BY score_id LIMIT {scoresPerQuery}",
+                        new { lastId = lastId });
 
                     if (!highScores.Any())
                     {
-                        Console.WriteLine("No scores found");
-                        break;
+                        if (ExitOnCompletion)
+                        {
+                            Console.WriteLine("No scores found, all done!");
+                            break;
+                        }
+
+                        Thread.Sleep(500);
+                        continue;
                     }
 
                     List<BatchInserter> runningBatches = new List<BatchInserter>();
@@ -139,8 +184,8 @@ namespace osu.Server.Queues.ScorePump.Queue
 
                     queueNextBatch();
 
-                    // update StartId to allow the next bulk query to start from the correct location.
-                    StartId = highScores.Max(s => s.score_id);
+                    // update lastId to allow the next bulk query to start from the correct location.
+                    lastId = highScores.Max(s => s.score_id);
 
                     while (!runningBatches.All(t => t.Task.IsCompleted))
                     {
@@ -150,7 +195,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                         {
                             int inserted = Interlocked.Exchange(ref currentReportInsertCount, 0);
 
-                            Console.WriteLine($"Inserting up to {StartId:N0} "
+                            Console.WriteLine($"Inserting up to {lastId:N0} "
                                               + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
                                               + $"{totalInsertCount:N0} inserted {totalSkipCount:N0} skipped (+{inserted:N0} new {inserted / seconds_between_report:N0}/s)");
 
@@ -163,7 +208,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                     if (runningBatches.Any(t => t.Task.IsFaulted))
                     {
                         Console.WriteLine("ERROR: At least one tasks were faulted. Aborting for safety.");
-                        Console.WriteLine($"Running batches were processing up to {StartId}.");
+                        Console.WriteLine($"Running batches were processing up to {lastId}.");
                         Console.WriteLine();
 
                         for (int i = 0; i < runningBatches.Count; i++)
@@ -179,8 +224,24 @@ namespace osu.Server.Queues.ScorePump.Queue
                         return -1;
                     }
 
-                    Console.WriteLine($"Transaction commit at score_id {StartId}");
-                    StartId++;
+                    if (elasticQueueProcessor != null)
+                    {
+                        List<ElasticQueueProcessor.ElasticScoreItem> elasticItems = new List<ElasticQueueProcessor.ElasticScoreItem>();
+
+                        foreach (var b in runningBatches)
+                        {
+                            elasticItems.AddRange(b.InsertedSoloScoreIDs.Select(id => new ElasticQueueProcessor.ElasticScoreItem
+                            {
+                                ScoreId = id,
+                            }));
+                        }
+
+                        elasticQueueProcessor.PushToQueue(elasticItems);
+                        Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+                    }
+
+                    Console.WriteLine($"Transaction commit at score_id {lastId}");
+                    lastId++;
 
                     void queueNextBatch()
                     {
@@ -200,7 +261,7 @@ namespace osu.Server.Queues.ScorePump.Queue
             {
                 Console.WriteLine($"Cancelled after {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
                 Console.WriteLine($"Final stats: {totalInsertCount} inserted, {totalSkipCount} skipped");
-                Console.WriteLine($"Resume from start id {StartId}");
+                Console.WriteLine($"Resume from start id {lastId}");
             }
             else
             {
@@ -270,6 +331,8 @@ namespace osu.Server.Queues.ScorePump.Queue
             public HighScore[] Scores { get; }
 
             public Task Task { get; }
+
+            public List<long> InsertedSoloScoreIDs { get; } = new List<long>();
 
             public BatchInserter(Ruleset ruleset, Func<MySqlConnection> getConnection, HighScore[] scores, bool skipExisting)
             {
@@ -357,6 +420,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                         // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
                         // this does not improve throughput.
                         await insertCommand.ExecuteNonQueryAsync();
+                        InsertedSoloScoreIDs.Add(insertCommand.LastInsertedId);
 
                         Interlocked.Increment(ref currentReportInsertCount);
                         Interlocked.Increment(ref totalInsertCount);

@@ -2,7 +2,6 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,6 +37,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         protected DatabaseTest()
         {
+            Environment.SetEnvironmentVariable("SCHEMA", "1");
+
             Processor = new ScoreStatisticsProcessor();
             Processor.Error += processorOnError;
 
@@ -59,8 +60,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
                 db.Execute($"TRUNCATE TABLE {ProcessHistory.TABLE_NAME}");
                 db.Execute($"TRUNCATE TABLE {SoloScorePerformance.TABLE_NAME}");
-
-                AddBeatmap();
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
@@ -124,14 +123,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Processor.Error -= processorOnError;
         }
 
-        /// <summary>
-        /// All beatmaps which where added in this test via <see cref="AddBeatmap"/>.
-        /// </summary>
-        protected IReadOnlyList<Beatmap> AllBeatmaps => beatmaps;
-
-        private readonly List<Beatmap> beatmaps = new List<Beatmap>();
-
-        protected void AddBeatmap(Action<Beatmap>? beatmapSetup = null, Action<BeatmapSet>? beatmapSetSetup = null)
+        protected Beatmap AddBeatmap(Action<Beatmap>? beatmapSetup = null, Action<BeatmapSet>? beatmapSetSetup = null)
         {
             var beatmap = new Beatmap { approved = BeatmapOnlineStatus.Ranked };
             var beatmapSet = new BeatmapSet { approved = BeatmapOnlineStatus.Ranked };
@@ -150,20 +142,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             using (var db = Processor.GetDatabaseConnection())
             {
-                try
-                {
-                    db.Insert(beatmap);
-                    db.Insert(beatmapSet);
-                }
-                catch
-                {
-                    db.Update(beatmap);
-                    db.Update(beatmapSet);
-                    beatmaps.RemoveAll(b => b.beatmap_id == beatmap.beatmap_id);
-                }
-
-                beatmaps.Add(beatmap);
+                db.Insert(beatmap);
+                db.Insert(beatmapSet);
             }
+
+            return beatmap;
         }
 
         protected void WaitForTotalProcessed(long count, CancellationToken cancellationToken)

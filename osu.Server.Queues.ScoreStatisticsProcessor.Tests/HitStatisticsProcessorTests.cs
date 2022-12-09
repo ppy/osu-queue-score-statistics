@@ -8,6 +8,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestHitStatisticsIncrease()
         {
+            AddBeatmap();
+
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -20,6 +22,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestHitStatisticsReprocessOldVersionIncrease()
         {
+            AddBeatmap();
+
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
@@ -40,6 +44,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestHitStatisticsReprocessDoesntIncrease()
         {
+            AddBeatmap();
+
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);

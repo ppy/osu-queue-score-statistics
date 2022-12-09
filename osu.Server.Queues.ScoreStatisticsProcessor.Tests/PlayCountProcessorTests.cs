@@ -8,6 +8,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestPlaycountIncreaseMania()
         {
+            AddBeatmap();
+
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore(3));
@@ -20,6 +22,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestPlaycountIncrease()
         {
+            AddBeatmap();
+
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -32,6 +36,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestProcessingSameScoreTwiceRaceCondition()
         {
+            AddBeatmap();
+
             IgnoreProcessorExceptions();
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
@@ -55,6 +61,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestPlaycountReprocessDoesntIncrease()
         {
+            AddBeatmap();
+
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
@@ -72,6 +80,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestUserBeatmapPlaycountIncrease()
         {
+            AddBeatmap();
+
             WaitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {TEST_BEATMAP_ID}", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -84,6 +94,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestUserBeatmapPlaycountReprocessDoesntIncrease()
         {
+            AddBeatmap();
+
             var score = CreateTestScore();
 
             WaitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {TEST_BEATMAP_ID}", (int?)null, CancellationToken);
@@ -101,6 +113,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMonthlyPlaycountIncrease()
         {
+            AddBeatmap();
+
             WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -116,6 +130,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [InlineData(2)]
         public void TestMonthlyPlaycountReprocessOldVersionIncrease(int version)
         {
+            AddBeatmap();
+
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, CancellationToken);
@@ -134,6 +150,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMonthlyPlaycountReprocessDoesntIncrease()
         {
+            AddBeatmap();
+
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, CancellationToken);

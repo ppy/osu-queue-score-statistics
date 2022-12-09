@@ -7,6 +7,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestTotalScoreIncrease()
         {
+            AddBeatmap();
+
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -17,8 +19,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestTotalScoreForLegacyScoreDoesntIncrease()
+        {
+            AddBeatmap();
+
+            var score = CreateTestScore();
+
+            score.Score.ScoreInfo.LegacyScoreId = 1234;
+
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            Processor.PushToQueue(score);
+            WaitForTotalProcessed(1, CancellationToken);
+
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+        }
+
+        [Fact]
         public void TestTotalScoreReprocessDoesntIncrease()
         {
+            AddBeatmap();
+
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);

@@ -50,6 +50,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         protected override void ProcessResult(ScoreItem item)
         {
+            if (item.Score.ScoreInfo.LegacyScoreId != null)
+            {
+                item.Tags = new[] { "type:legacy" };
+                return;
+            }
+
             if (item.ProcessHistory?.processed_version == VERSION)
             {
                 item.Tags = new[] { "type:skipped" };
@@ -68,9 +74,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         var userStats = DatabaseHelper.GetUserStatsAsync(score, conn, transaction).Result;
 
                         if (userStats == null)
+                        {
                             // ruleset could be invalid
                             // TODO: add check in client and server to not submit unsupported rulesets
+                            item.Tags = new[] { "type:no-stats" };
                             return;
+                        }
 
                         // if required, we can rollback any previous version of processing then reapply with the latest.
                         if (item.ProcessHistory != null)
@@ -151,29 +160,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             }
 
             return rulesetsToProcess;
-        }
-
-        private class ElasticQueueProcessor : QueueProcessor<ElasticQueueProcessor.ElasticScoreItem>
-        {
-            private static readonly string queue_name = $"score-index-{Environment.GetEnvironmentVariable("SCHEMA")}";
-
-            internal ElasticQueueProcessor()
-                : base(new QueueConfiguration { InputQueueName = queue_name })
-            {
-                // TODO: automate schema version lookup
-                // see https://github.com/ppy/osu-elastic-indexer/blob/316e3e2134933e22363f4911e0be4175984ae15e/osu.ElasticIndexer/Redis.cs#L10
-            }
-
-            protected override void ProcessResult(ElasticScoreItem scoreItem)
-            {
-                throw new NotImplementedException();
-            }
-
-            [Serializable]
-            public class ElasticScoreItem : QueueItem
-            {
-                public long? ScoreId { get; init; }
-            }
         }
     }
 }
