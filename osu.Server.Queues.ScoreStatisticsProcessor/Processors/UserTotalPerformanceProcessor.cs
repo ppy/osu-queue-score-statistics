@@ -22,7 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private BeatmapStore? beatmapStore;
         private BuildStore? buildStore;
 
-        private static readonly bool process_user_totals = Environment.GetEnvironmentVariable("PROCESS_USER_TOTALS") == "1";
+        private static readonly bool process_user_totals = Environment.GetEnvironmentVariable("PROCESS_USER_TOTALS") != "0";
 
         // This processor needs to run after the score's PP value has been processed.
         public int Order => ScorePerformanceProcessor.ORDER + 1;
