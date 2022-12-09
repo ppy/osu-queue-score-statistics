@@ -42,5 +42,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public DateTimeOffset last_update { get; set; } = DateTimeOffset.Now;
         public DateTimeOffset last_played { get; set; } = DateTimeOffset.Now;
         public long total_seconds_played { get; set; }
+
+        public float rank_score_exp { get; set; }
+        public int rank_score_index_exp { get; set; }
     }
 }
