@@ -22,7 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private BeatmapStore? beatmapStore;
         private BuildStore? buildStore;
 
-        private static readonly bool process_user_totals = Environment.GetEnvironmentVariable("PROCESS_USER_TOTALS") == "1";
+        private static readonly bool process_user_totals = Environment.GetEnvironmentVariable("PROCESS_USER_TOTALS") != "0";
 
         // This processor needs to run after the score's PP value has been processed.
         public int Order => ScorePerformanceProcessor.ORDER + 1;
@@ -65,6 +65,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="transaction">An existing transaction.</param>
         public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
+            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
+
             beatmapStore ??= await BeatmapStore.CreateAsync(connection, transaction);
             buildStore ??= await BuildStore.CreateAsync(connection, transaction);
 
@@ -143,6 +145,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
 
             userStats.rank_score_exp = (float)totalPp;
+            userStats.rank_score_index_exp = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score_exp > {totalPp}", transaction: transaction)) + 1;
             userStats.accuracy_new = (float)totalAccuracy;
         }
 

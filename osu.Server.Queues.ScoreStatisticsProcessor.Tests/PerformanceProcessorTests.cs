@@ -1,19 +1,81 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
+using Dapper;
+using Dapper.Contrib.Extensions;
 using osu.Framework.Extensions.TypeExtensions;
 using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Taiko.Mods;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
-    public class PerformanceProcessorTests
+    public class PerformanceProcessorTests : DatabaseTest
     {
+        public PerformanceProcessorTests()
+        {
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                db.Execute($"TRUNCATE TABLE {BeatmapDifficultyAttribute.TABLE_NAME}");
+            }
+        }
+
+        [Fact]
+        public void PerformanceIndexUpdates()
+        {
+            AddBeatmap();
+
+            var attribs = new OsuDifficultyAttributes
+            {
+                StarRating = 5,
+                MaxCombo = 5,
+                AimDifficulty = 5,
+                SpeedDifficulty = 5,
+                SpeedNoteCount = 5,
+                FlashlightDifficulty = 5,
+                SliderFactor = 5,
+                ApproachRate = 5,
+                OverallDifficulty = 5,
+                DrainRate = 5,
+                HitCircleCount = 5,
+                SliderCount = 5,
+                SpinnerCount = 5
+            }.ToDatabaseAttributes();
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                foreach (var a in attribs)
+                {
+                    db.Insert(new BeatmapDifficultyAttribute
+                    {
+                        beatmap_id = TEST_BEATMAP_ID,
+                        mode = 0,
+                        mods = 0,
+                        attrib_id = (ushort)a.attributeId,
+                        value = Convert.ToSingle(a.value),
+                    });
+                }
+            }
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
+                score.Score.ScoreInfo.MaxCombo = 100;
+                score.Score.ScoreInfo.Accuracy = 1;
+            });
+
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_stats WHERE rank_score_exp > 0 AND user_id = 2", 1, CancellationToken);
+            WaitForDatabaseState("SELECT rank_score_index_exp FROM osu_user_stats WHERE user_id = 2", 1, CancellationToken);
+        }
+
         [Fact]
         public void LegacyModsThatGivePpAreAllowed()
         {
