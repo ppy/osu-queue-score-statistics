@@ -1,12 +1,10 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Dapper;
 using Dapper.Contrib.Extensions;
-using MySqlConnector;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API;
 using osu.Game.Rulesets.Osu.Mods;
@@ -50,11 +48,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addPackMedal(medal_id, pack_id, new[] { beatmap });
 
             assertNotAwarded();
-            setScoreForBeatmap(beatmap.beatmap_id);
+            SetScoreForBeatmap(beatmap.beatmap_id);
 
             assertAwarded(medal_id);
 
-            setScoreForBeatmap(beatmap.beatmap_id);
+            SetScoreForBeatmap(beatmap.beatmap_id);
             assertAwarded(medal_id);
         }
 
@@ -92,7 +90,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNotAwarded();
-                setScoreForBeatmap(beatmap.beatmap_id);
+                SetScoreForBeatmap(beatmap.beatmap_id);
             }
 
             assertAwarded(medal_id);
@@ -138,7 +136,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in beatmaps)
             {
                 assertNotAwarded();
-                setScoreForBeatmap(beatmap.beatmap_id);
+                SetScoreForBeatmap(beatmap.beatmap_id);
             }
 
             // Awarding should only happen after the final set is hit.
@@ -160,14 +158,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addPackMedal(medal_id, pack_id, new[] { beatmap1, beatmap2 });
 
-            setScoreForBeatmap(beatmap1.beatmap_id);
+            SetScoreForBeatmap(beatmap1.beatmap_id);
             assertNotAwarded();
-            setScoreForBeatmap(beatmap1.beatmap_id);
+            SetScoreForBeatmap(beatmap1.beatmap_id);
             assertNotAwarded();
-            setScoreForBeatmap(beatmap1.beatmap_id);
+            SetScoreForBeatmap(beatmap1.beatmap_id);
             assertNotAwarded();
 
-            setScoreForBeatmap(beatmap2.beatmap_id);
+            SetScoreForBeatmap(beatmap2.beatmap_id);
             assertAwarded(medal_id);
         }
 
@@ -198,7 +196,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNotAwarded();
-                setScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModEasy()) });
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModEasy()) });
             }
 
             // Even after completing all beatmaps with easy mod, the pack medal is not awarded.
@@ -207,7 +205,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNotAwarded();
-                setScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
             }
 
             // Only after completing each beatmap again without easy mod (double time arbitrarily added to mix things up)
@@ -237,19 +235,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         private void assertNotAwarded()
         {
             Assert.Empty(awardedMedals);
-        }
-
-        private void setScoreForBeatmap(int beatmapId, Action<ScoreItem>? scoreSetup = null)
-        {
-            using (MySqlConnection conn = Processor.GetDatabaseConnection())
-            {
-                var score = CreateTestScore(beatmapId: beatmapId);
-
-                scoreSetup?.Invoke(score);
-
-                conn.Insert(score.Score);
-                PushToQueueAndWaitForProcess(score);
-            }
         }
 
         private void onMedalAwarded(MedalProcessor.AwardedMedal awarded)

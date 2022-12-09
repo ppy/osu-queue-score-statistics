@@ -12,8 +12,17 @@ using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
-    public class PerformanceProcessorTests
+    public class PerformanceProcessorTests : DatabaseTest
     {
+        [Fact]
+        public void PerformanceIndexUpdates()
+        {
+            AddBeatmap();
+            SetScoreForBeatmap(TEST_BEATMAP_ID);
+
+            WaitForDatabaseState("SELECT rank_score_exp FROM osu_user_stats WHERE user_id = 2", 2, CancellationToken);
+        }
+
         [Fact]
         public void LegacyModsThatGivePpAreAllowed()
         {

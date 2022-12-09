@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
+using MySqlConnector;
 using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
@@ -63,6 +64,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
+        }
+
+        protected void SetScoreForBeatmap(int beatmapId, Action<ScoreItem>? scoreSetup = null)
+        {
+            using (MySqlConnection conn = Processor.GetDatabaseConnection())
+            {
+                var score = CreateTestScore(beatmapId: beatmapId);
+
+                scoreSetup?.Invoke(score);
+
+                conn.Insert(score.Score);
+                PushToQueueAndWaitForProcess(score);
+            }
         }
 
         private static ulong scoreIDSource;
