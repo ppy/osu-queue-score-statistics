@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -12,6 +13,7 @@ using MySqlConnector;
 using osu.Game.Rulesets;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models.Messages;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
@@ -119,6 +121,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 {
                     ScoreId = (long)item.Score.id,
                 });
+                publishScoreProcessed(item);
             }
             catch (Exception e)
             {
@@ -137,6 +140,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 db.Update(item.ProcessHistory, transaction);
             else
                 db.Insert(item.ProcessHistory, transaction);
+        }
+
+        private void publishScoreProcessed(ScoreItem item)
+        {
+            Debug.Assert(item.ProcessHistory != null);
+
+            try
+            {
+                PublishMessage("osu-channel:score:processed", new ScoreProcessed
+                {
+                    ScoreId = item.ProcessHistory.score_id,
+                    ProcessedVersion = item.ProcessHistory.processed_version
+                });
+            }
+            catch (Exception ex)
+            {
+                // failure to deliver this message is not critical, so catch locally.
+                Console.WriteLine($"Error publishing {nameof(ScoreProcessed)} event: {ex}");
+            }
         }
 
         private static List<Ruleset> getRulesets()
