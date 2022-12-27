@@ -451,6 +451,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                     Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Append(classicMod).ToArray(),
                     Statistics = new Dictionary<HitResult, int>(),
                     MaximumStatistics = new Dictionary<HitResult, int>(),
+                    MaxCombo = highScore.maxcombo
                 };
 
                 // Populate statistics and accuracy.
