@@ -156,14 +156,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     case ManiaModKey10:
                         return false;
 
+                    case ModDoubleTime dt:
+                        // Disallow non-default rate adjustments for now.
+                        if (!dt.SpeedChange.IsDefault)
+                            return false;
+
+                        continue;
+
+                    case ModHalfTime ht:
+                        // Disallow non-default rate adjustments for now.
+                        if (!ht.SpeedChange.IsDefault)
+                            return false;
+
+                        continue;
+
                     // The mods which are allowed.
                     case ModEasy:
                     case ModNoFail:
-                    case ModHalfTime:
                     case ModSuddenDeath:
                     case ModPerfect:
                     case ModHardRock:
-                    case ModDoubleTime:
                     case ModHidden:
                     case ModFlashlight:
                     case ModMuted:
