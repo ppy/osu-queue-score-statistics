@@ -65,8 +65,7 @@ namespace osu.Server.Queues.ScorePump.Performance
                 {
                     var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db);
 
-                    // Only process users with an existing rank_score.
-                    if (userStats!.rank_score_exp == 0)
+                    if (userStats == null)
                         return;
 
                     await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db);
