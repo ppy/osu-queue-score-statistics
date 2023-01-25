@@ -74,7 +74,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 $"SELECT `s`.*, `p`.`pp` FROM {SoloScore.TABLE_NAME} `s` "
                 + $"JOIN {SoloScorePerformance.TABLE_NAME} `p` ON `s`.`id` = `p`.`score_id` "
                 + "WHERE `s`.`user_id` = @UserId "
-                + "AND `s`.`ruleset_id` = @RulesetId", new
+                + "AND `s`.`ruleset_id` = @RulesetId "
+                + "AND `s`.`preserve` = 1", new
                 {
                     UserId = userStats.user_id,
                     RulesetId = rulesetId
