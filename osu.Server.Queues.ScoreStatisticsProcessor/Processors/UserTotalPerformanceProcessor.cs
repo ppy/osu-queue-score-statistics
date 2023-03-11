@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Timers;
 using Dapper;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
@@ -22,10 +23,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private BeatmapStore? beatmapStore;
         private BuildStore? buildStore;
 
+        private readonly Timer cacheResetTimer;
+
         private static readonly bool process_user_totals = Environment.GetEnvironmentVariable("PROCESS_USER_TOTALS") != "0";
 
         // This processor needs to run after the score's PP value has been processed.
         public int Order => ScorePerformanceProcessor.ORDER + 1;
+
+        public UserTotalPerformanceProcessor()
+        {
+            cacheResetTimer = new Timer(60000);
+            cacheResetTimer.Elapsed += (_, _) =>
+            {
+                // naive cache clearing, mainly to ensure new builds are picked up on new client releases.
+                beatmapStore = null;
+                buildStore = null;
+            };
+            cacheResetTimer.AutoReset = true;
+            cacheResetTimer.Enabled = true;
+            cacheResetTimer.Start();
+        }
 
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
