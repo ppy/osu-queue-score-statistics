@@ -23,6 +23,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private BeatmapStore? beatmapStore;
         private BuildStore? buildStore;
 
+        // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
         private readonly Timer cacheResetTimer;
 
         private static readonly bool process_user_totals = Environment.GetEnvironmentVariable("PROCESS_USER_TOTALS") != "0";
