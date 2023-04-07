@@ -36,6 +36,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             foreach (var (result, count) in score.Statistics)
             {
+                if (count < 0)
+                    return;
+
                 switch (result)
                 {
                     case HitResult.Miss:
