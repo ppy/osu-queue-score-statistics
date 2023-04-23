@@ -70,6 +70,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
                 score.Score.ScoreInfo.MaxCombo = 100;
                 score.Score.ScoreInfo.Accuracy = 1;
+                score.Score.preserve = true;
             });
 
             WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_stats WHERE rank_score_exp > 0 AND user_id = 2", 1, CancellationToken);
