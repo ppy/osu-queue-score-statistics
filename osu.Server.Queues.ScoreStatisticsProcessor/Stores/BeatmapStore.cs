@@ -25,7 +25,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     /// </summary>
     public class BeatmapStore
     {
-        private static readonly bool use_inline_difficulty_calculation = Environment.GetEnvironmentVariable("INLINE_DIFFICULTY_CALCULATION") != "0";
+        private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
 
         private readonly ConcurrentDictionary<int, Beatmap?> beatmapCache = new ConcurrentDictionary<int, Beatmap?>();
@@ -64,7 +64,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
         public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(APIBeatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            if (use_inline_difficulty_calculation)
+            if (use_realtime_difficulty_calculation)
             {
                 using var req = new WebRequest(string.Format(beatmap_download_path, beatmap.OnlineID))
                 {
