@@ -1,12 +1,14 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
+using osu.Framework.IO.Network;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Online.API.Requests.Responses;
@@ -23,6 +25,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     /// </summary>
     public class BeatmapStore
     {
+        private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
+        private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
+
         private readonly ConcurrentDictionary<int, Beatmap?> beatmapCache = new ConcurrentDictionary<int, Beatmap?>();
         private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
         private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
@@ -59,6 +64,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
         public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(APIBeatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
+            if (use_realtime_difficulty_calculation)
+            {
+                using var req = new WebRequest(string.Format(beatmap_download_path, beatmap.OnlineID))
+                {
+                    AllowInsecureRequests = true
+                };
+
+                await req.PerformAsync().ConfigureAwait(false);
+
+                if (req.ResponseStream.Length == 0)
+                    throw new Exception($"Retrieved zero-length beatmap ({beatmap.OnlineID})!");
+
+                var workingBeatmap = new StreamedWorkingBeatmap(req.ResponseStream);
+                var calculator = ruleset.CreateDifficultyCalculator(workingBeatmap);
+
+                return calculator.Calculate(mods);
+            }
+
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
 
             // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
