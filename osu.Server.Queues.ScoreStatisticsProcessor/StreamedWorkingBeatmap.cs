@@ -57,7 +57,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         }
 
         protected override IBeatmap GetBeatmap() => beatmap;
-        protected override Texture GetBackground() => throw new System.NotImplementedException();
+        public override Texture GetBackground() => throw new System.NotImplementedException();
         protected override Track GetBeatmapTrack() => throw new System.NotImplementedException();
         protected override ISkin GetSkin() => throw new System.NotImplementedException();
         public override Stream GetStream(string storagePath) => throw new System.NotImplementedException();

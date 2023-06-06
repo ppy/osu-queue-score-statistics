@@ -14,9 +14,11 @@ using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
 using Newtonsoft.Json;
 using osu.Game.Beatmaps.Legacy;
+using osu.Game.Database;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
@@ -451,7 +453,9 @@ namespace osu.Server.Queues.ScorePump.Queue
                     Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Append(classicMod).ToArray(),
                     Statistics = new Dictionary<HitResult, int>(),
                     MaximumStatistics = new Dictionary<HitResult, int>(),
-                    MaxCombo = highScore.maxcombo
+                    MaxCombo = highScore.maxcombo,
+                    LegacyTotalScore = highScore.score,
+                    IsLegacyScore = true
                 };
 
                 // Populate statistics and accuracy.
@@ -499,57 +503,80 @@ namespace osu.Server.Queues.ScorePump.Queue
                 // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
                 int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
-                // Note that using BeatmapStore will fail if a particular difficulty attribute value doesn't exist in the database.
-                // To get around this, we'll specifically look up the attribute directly from the database, utilising the most primitive mod lookup value
-                // for the ruleset in order to prevent an additional failures if some new mod combinations were added as difficulty adjustment mods.
-                // This is a little bit hacky and wouldn't be required if the databased attributes were always in-line with osu!lazer, but that's not the case.
+                // Using the BeatmapStore class will fail if a particular difficulty attribute value doesn't exist in the database as a result of difficulty calculation not having been run yet.
+                // Additionally, to properly fill out attribute objects, the BeatmapStore class would require a beatmap object resulting in another database query.
+                // To get around both of these issues, we'll directly look up the attribute ourselves.
 
-                int difficultyMods = 0;
+                // The isConvertedBeatmap parameter only affects whether mania key mods are allowed.
+                // Since we're dealing with high scores, we assume that the database mod values have already been validated for mania-specific beatmaps that don't allow key mods.
+                int difficultyMods = (int)LegacyModsHelper.MaskRelevantMods((LegacyMods)highScore.enabled_mods, true, ruleset.RulesetInfo.OnlineID);
 
-                switch (ruleset.RulesetInfo.OnlineID)
+                Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = queryAttributes(
+                    new DifficultyAttributesLookup(highScore.beatmap_id, ruleset.RulesetInfo.OnlineID, difficultyMods), connection, transaction);
+
+                if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
                 {
-                    case 0:
-                    case 1:
-                    case 2:
-                        // In these rulesets, every mod combination has the same max combo. So use the attribute with mods=0.
-                        break;
-
-                    case 3:
-                        // In mania, only keymods affect the number of objects and thus the max combo.
-                        difficultyMods = highScore.enabled_mods & (int)LegacyModsHelper.KEY_MODS;
-                        break;
+                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not determine max combo from the difficulty attributes of beatmap {highScore.beatmap_id}.");
+                    return scoreInfo;
                 }
 
-                int? maxComboFromAttributes = getMaxCombo(new MaxComboLookup(highScore.beatmap_id, ruleset.RulesetInfo.OnlineID, difficultyMods), connection, transaction);
-
-                if (maxComboFromAttributes == null)
+                if (!dbAttributes.ContainsKey(23) || !dbAttributes.ContainsKey(25) || !dbAttributes.ContainsKey(27))
                 {
-                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not find difficulty attributes for beatmap {highScore.beatmap_id} in the database.");
+                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not find legacy scoring values in the difficulty attributes of beatmap {highScore.beatmap_id}.");
                     return scoreInfo;
                 }
 
 #pragma warning disable CS0618
-                if (maxComboFromAttributes > maxComboFromStatistics)
-                    scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = maxComboFromAttributes.Value - maxComboFromStatistics;
+                // Pad the maximum combo.
+                if ((int)maxComboAttribute.value > maxComboFromStatistics)
+                    scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = (int)maxComboAttribute.value - maxComboFromStatistics;
 #pragma warning restore CS0618
 
-                ScoreProcessor scoreProcessor = ruleset.CreateScoreProcessor();
+                int maximumLegacyAccuracyScore = (int)dbAttributes[23].value;
+                int maximumLegacyComboScore = (int)dbAttributes[25].value;
+                double maximumLegacyBonusRatio = dbAttributes[27].value;
+
+                // Although the combo-multiplied portion is stored into difficulty attributes, attributes are only present for mod combinations that affect difficulty.
+                // For example, an incoming highscore may be +HDHR, but only difficulty attributes for +HR exist in the database.
+                // To handle this case, the combo-multiplied portion is readjusted with the new mod multiplier.
+                if (difficultyMods != highScore.enabled_mods)
+                {
+                    double difficultyAdjustmentModMultiplier = ruleset.ConvertFromLegacyMods((LegacyMods)difficultyMods).Select(m => m.ScoreMultiplier).Aggregate(1.0, (c, n) => c * n);
+                    double modMultiplier = scoreInfo.Mods.Select(m => m.ScoreMultiplier).Aggregate(1.0, (c, n) => c * n);
+                    maximumLegacyComboScore = (int)Math.Round(maximumLegacyComboScore * modMultiplier / difficultyAdjustmentModMultiplier);
+                }
+
+                scoreInfo.TotalScore = StandardisedScoreMigrationTools.ConvertFromLegacyTotalScore(scoreInfo, new DifficultyAttributes
+                {
+                    LegacyAccuracyScore = maximumLegacyAccuracyScore,
+                    LegacyComboScore = maximumLegacyComboScore,
+                    LegacyBonusScoreRatio = maximumLegacyBonusRatio
+                });
+
                 int baseScore = scoreInfo.Statistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
                 int maxBaseScore = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
 
-                scoreInfo.TotalScore = (int)scoreProcessor.ComputeScore(ScoringMode.Standardised, scoreInfo);
                 scoreInfo.Accuracy = maxBaseScore == 0 ? 1 : baseScore / (double)maxBaseScore;
 
                 return scoreInfo;
             }
 
-            private static readonly ConcurrentDictionary<MaxComboLookup, int?> max_combo_cache = new ConcurrentDictionary<MaxComboLookup, int?>();
+            private static readonly ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>> attributes_cache =
+                new ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>>();
 
-            private int? getMaxCombo(MaxComboLookup lookup, MySqlConnection connection, MySqlTransaction transaction) =>
-                max_combo_cache.GetOrAdd(lookup, l => connection.QuerySingleOrDefault<int?>(
-                    $"SELECT `value` FROM {BeatmapDifficultyAttribute.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods AND `attrib_id` = 9", l, transaction));
+            private static Dictionary<int, BeatmapDifficultyAttribute> queryAttributes(DifficultyAttributesLookup lookup, MySqlConnection connection, MySqlTransaction transaction)
+            {
+                if (attributes_cache.TryGetValue(lookup, out Dictionary<int, BeatmapDifficultyAttribute>? existing))
+                    return existing;
 
-            private record MaxComboLookup(int BeatmapId, int RulesetId, int Mods)
+                IEnumerable<BeatmapDifficultyAttribute> dbAttributes =
+                    connection.Query<BeatmapDifficultyAttribute>(
+                        $"SELECT * FROM {BeatmapDifficultyAttribute.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup, transaction);
+
+                return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
+            }
+
+            private record DifficultyAttributesLookup(int BeatmapId, int RulesetId, int Mods)
             {
                 public override string ToString()
                 {
