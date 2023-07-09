@@ -8,6 +8,7 @@ namespace osu.Server.Queues.ScorePump
     [Command]
     [Subcommand(typeof(QueueCommands))]
     [Subcommand(typeof(PerformanceCommands))]
+    [Subcommand(typeof(RecalculatePlaylistTotalScores))]
     [Subcommand(typeof(RecalculateScoresCommand))]
     public class Program
     {
