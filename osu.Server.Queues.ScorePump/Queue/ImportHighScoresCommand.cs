@@ -45,25 +45,25 @@ namespace osu.Server.Queues.ScorePump.Queue
         /// <summary>
         /// Whether to adjust processing rate based on slave latency. Defaults to <c>false</c>.
         /// </summary>
-        [Option(CommandOptionType.SingleValue, Template = "--check-slave-latency")]
+        [Option(Template = "--check-slave-latency")]
         public bool CheckSlaveLatency { get; set; }
 
         /// <summary>
         /// Whether existing legacy score IDs should be skipped rather than fail via an error. Defaults to <c>true</c>.
         /// </summary>
-        [Option(CommandOptionType.SingleValue, Template = "--skip-existing")]
+        [Option(Template = "--skip-existing")]
         public bool SkipExisting { get; set; } = true;
 
         /// <summary>
         /// Whether to skip pushing imported score to the elasticsearch indexing queue.
         /// </summary>
-        [Option(CommandOptionType.SingleValue, Template = "--skip-indexing")]
+        [Option(Template = "--skip-indexing")]
         public bool SkipIndexing { get; set; }
 
         /// <summary>
         /// Whether to exit when there are no scores left at the tail end of the import. Defaults to <c>false</c>.
         /// </summary>
-        [Option(CommandOptionType.SingleValue, Template = "--exit-on-completion")]
+        [Option(Template = "--exit-on-completion")]
         public bool ExitOnCompletion { get; set; }
 
         private long lastCommitTimestamp;
