@@ -537,7 +537,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                 int baseScore = scoreInfo.Statistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
                 int maxBaseScore = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
 
-                scoreInfo.TotalScore = (int)scoreProcessor.ComputeScore(ScoringMode.Standardised, scoreInfo);
+                scoreInfo.TotalScore = 0; // (int)scoreProcessor.ComputeScore(ScoringMode.Standardised, scoreInfo);
                 scoreInfo.Accuracy = maxBaseScore == 0 ? 1 : baseScore / (double)maxBaseScore;
 
                 return scoreInfo;
