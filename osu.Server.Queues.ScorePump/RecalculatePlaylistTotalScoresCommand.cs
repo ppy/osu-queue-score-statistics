@@ -59,13 +59,14 @@ namespace osu.Server.Queues.ScorePump
                         if (scoreAfter != scoreBefore)
                         {
                             Console.WriteLine($"Score requires update ({scoreBefore} -> {scoreAfter})");
-                            score.total_score = scoreAfter;
 
                             // TODO: destroy production
-                            // await db.UpdateAsync(score);
+                            await db.ExecuteAsync($"UPDATE multiplayer_scores SET total_score = {scoreAfter} WHERE id = {score.id}");
                         }
                         else
                             Console.WriteLine("Score is correct");
+
+                        Console.WriteLine();
                     }
                 }
             }
@@ -100,6 +101,8 @@ namespace osu.Server.Queues.ScorePump
 
             foreach (var m in roomMods)
                 Debug.Assert(scoreMods.Contains(m));
+
+            Console.WriteLine($"Mods: {string.Join(',', scoreMods.Select(m => m.ToString()))}");
 
             ScoreInfo scoreInfo = new ScoreInfo
             {
