@@ -29,44 +29,46 @@ namespace osu.Server.Queues.ScorePump
         /// The playlist room ID to reprocess.
         /// </summary>
         [Required]
-        [Argument(0, Description = "The playlist room ID to reprocess.")]
-        public int PlaylistId { get; set; }
+        [Argument(0, Description = "Command separated list of playlist room IDs to reprocess.")]
+        public string PlaylistIds { get; set; } = string.Empty;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using (var db = Queue.GetDatabaseConnection())
+            foreach (string id in PlaylistIds.Split(','))
             {
-                var playlistItems = await db.QueryAsync<MultiplayerPlaylistItem>("SELECT * FROM multiplayer_playlist_items WHERE room_id = @PlaylistId", new
+                using (var db = Queue.GetDatabaseConnection())
                 {
-                    PlaylistId
-                });
-
-                foreach (var item in playlistItems)
-                {
-                    MultiplayerScore[] scores = (await db.QueryAsync<MultiplayerScore>($"SELECT * FROM multiplayer_scores WHERE playlist_item_id = {item.id}")).ToArray();
-
-                    foreach (var score in scores)
+                    var playlistItems = await db.QueryAsync<MultiplayerPlaylistItem>("SELECT * FROM multiplayer_playlist_items WHERE room_id = @PlaylistId", new
                     {
-                        long? scoreBefore = score.total_score;
+                        PlaylistId = int.Parse(id),
+                    });
 
-                        if (scoreBefore == null || !score.passed)
-                            continue;
+                    foreach (var item in playlistItems)
+                    {
+                        MultiplayerScore[] scores = (await db.QueryAsync<MultiplayerScore>($"SELECT * FROM multiplayer_scores WHERE playlist_item_id = {item.id}")).ToArray();
 
-                        Console.WriteLine($"Reprocessing score {score.id} from playlist {item.id}");
-
-                        long scoreAfter = ensureCorrectTotalScore(score, item);
-
-                        if (scoreAfter != scoreBefore)
+                        foreach (var score in scores)
                         {
-                            Console.WriteLine($"Score requires update ({scoreBefore} -> {scoreAfter})");
+                            long? scoreBefore = score.total_score;
 
-                            // TODO: destroy production
-                            await db.ExecuteAsync($"UPDATE multiplayer_scores SET total_score = {scoreAfter} WHERE id = {score.id}");
+                            if (scoreBefore == null || !score.passed)
+                                continue;
+
+                            Console.WriteLine($"Reprocessing score {score.id} from playlist {item.id}");
+
+                            long scoreAfter = ensureCorrectTotalScore(score, item);
+
+                            if (scoreAfter != scoreBefore)
+                            {
+                                Console.WriteLine($"Score requires update ({scoreBefore} -> {scoreAfter})");
+
+                                await db.ExecuteAsync($"UPDATE multiplayer_scores SET total_score = {scoreAfter} WHERE id = {score.id}");
+                            }
+                            else
+                                Console.WriteLine("Score is correct");
+
+                            Console.WriteLine();
                         }
-                        else
-                            Console.WriteLine("Score is correct");
-
-                        Console.WriteLine();
                     }
                 }
             }
