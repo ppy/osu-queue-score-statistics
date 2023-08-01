@@ -520,7 +520,11 @@ namespace osu.Server.Queues.ScorePump.Queue
                     return scoreInfo;
                 }
 
-                if (!dbAttributes.ContainsKey(23) || !dbAttributes.ContainsKey(25) || !dbAttributes.ContainsKey(27))
+                const int legacy_accuracy_score = 23;
+                const int legacy_combo_score = 25;
+                const int legacy_bonus_score_ratio = 27;
+
+                if (!dbAttributes.ContainsKey(legacy_accuracy_score) || !dbAttributes.ContainsKey(legacy_combo_score) || !dbAttributes.ContainsKey(legacy_bonus_score_ratio))
                 {
                     await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not find legacy scoring values in the difficulty attributes of beatmap {highScore.beatmap_id}.");
                     return scoreInfo;
@@ -532,9 +536,9 @@ namespace osu.Server.Queues.ScorePump.Queue
                     scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = (int)maxComboAttribute.value - maxComboFromStatistics;
 #pragma warning restore CS0618
 
-                int maximumLegacyAccuracyScore = (int)dbAttributes[23].value;
-                int maximumLegacyComboScore = (int)dbAttributes[25].value;
-                double maximumLegacyBonusRatio = dbAttributes[27].value;
+                int maximumLegacyAccuracyScore = (int)dbAttributes[legacy_accuracy_score].value;
+                int maximumLegacyComboScore = (int)dbAttributes[legacy_combo_score].value;
+                double maximumLegacyBonusRatio = dbAttributes[legacy_bonus_score_ratio].value;
 
                 // Although the combo-multiplied portion is stored into difficulty attributes, attributes are only present for mod combinations that affect difficulty.
                 // For example, an incoming highscore may be +HDHR, but only difficulty attributes for +HR exist in the database.
