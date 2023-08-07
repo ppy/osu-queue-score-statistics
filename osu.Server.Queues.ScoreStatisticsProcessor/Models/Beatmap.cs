@@ -21,10 +21,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public int beatmapset_id { get; set; }
 
-        public ushort countTotal { get; set; }
-        public ushort countNormal { get; set; }
-        public ushort countSlider { get; set; }
-        public ushort countSpinner { get; set; }
+        public uint countTotal { get; set; }
+        public uint countNormal { get; set; }
+        public uint countSlider { get; set; }
+        public uint countSpinner { get; set; }
         public int total_length { get; set; }
         public float diff_drain { get; set; }
         public float diff_size { get; set; }
@@ -37,9 +37,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public APIBeatmap ToAPIBeatmap() => new APIBeatmap
         {
             OnlineID = beatmap_id,
-            CircleCount = countNormal,
-            SliderCount = countSlider,
-            SpinnerCount = countSpinner,
+            CircleCount = (int)countNormal,
+            SliderCount = (int)countSlider,
+            SpinnerCount = (int)countSpinner,
             DrainRate = diff_drain,
             CircleSize = diff_size,
             OverallDifficulty = diff_overall,
