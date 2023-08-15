@@ -3,6 +3,7 @@
 
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -21,7 +22,7 @@ namespace osu.Server.Queues.ScorePump.Queue
         [Option("--sql", Description = "Specify a custom query to limit the scope of pumping")]
         public string? CustomQuery { get; set; }
 
-        public int OnExecute(CancellationToken cancellationToken)
+        public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             using (var db = Queue.GetDatabaseConnection())
@@ -46,7 +47,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                     Queue.PushToQueue(new ScoreItem(score, history));
 
                     if (Delay > 0)
-                        Thread.Sleep(Delay);
+                        await Task.Delay(Delay, cancellationToken);
                 }
             }
 
