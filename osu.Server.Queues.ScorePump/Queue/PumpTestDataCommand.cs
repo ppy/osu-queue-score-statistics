@@ -3,6 +3,7 @@
 
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -11,7 +12,7 @@ namespace osu.Server.Queues.ScorePump.Queue
     [Command("pump-test", Description = "Pumps empty test scores to the queue")]
     public class PumpTestDataCommand : BaseCommand
     {
-        public int OnExecute(CancellationToken cancellationToken)
+        public Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -23,7 +24,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                 Thread.Sleep(200);
             }
 
-            return 0;
+            return Task.FromResult(0);
         }
     }
 }

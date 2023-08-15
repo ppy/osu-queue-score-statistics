@@ -3,6 +3,7 @@
 
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using Dapper;
 using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
@@ -24,7 +25,7 @@ namespace osu.Server.Queues.ScorePump.Queue
         [UsedImplicitly]
         private ulong lastId;
 
-        public int OnExecute(CancellationToken cancellationToken)
+        public Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             if (StartId.HasValue)
                 lastId = StartId.Value - 1;
@@ -76,7 +77,7 @@ namespace osu.Server.Queues.ScorePump.Queue
                 }
             }
 
-            return 0;
+            return Task.FromResult(0);
         }
     }
 }

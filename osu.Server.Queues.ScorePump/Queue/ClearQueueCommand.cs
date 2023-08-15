@@ -3,6 +3,7 @@
 
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 
 namespace osu.Server.Queues.ScorePump.Queue
@@ -10,11 +11,11 @@ namespace osu.Server.Queues.ScorePump.Queue
     [Command("clear", Description = "Completely empties the processing queue")]
     public class ClearQueueCommand : BaseCommand
     {
-        public int OnExecute(CancellationToken cancellationToken)
+        public Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             Queue.ClearQueue();
             Console.WriteLine("Queue has been cleared!");
-            return 0;
+            return Task.FromResult(0);
         }
     }
 }
