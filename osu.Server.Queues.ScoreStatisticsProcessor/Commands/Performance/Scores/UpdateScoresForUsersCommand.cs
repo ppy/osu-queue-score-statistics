@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 
-namespace osu.Server.Queues.ScorePump.Performance.UserTotals
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
-    [Command("list", Description = "Updates the total PP of specific users.")]
-    public class UpdateUserTotalsForUsersCommand : PerformanceCommand
+    [Command("userlist", Description = "Computes pp of all scores of specific users.")]
+    public class UpdateScoresForUsersCommand : PerformanceCommand
     {
         [UsedImplicitly]
         [Required]
@@ -20,7 +20,7 @@ namespace osu.Server.Queues.ScorePump.Performance.UserTotals
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
             int[] userIds = ParseIntIds(UsersString);
-            await ProcessUserTotals(userIds, cancellationToken);
+            await ProcessUserScores(userIds, cancellationToken);
             return 0;
         }
     }

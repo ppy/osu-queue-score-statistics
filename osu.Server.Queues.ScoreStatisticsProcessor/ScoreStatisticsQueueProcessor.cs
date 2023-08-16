@@ -12,12 +12,13 @@ using Dapper.Contrib.Extensions;
 using MySqlConnector;
 using osu.Game.Rulesets;
 using osu.Server.QueueProcessor;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models.Messages;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
-    public class ScoreStatisticsProcessor : QueueProcessor<ScoreItem>
+    public class ScoreStatisticsQueueProcessor : QueueProcessor<ScoreItem>
     {
         /// <summary>
         /// version 1: basic playcount
@@ -35,13 +36,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         private readonly ElasticQueueProcessor elasticQueueProcessor = new ElasticQueueProcessor();
 
-        public ScoreStatisticsProcessor()
+        public ScoreStatisticsQueueProcessor()
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
         {
             DapperExtensions.InstallDateTimeOffsetMapper();
 
             // add each processor automagically.
-            foreach (var t in typeof(ScoreStatisticsProcessor).Assembly.GetTypes().Where(t => !t.IsInterface && typeof(IProcessor).IsAssignableFrom(t)))
+            foreach (var t in typeof(ScoreStatisticsQueueProcessor).Assembly.GetTypes().Where(t => !t.IsInterface && typeof(IProcessor).IsAssignableFrom(t)))
             {
                 if (Activator.CreateInstance(t) is IProcessor processor)
                     processors.Add(processor);

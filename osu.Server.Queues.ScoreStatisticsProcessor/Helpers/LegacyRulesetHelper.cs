@@ -13,7 +13,7 @@ using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Taiko;
 using osu.Game.Rulesets.Taiko.Difficulty;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     public static class LegacyRulesetHelper
     {

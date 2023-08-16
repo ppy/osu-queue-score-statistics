@@ -17,9 +17,6 @@ jobs:
           - image: pppy/osu-queue-score-statistics
             context: ./osu.Server.Queues.ScoreStatisticsProcessor
             file: ./osu.Server.Queues.ScoreStatisticsProcessor/Dockerfile
-          - image: pppy/osu-queue-score-pump
-            context: ./
-            file: ./osu.Server.Queues.ScorePump/Dockerfile
     steps:
       -
         name: Checkout

@@ -9,7 +9,7 @@ using Dapper;
 using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 
-namespace osu.Server.Queues.ScorePump.Performance.Scores
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
     [Command(Name = "sql", Description = "Computes pp of all scores of users given by an SQL select statement.")]
     public class UpdateScoresFromSqlCommand : PerformanceCommand

@@ -24,10 +24,10 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
-using osu.Server.Queues.ScoreStatisticsProcessor;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScorePump.Queue
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     [Command("import-high-scores", Description = $"Imports high scores from the osu_scores_high tables into the new {SoloScore.TABLE_NAME} table.")]
     public class ImportHighScoresCommand : BaseCommand

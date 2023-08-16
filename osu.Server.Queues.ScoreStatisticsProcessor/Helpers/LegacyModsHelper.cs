@@ -3,7 +3,7 @@
 
 using osu.Game.Beatmaps.Legacy;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     public class LegacyModsHelper
     {

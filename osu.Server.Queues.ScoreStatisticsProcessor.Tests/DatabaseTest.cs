@@ -23,7 +23,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
     [Collection("Database tests")] // Ensure all tests hitting the database are run sequentially (no parallel execution).
     public abstract class DatabaseTest : IDisposable
     {
-        protected readonly ScoreStatisticsProcessor Processor;
+        protected readonly ScoreStatisticsQueueProcessor Processor;
 
         protected CancellationToken CancellationToken => cancellationSource.Token;
 
@@ -41,7 +41,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Environment.SetEnvironmentVariable("SCHEMA", "1");
             Environment.SetEnvironmentVariable("REALTIME_DIFFICULTY", "0");
 
-            Processor = new ScoreStatisticsProcessor();
+            Processor = new ScoreStatisticsQueueProcessor();
             Processor.Error += processorOnError;
 
             Processor.ClearQueue();

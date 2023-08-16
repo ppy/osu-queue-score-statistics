@@ -1,6 +1,49 @@
 # osu-queue-score-statistics-processor [![dev chat](https://discordapp.com/api/guilds/188630481301012481/widget.png?style=shield)](https://discord.gg/ppy)
 
-An [osu-queue-processor](https://github.com/ppy/osu-queue-processor) designed to handle updating general statistics updates from user scores.
+This project is at heart an [osu-queue-processor](https://github.com/ppy/osu-queue-processor) that handles various book-keeping tasks in response to scores arriving from users. This includes:
+
+- Awarding medals
+- Updating the pp values of individual scores
+- Updating user statistics (total scores / pp / rank counts / play time / play count / max combo)
+
+It also offers commands to perform common maintenance on all the above, including tasks like:
+
+- Re-running pp calculations on scores (and users) after a change in algorithm
+- Re-running processing of individual scores after a change in processing (ie. a new medal or new tracked statistic).
+- Migrating scores from legacy tables to the new format
+
+Some things are not yet fully fleshed out:
+
+- Not all medals are handled
+- Ranked score processor is not added
+
+# Getting started
+
+To start the queue processing functionality:
+
+```sh
+dotnet run -- queue run
+```
+
+To reprocess pp of all scores:
+
+```sh
+dotnet run -- performance all
+```
+
+To pump all scores in `solo_scores` back through the queue for reprocessing:
+
+```sh
+dotnet run -- queue pump-all
+```
+
+Note that you will want a queue processor running to handle all the scores that are going to appear in the queue.
+
+# Processs versioning
+
+Processing is versioned (see `ScoreProcessed.ProcessedVersion`), so re-queueing scores which have already been processed previously is a safe operation – they will either be skipped or upgraded (revert-apply).
+
+Each processor has an apply and revert command, so in theory, it should be possible to upgrade scores to a newer version of processing. This was made with the assumption we would gradually be adding new pieces of the puzzle in until we had everything online. If everything is in a good state, this may be less useful.
 
 # Current Versions
 

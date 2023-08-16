@@ -1,10 +1,11 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor.Models.Messages;
-
-public class ScoreProcessed
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Models.Messages
 {
-    public long ScoreId { get; init; }
-    public byte ProcessedVersion { get; init; }
+    public class ScoreProcessed
+    {
+        public long ScoreId { get; init; }
+        public byte ProcessedVersion { get; init; }
+    }
 }
