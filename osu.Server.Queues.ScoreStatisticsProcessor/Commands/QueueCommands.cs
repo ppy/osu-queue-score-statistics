@@ -12,6 +12,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(PumpTestDataCommand))]
     [Subcommand(typeof(PumpAllScoresCommand))]
     [Subcommand(typeof(ClearQueueCommand))]
+    [Subcommand(typeof(RunQueueCommand))]
     [Subcommand(typeof(ImportHighScoresCommand))]
     public sealed class QueueCommands
     {
