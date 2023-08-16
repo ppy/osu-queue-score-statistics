@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScorePump.Queue
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     [Command("pump-test", Description = "Pumps empty test scores to the queue")]
     public class PumpTestDataCommand : BaseCommand

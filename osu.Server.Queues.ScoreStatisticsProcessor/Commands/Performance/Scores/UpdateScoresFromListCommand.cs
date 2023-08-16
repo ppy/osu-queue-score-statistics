@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 
-namespace osu.Server.Queues.ScorePump.Performance.Scores
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
     [Command("list", Description = "Computes pp of specific scores.")]
     public class UpdateScoresFromListCommand : PerformanceCommand

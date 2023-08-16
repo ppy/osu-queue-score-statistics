@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 
-namespace osu.Server.Queues.ScorePump
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
 {
     [Command("recalculate-scores", Description = "Process all scores in the `solo_scores` table, recalculating and writing any changes in total score and accuracy values.")]
     public class RecalculateScoresCommand : BaseCommand

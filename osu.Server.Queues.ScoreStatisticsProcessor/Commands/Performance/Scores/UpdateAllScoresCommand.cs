@@ -7,9 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.Queues.ScoreStatisticsProcessor;
 
-namespace osu.Server.Queues.ScorePump.Performance.Scores
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
     [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateAllScoresCommand : PerformanceCommand

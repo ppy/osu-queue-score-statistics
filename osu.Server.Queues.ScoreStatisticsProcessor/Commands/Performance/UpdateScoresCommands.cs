@@ -2,9 +2,9 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.Queues.ScorePump.Performance.Scores;
+using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores;
 
-namespace osu.Server.Queues.ScorePump.Performance
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 {
     [Command("scores", Description = "Updates individual score PP values.")]
     [Subcommand(typeof(UpdateAllScoresCommand))]

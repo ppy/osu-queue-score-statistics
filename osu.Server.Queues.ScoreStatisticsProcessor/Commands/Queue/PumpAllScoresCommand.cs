@@ -8,7 +8,7 @@ using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScorePump.Queue
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     [Command("pump-all", Description = "Pumps all existing `solo_scores` scores through the queue for reprocessing")]
     public class PumpAllScoresCommand : BaseCommand

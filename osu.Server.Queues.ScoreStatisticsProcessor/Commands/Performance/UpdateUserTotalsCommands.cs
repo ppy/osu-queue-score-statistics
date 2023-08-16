@@ -2,9 +2,9 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.Queues.ScorePump.Performance.UserTotals;
+using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTotals;
 
-namespace osu.Server.Queues.ScorePump.Performance
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 {
     [Command("user-totals", Description = "Updates user total PP values.")]
     [Subcommand(typeof(UpdateAllUserTotalsCommand))]

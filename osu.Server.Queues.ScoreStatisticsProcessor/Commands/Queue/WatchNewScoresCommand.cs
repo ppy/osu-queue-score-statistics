@@ -9,7 +9,7 @@ using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScorePump.Queue
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     /// <summary>
     /// This command is obsolete now that osu-web pushes directly to the queue.

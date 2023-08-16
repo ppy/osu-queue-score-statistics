@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 
-namespace osu.Server.Queues.ScorePump.Queue
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     [Command("clear", Description = "Completely empties the processing queue")]
     public class ClearQueueCommand : BaseCommand

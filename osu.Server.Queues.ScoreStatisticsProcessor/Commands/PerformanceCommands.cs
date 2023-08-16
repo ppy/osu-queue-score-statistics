@@ -2,9 +2,9 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.Queues.ScorePump.Performance;
+using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance;
 
-namespace osu.Server.Queues.ScorePump
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
 {
     [Command(Name = "performance", Description = "Runs batch processing on pp scores / user totals.")]
     [Subcommand(typeof(UpdateScoresCommands))]
