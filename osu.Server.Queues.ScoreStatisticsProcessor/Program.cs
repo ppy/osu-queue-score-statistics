@@ -26,10 +26,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             await CommandLineApplication.ExecuteAsync<Program>(args, cts.Token);
         }
 
-        public int OnExecute(CommandLineApplication app)
+        public Task<int> OnExecuteAsync(CommandLineApplication app, CancellationToken cancellationToken)
         {
-            app.ShowHelp();
-            return 1;
+            app.ShowHelp(false);
+            return Task.FromResult(1);
         }
     }
 }

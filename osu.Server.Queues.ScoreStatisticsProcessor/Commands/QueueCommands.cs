@@ -1,6 +1,8 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Threading;
+using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 
@@ -13,10 +15,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(ImportHighScoresCommand))]
     public sealed class QueueCommands
     {
-        public int OnExecute(CommandLineApplication app)
+        public Task<int> OnExecuteAsync(CommandLineApplication app, CancellationToken cancellationToken)
         {
             app.ShowHelp(false);
-            return 1;
+            return Task.FromResult(1);
         }
     }
 }
