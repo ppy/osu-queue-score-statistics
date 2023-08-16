@@ -13,7 +13,7 @@ using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Taiko;
 using osu.Game.Skinning;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
 {
     public class StreamedWorkingBeatmap : WorkingBeatmap
     {
