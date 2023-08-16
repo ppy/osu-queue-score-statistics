@@ -9,6 +9,7 @@ using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
@@ -31,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         static MedalProcessor()
         {
             // add each processor automagically.
-            foreach (var t in typeof(ScoreStatisticsProcessor).Assembly.GetTypes().Where(t => !t.IsInterface && typeof(IMedalAwarder).IsAssignableFrom(t)))
+            foreach (var t in typeof(ScoreStatisticsQueueProcessor).Assembly.GetTypes().Where(t => !t.IsInterface && typeof(IMedalAwarder).IsAssignableFrom(t)))
             {
                 if (Activator.CreateInstance(t) is IMedalAwarder awarder)
                     medal_awarders.Add(awarder);

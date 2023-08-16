@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using osu.Game.Beatmaps.Legacy;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests

@@ -5,6 +5,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
 {
     public abstract class BaseCommand
     {
-        protected readonly ScoreStatisticsProcessor Queue = new ScoreStatisticsProcessor();
+        protected readonly ScoreStatisticsQueueProcessor Queue = new ScoreStatisticsQueueProcessor();
     }
 }

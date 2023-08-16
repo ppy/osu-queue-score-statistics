@@ -6,7 +6,7 @@ using System.Data;
 using System.Threading;
 using Dapper;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     public static class DapperExtensions
     {

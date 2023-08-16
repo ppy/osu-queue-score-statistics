@@ -42,7 +42,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 beatmap_id = score.BeatmapID
             }, transaction);
 
-            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.RulesetID);
+            Ruleset ruleset = ScoreStatisticsQueueProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.RulesetID);
 
             var rateAdjustMods = score.Mods.Select(m => m.ToMod(ruleset)).OfType<ModRateAdjust>().ToArray();
 

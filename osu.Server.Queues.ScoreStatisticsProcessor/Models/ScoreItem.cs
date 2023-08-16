@@ -25,7 +25,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
             ProcessHistory = new ProcessHistory
             {
                 score_id = (long)Score.id,
-                processed_version = ScoreStatisticsProcessor.VERSION
+                processed_version = ScoreStatisticsQueueProcessor.VERSION
             };
 
         public override string ToString() => Score.ToString();

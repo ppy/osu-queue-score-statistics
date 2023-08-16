@@ -9,7 +9,7 @@ using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     public static class DatabaseHelper
     {
