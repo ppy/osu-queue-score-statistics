@@ -22,7 +22,7 @@ Some things are not yet fully fleshed out:
 To start the queue processing functionality:
 
 ```sh
-dotnet run -- queue run
+dotnet run -- queue watch
 ```
 
 To reprocess pp of all scores:
