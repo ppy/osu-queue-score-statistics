@@ -64,13 +64,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             }
         }
 
-        private static readonly string legacy_io_secret = Environment.GetEnvironmentVariable("LEGACY_IO_SECRET") ?? string.Empty;
+        private static readonly string sharedInteropSecret = Environment.GetEnvironmentVariable("SHARED_INTEROP_SECRET") ?? string.Empty;
 
         private static readonly HttpClient http = new HttpClient();
 
         public static HttpResponseMessage RunLegacyIO(string command, string method = "GET", dynamic? postObject = null)
         {
-            if (string.IsNullOrEmpty(legacy_io_secret))
+            if (string.IsNullOrEmpty(sharedInteropSecret))
             {
 #if !DEBUG
                 throw new InvalidOperationException("Attempted to award medal with no legacy IO secret set");
@@ -87,7 +87,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 long time = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 string url = $"https://osu.ppy.sh/_lio/{command}{(command.Contains('?') ? "&" : "?")}timestamp={time}";
-                string signature = hmacEncode(url, Encoding.UTF8.GetBytes(legacy_io_secret));
+                string signature = hmacEncode(url, Encoding.UTF8.GetBytes(sharedInteropSecret));
 
 #pragma warning disable SYSLIB0014
                 var request = WebRequest.CreateHttp(url);

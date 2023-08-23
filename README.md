@@ -103,7 +103,7 @@ Defaults to `localhost`.
 
 Enables DataDog origin detection when running in a container. See [DataDog documentation](https://docs.datadoghq.com/developers/dogstatsd/?tab=kubernetes&code-lang=dotnet#origin-detection-over-udp).
 
-### LEGACY_IO_SECRET
+### SHARED_INTEROP_SECRET
 
 Secret key used to sign LegacyIO requests to osu-web. Required to award medals.
 
