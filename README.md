@@ -57,6 +57,84 @@ Note that while we already have certain standards in place, nothing is set in st
 
 # Environment Setup
 
+## Environment Variables
+
+### BEATMAP_DOWNLOAD_PATH
+
+URI template to download .osu beatmap files. Used for [realtime processing](#realtime_difficulty).
+
+Defaults to `https://osu.ppy.sh/osu/{0}`.
+
+### DB_HOST
+
+Host for MySQL.
+
+Defaults to `localhost`.
+
+### DB_NAME
+
+Database name.
+
+Defaults to `osu`.
+
+### DB_USER
+
+Database username.
+
+Defaults to `root`.
+
+### DB_PASS
+
+Database password.
+
+### DB_USERS_TABLE
+
+Database users table name; if using the dumps, set this environment variable to "sample_users".
+
+Defaults to `phpbb_users`.
+
+### DD_AGENT_HOST
+
+Host to submit DataDog/StatsD metrics to.
+
+Defaults to `localhost`.
+
+### DD_ENTITY_ID
+
+Enables DataDog origin detection when running in a container. See [DataDog documentation](https://docs.datadoghq.com/developers/dogstatsd/?tab=kubernetes&code-lang=dotnet#origin-detection-over-udp).
+
+### SHARED_INTEROP_SECRET
+
+Secret key used to sign LegacyIO requests to osu-web. Required to award medals.
+
+### PROCESS_USER_MEDALS
+
+Whether to process user medals. Set to `0` to disable processing.
+
+Default is unset (processing enabled).
+
+### PROCESS_USER_TOTALS
+
+Whether to process user total stats. Set to `0` to disable processing.
+
+Default is unset (processing enabled).
+
+### REALTIME_DIFFICULTY
+
+Whether to use realtime processing (download beatmaps and compute their difficulty attributes on every processed score), or to rely on database data. Set to `0` to disable processing.
+
+Default is unset (processing enabled).
+
+### REDIS_HOST
+
+Redis connection string; see [here](https://stackexchange.github.io/StackExchange.Redis/Configuration.html#configuration-options) for configuration options.
+
+Defaults to `localhost`
+
+### SCHEMA
+
+Schema version for the queue; see [Schema](https://github.com/ppy/osu-elastic-indexer#schema).
+
 ## BYO
 
 To setup a testing environment, the minimum requirements are having a MySQL instance available at `localhost:3306` and a redis instance available at `localhost:6379`.
