@@ -43,7 +43,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private async Task processUser(MySqlConnection db, int userId, CancellationToken cancellationToken)
         {
-            var scores = await db.QueryAsync<SoloScore>(new CommandDefinition($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId", new
+            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId", new
             {
                 userId = userId,
                 rulesetId = RulesetId,
@@ -52,6 +52,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (!scores.Any())
                 return;
 
+            IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId AND score_type = 'solo_score'", new
+            {
+                userId = userId,
+                rulesetId = RulesetId,
+            });
+
             Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
 
             foreach (var score in scores)
@@ -59,7 +65,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
-                if (checkPinned(db, userId, score))
+                if (pins.Contains(score.id))
                 {
                     Console.WriteLine($"Maintaining preservation for {score.id} (is pinned)");
                     continue;
@@ -120,13 +126,5 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 return aMods.SetEquals(bMods);
             }
         }
-
-        private bool checkPinned(MySqlConnection db, int userId, SoloScore score) =>
-            db.QuerySingle<int>("SELECT COUNT(*) FROM score_pins WHERE user_id = @userId AND score_id = @scoreId AND ruleset_id = @rulesetId AND score_type = 'solo_score'", new
-            {
-                userId = userId,
-                rulesetId = RulesetId,
-                scoreId = score.id
-            }) > 1;
     }
 }
