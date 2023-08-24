@@ -21,19 +21,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using (var db = Queue.GetDatabaseConnection())
-            using (var deleteCommand = db.CreateCommand())
+            using (var readConnection = Queue.GetDatabaseConnection())
+            using (var deleteConnection = Queue.GetDatabaseConnection())
+            using (var deleteCommand = deleteConnection.CreateCommand())
             {
-                var scores = await db.QueryAsync<SoloScore>(new CommandDefinition($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE preserve = 0 AND updated_at < DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR)", flags: CommandFlags.None, cancellationToken: cancellationToken));
-
                 deleteCommand.CommandText =
                     $"DELETE FROM {SoloScorePerformance.TABLE_NAME} WHERE score_id = @id;" +
                     $"DELETE FROM {ProcessHistory.TABLE_NAME} WHERE score_id = @id;" +
                     $"DELETE FROM {SoloScore.TABLE_NAME} WHERE id = @id;";
 
-                var scoreId = deleteCommand.Parameters.Add("id", MySqlDbType.UInt64);
+                MySqlParameter scoreId = deleteCommand.Parameters.Add("id", MySqlDbType.UInt64);
 
                 await deleteCommand.PrepareAsync(cancellationToken);
+
+                var scores = await readConnection.QueryAsync<SoloScore>(new CommandDefinition($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE preserve = 0 AND updated_at < DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR)", flags: CommandFlags.None, cancellationToken: cancellationToken));
 
                 foreach (var score in scores)
                 {
