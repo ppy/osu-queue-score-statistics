@@ -9,6 +9,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
     [Command]
     [Subcommand(typeof(QueueCommands))]
     [Subcommand(typeof(PerformanceCommands))]
+    [Subcommand(typeof(MaintenanceCommands))]
     public class Program
     {
         private static readonly CancellationTokenSource cts = new CancellationTokenSource();
