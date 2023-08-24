@@ -44,6 +44,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     Console.WriteLine($"Deleting score {score.id}...");
                     scoreId.Value = score.id;
                     await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+
+                    if (score.has_replay)
+                    {
+                        // TODO: delete replay from s3
+                    }
                 }
             }
 
