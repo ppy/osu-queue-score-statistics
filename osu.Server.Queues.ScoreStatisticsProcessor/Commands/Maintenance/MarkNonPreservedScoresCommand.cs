@@ -100,17 +100,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private static bool checkIsUserHigh(IEnumerable<SoloScore> userScores, SoloScore candidate)
         {
-            // TODO: fix mod equality check (should not consider options; should not be ordered comparison)
             var maxPPUserScore = userScores
-                                 .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && s.ScoreInfo.Mods.SequenceEqual(candidate.ScoreInfo.Mods))
+                                 .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s))
                                  .MaxBy(s => s.ScoreInfo.PP);
 
             var maxScoreUserScore = userScores
-                                    .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && s.ScoreInfo.Mods.SequenceEqual(candidate.ScoreInfo.Mods))
+                                    .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s))
                                     .MaxBy(s => s.ScoreInfo.TotalScore);
 
             // Check whether this score is the user's highest
             return maxPPUserScore?.id == candidate.id || maxScoreUserScore?.id == candidate.id;
+
+            bool compareMods(SoloScore a, SoloScore b)
+            {
+                // Compare non-ordered mods, ignoring any settings applied.
+                var aMods = new HashSet<string>(a.ScoreInfo.Mods.Select(m => m.Acronym));
+                var bMods = new HashSet<string>(b.ScoreInfo.Mods.Select(m => m.Acronym));
+
+                return aMods.SetEquals(bMods);
+            }
         }
 
         private bool checkPinned(MySqlConnection db, int userId, SoloScore score) =>
