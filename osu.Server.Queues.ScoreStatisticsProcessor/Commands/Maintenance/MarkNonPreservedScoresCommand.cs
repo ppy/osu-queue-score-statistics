@@ -17,6 +17,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
     [Command("mark-non-preserved", Description = "Mark any scores which no longer need to be preserved.")]
     public class MarkNonPreservedScoresCommand : BaseCommand
     {
+        private readonly ElasticQueueProcessor elasticQueueProcessor = new ElasticQueueProcessor();
+
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process.")]
         public int RulesetId { get; set; }
 
@@ -83,7 +85,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     scoreId = score.id
                 });
 
-                // TODO: queue for de-indexing
+                elasticQueueProcessor.PushToQueue(new ElasticQueueProcessor.ElasticScoreItem
+                {
+                    ScoreId = (long?)score.id
+                });
             }
         }
 
