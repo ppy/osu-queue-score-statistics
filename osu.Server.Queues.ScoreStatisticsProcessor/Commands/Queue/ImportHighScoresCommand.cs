@@ -545,8 +545,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 // To handle this case, the combo-multiplied portion is readjusted with the new mod multiplier.
                 if (difficultyMods != highScore.enabled_mods)
                 {
-                    double difficultyAdjustmentModMultiplier = ruleset.ConvertFromLegacyMods((LegacyMods)difficultyMods).Select(m => m.ScoreMultiplier).Aggregate(1.0, (c, n) => c * n);
-                    double modMultiplier = scoreInfo.Mods.Select(m => m.ScoreMultiplier).Aggregate(1.0, (c, n) => c * n);
+                    Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>($"SELECT * FROM {Beatmap.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId", new
+                    {
+                        BeatmapId = highScore.beatmap_id
+                    }, transaction);
+
+                    LegacyBeatmapConversionDifficultyInfo difficulty = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
+                    ILegacyRuleset legacyRuleset = (ILegacyRuleset)ruleset;
+
+                    Debug.Assert(legacyRuleset != null);
+
+                    double difficultyAdjustmentModMultiplier = legacyRuleset.GetLegacyScoreMultiplier(ruleset.ConvertFromLegacyMods((LegacyMods)difficultyMods).ToArray(), difficulty);
+                    double modMultiplier = legacyRuleset.GetLegacyScoreMultiplier(scoreInfo.Mods, difficulty);
+
                     maximumLegacyComboScore = (int)Math.Round(maximumLegacyComboScore * modMultiplier / difficultyAdjustmentModMultiplier);
                 }
 
