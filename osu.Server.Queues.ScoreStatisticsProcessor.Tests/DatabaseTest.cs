@@ -67,7 +67,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
         }
 
-        protected void SetScoreForBeatmap(int beatmapId, Action<ScoreItem>? scoreSetup = null)
+        protected ScoreItem SetScoreForBeatmap(int beatmapId, Action<ScoreItem>? scoreSetup = null)
         {
             using (MySqlConnection conn = Processor.GetDatabaseConnection())
             {
@@ -77,6 +77,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 conn.Insert(score.Score);
                 PushToQueueAndWaitForProcess(score);
+
+                return score;
             }
         }
 
