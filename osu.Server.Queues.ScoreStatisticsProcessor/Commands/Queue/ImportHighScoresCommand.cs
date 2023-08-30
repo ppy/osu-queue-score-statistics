@@ -35,44 +35,44 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// <summary>
         /// The ruleset to run this import job for.
         /// </summary>
-        [Option(CommandOptionType.SingleValue)]
+        [Option(CommandOptionType.SingleValue, Template = "--ruleset-id")]
         public int RulesetId { get; set; }
 
         /// <summary>
         /// The high score ID to start the import process from. This can be used to perform batch reimporting for special cases.
         /// </summary>
-        [Option(CommandOptionType.SingleValue)]
+        [Option(CommandOptionType.SingleValue, Template = "--start-id")]
         public ulong? StartId { get; set; }
 
         /// <summary>
         /// Whether to adjust processing rate based on slave latency. Defaults to <c>false</c>.
         /// </summary>
-        [Option(Template = "--check-slave-latency")]
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--check-slave-latency")]
         public bool CheckSlaveLatency { get; set; }
 
         /// <summary>
         /// Whether existing legacy score IDs should be skipped rather than reprocessed. Defaults to <c>true</c>.
         /// </summary>
-        [Option(Template = "--skip-existing")]
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-existing")]
         public bool SkipExisting { get; set; } = true;
 
         /// <summary>
         /// Whether new legacy score IDs should be skipped rather than inserted. Defaults to <c>false</c>.
         /// Use in conjunction with `SkipExisting=false` to reprocess older items in an isolated context.
         /// </summary>
-        [Option(Template = "--skip-new")]
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-new")]
         public bool SkipNew { get; set; }
 
         /// <summary>
         /// Whether to skip pushing imported score to the elasticsearch indexing queue.
         /// </summary>
-        [Option(Template = "--skip-indexing")]
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-indexing")]
         public bool SkipIndexing { get; set; }
 
         /// <summary>
         /// Whether to exit when there are no scores left at the tail end of the import. Defaults to <c>false</c>.
         /// </summary>
-        [Option(Template = "--exit-on-completion")]
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--exit-on-completion")]
         public bool ExitOnCompletion { get; set; }
 
         private long lastCommitTimestamp;
