@@ -81,7 +81,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private ElasticQueueProcessor? elasticQueueProcessor;
 
         private static int currentReportInsertCount;
+        private static int currentReportUpdateCount;
         private static int totalInsertCount;
+        private static int totalUpdateCount;
 
         private static int totalSkipCount;
 
@@ -203,10 +205,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if (currentTimestamp - lastCommitTimestamp >= seconds_between_report)
                         {
                             int inserted = Interlocked.Exchange(ref currentReportInsertCount, 0);
+                            int updated = Interlocked.Exchange(ref currentReportUpdateCount, 0);
 
                             Console.WriteLine($"Inserting up to {lastId:N0} "
                                               + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
-                                              + $"{totalInsertCount:N0} inserted {totalSkipCount:N0} skipped (+{inserted:N0} new {inserted / seconds_between_report:N0}/s)");
+                                              + $"{totalInsertCount:N0} inserted {totalUpdateCount:N0} updated {totalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd {(inserted + updated) / seconds_between_report:N0}/s)");
 
                             lastCommitTimestamp = currentTimestamp;
                         }
@@ -439,6 +442,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             // this does not improve throughput.
                             await updateCommand.ExecuteNonQueryAsync();
                             IndexableSoloScoreIDs.Add((long)existingMapping.Value.newId);
+
+                            Interlocked.Increment(ref currentReportUpdateCount);
+                            Interlocked.Increment(ref totalUpdateCount);
                         }
                         else
                         {
@@ -456,10 +462,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             // this does not improve throughput.
                             await insertCommand.ExecuteNonQueryAsync();
                             IndexableSoloScoreIDs.Add(insertCommand.LastInsertedId);
-                        }
 
-                        Interlocked.Increment(ref currentReportInsertCount);
-                        Interlocked.Increment(ref totalInsertCount);
+                            Interlocked.Increment(ref currentReportInsertCount);
+                            Interlocked.Increment(ref totalInsertCount);
+                        }
                     }
 
                     await transaction.CommitAsync();
