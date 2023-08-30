@@ -536,8 +536,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = (int)maxComboAttribute.value - maxComboFromStatistics;
 #pragma warning restore CS0618
 
-                int maximumLegacyAccuracyScore = (int)dbAttributes[legacy_accuracy_score].value;
-                int maximumLegacyComboScore = (int)dbAttributes[legacy_combo_score].value;
+                long maximumLegacyAccuracyScore = (long)dbAttributes[legacy_accuracy_score].value;
+                long maximumLegacyComboScore = (long)dbAttributes[legacy_combo_score].value;
                 double maximumLegacyBonusRatio = dbAttributes[legacy_bonus_score_ratio].value;
 
                 // Although the combo-multiplied portion is stored into difficulty attributes, attributes are only present for mod combinations that affect difficulty.
@@ -558,7 +558,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     double difficultyAdjustmentModMultiplier = legacyRuleset.GetLegacyScoreMultiplier(ruleset.ConvertFromLegacyMods((LegacyMods)difficultyMods).ToArray(), difficulty);
                     double modMultiplier = legacyRuleset.GetLegacyScoreMultiplier(scoreInfo.Mods, difficulty);
 
-                    maximumLegacyComboScore = (int)Math.Round(maximumLegacyComboScore * modMultiplier / difficultyAdjustmentModMultiplier);
+                    maximumLegacyComboScore = (long)Math.Round(maximumLegacyComboScore * modMultiplier / difficultyAdjustmentModMultiplier);
                 }
 
                 scoreInfo.TotalScore = StandardisedScoreMigrationTools.ConvertFromLegacyTotalScore(scoreInfo, new DifficultyAttributes
