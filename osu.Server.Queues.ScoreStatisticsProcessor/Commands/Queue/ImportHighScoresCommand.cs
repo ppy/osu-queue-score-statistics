@@ -398,7 +398,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     {
                         (ulong oldId, ulong newId)? existingMapping = existingIds.FirstOrDefault(e => e.oldId == highScore.score_id);
 
-                        if ((existingMapping != null && skipExisting) || (!(existingMapping != null) && skipNew))
+                        if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
                         {
                             Interlocked.Increment(ref totalSkipCount);
                             continue;
