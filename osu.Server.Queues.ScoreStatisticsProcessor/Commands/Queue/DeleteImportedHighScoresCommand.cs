@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,6 +44,7 @@ public class DeleteImportedHighScoresCommand : BaseCommand
     public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
     {
         ulong lastId = StartId;
+        int deleted = 0;
 
         Console.WriteLine();
         Console.WriteLine($"Deleting from {SoloScore.TABLE_NAME} starting from {lastId}");
@@ -56,6 +58,8 @@ public class DeleteImportedHighScoresCommand : BaseCommand
         {
             while (!cancellationToken.IsCancellationRequested)
             {
+                List<ElasticQueueProcessor.ElasticScoreItem> elasticItems = new List<ElasticQueueProcessor.ElasticScoreItem>();
+
                 using (var transaction = await conn.BeginTransactionAsync(cancellationToken))
                 {
                     var highScores = await conn.QueryAsync<SoloScore>("SELECT * FROM solo_scores WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId = lastId }, transaction);
@@ -66,26 +70,33 @@ public class DeleteImportedHighScoresCommand : BaseCommand
                         break;
                     }
 
+                    elasticItems.Clear();
+
                     foreach (var score in highScores)
                     {
+                        if (score.ScoreInfo.LegacyScoreId == null)
+                            continue;
+
+                        Console.WriteLine($"Deleting {score.id}...");
                         await conn.ExecuteAsync("DELETE FROM solo_scores_performance WHERE score_id = @id; DELETE FROM solo_scores WHERE id = @id", score, transaction);
                         await conn.ExecuteAsync("DELETE FROM solo_scores_legacy_id_map WHERE ruleset_id = @ruleset_id AND old_score_id = @legacy_score_id", new
                         {
                             ruleset_id = score.ruleset_id,
                             legacy_score_id = score.ScoreInfo.LegacyScoreId
                         }, transaction);
+
+                        elasticItems.Add(new ElasticQueueProcessor.ElasticScoreItem { ScoreId = (long?)score.id });
+                        deleted++;
                     }
 
-                    if (elasticQueueProcessor != null)
+                    if (elasticItems.Count > 0)
                     {
-                        var elasticItems = highScores.Select(score => new ElasticQueueProcessor.ElasticScoreItem { ScoreId = (long?)score.id }).ToArray();
-
                         elasticQueueProcessor.PushToQueue(elasticItems);
-                        Console.WriteLine($"Queued {elasticItems.Length} items for indexing");
+                        Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                     }
 
                     lastId = highScores.Max(s => s.id);
-                    Console.WriteLine($"Deleted up to {lastId}");
+                    Console.WriteLine($"Processed up to {lastId} ({deleted} deleted)");
                 }
             }
         }
