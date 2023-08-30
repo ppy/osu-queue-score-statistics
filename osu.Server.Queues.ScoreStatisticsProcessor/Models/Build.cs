@@ -9,11 +9,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table(TABLE_NAME)]
+    [Table("osu_builds")]
     public class Build
     {
-        public const string TABLE_NAME = "osu_builds";
-
         public int build_id { get; set; }
         public bool allow_ranking { get; set; }
         public bool allow_performance { get; set; }

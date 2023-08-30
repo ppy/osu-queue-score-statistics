@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.IO;
 using osu.Framework.Audio.Track;
 using osu.Framework.Graphics.Textures;
@@ -57,9 +58,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         }
 
         protected override IBeatmap GetBeatmap() => beatmap;
-        public override Texture GetBackground() => throw new System.NotImplementedException();
-        protected override Track GetBeatmapTrack() => throw new System.NotImplementedException();
-        protected override ISkin GetSkin() => throw new System.NotImplementedException();
-        public override Stream GetStream(string storagePath) => throw new System.NotImplementedException();
+        public override Texture GetBackground() => throw new NotImplementedException();
+        protected override Track GetBeatmapTrack() => throw new NotImplementedException();
+        protected override ISkin GetSkin() => throw new NotImplementedException();
+        public override Stream GetStream(string storagePath) => throw new NotImplementedException();
     }
 }

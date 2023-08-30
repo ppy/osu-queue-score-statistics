@@ -29,7 +29,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
-    [Command("import-high-scores", Description = $"Imports high scores from the osu_scores_high tables into the new {SoloScore.TABLE_NAME} table.")]
+    [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo_scores table.")]
     public class ImportHighScoresCommand : BaseCommand
     {
         /// <summary>
@@ -134,14 +134,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             else
             {
                 using (var db = Queue.GetDatabaseConnection())
-                    lastId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM {SoloScoreLegacyIDMap.TABLE_NAME} WHERE ruleset_id = {RulesetId}") ?? 0;
+                    lastId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM solo_scores_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
 
                 Console.WriteLine($"StartId not provided, using last legacy ID map entry ({lastId})");
             }
 
             Console.WriteLine();
             Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
-            Console.WriteLine($"Inserting into {SoloScore.TABLE_NAME} and processing {(ExitOnCompletion ? "as single run" : "indefinitely")}");
+            Console.WriteLine($"Inserting into solo_scores and processing {(ExitOnCompletion ? "as single run" : "indefinitely")}");
 
             if (!SkipIndexing)
             {
@@ -159,7 +159,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         checkSlaveLatency(dbMainQuery);
 
                     var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id >= @lastId ORDER BY score_id LIMIT {scoresPerQuery}",
-                        new { lastId = lastId });
+                        new { lastId });
 
                     if (!highScores.Any())
                     {
@@ -366,22 +366,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 using (var updateCommand = db.CreateCommand())
                 {
                     // check for existing and skip
-                    (ulong oldId, ulong newId)[] existingIds = db.Query($"SELECT `old_score_id`, `score_id` FROM {SoloScoreLegacyIDMap.TABLE_NAME} WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds", new
+                    (ulong oldId, ulong newId)[] existingIds = db.Query($"SELECT `old_score_id`, `score_id` FROM solo_scores_legacy_id_map WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds", new
                     {
                         oldScoreIds = scores.Select(s => s.score_id)
                     }, transaction).Select(s => ((ulong)s.old_score_id, (ulong)s.score_id)).ToArray();
 
                     insertCommand.CommandText =
                         // main score insert
-                        $"INSERT INTO {SoloScore.TABLE_NAME} (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, updated_at) "
+                        $"INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, updated_at) "
                         + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, @has_replay, 1, @date, @date);"
                         // pp insert
-                        + $"INSERT INTO {SoloScorePerformance.TABLE_NAME} (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
+                        + $"INSERT INTO solo_scores_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
                         // mapping insert
-                        + $"INSERT INTO {SoloScoreLegacyIDMap.TABLE_NAME} (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
+                        + $"INSERT INTO solo_scores_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
 
                     updateCommand.CommandText =
-                        $"UPDATE {SoloScore.TABLE_NAME} SET data = @data WHERE id = @id";
+                        "UPDATE solo_scores SET data = @data WHERE id = @id";
 
                     var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
                     var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt64);
@@ -615,7 +615,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 IEnumerable<BeatmapDifficultyAttribute> dbAttributes =
                     connection.Query<BeatmapDifficultyAttribute>(
-                        $"SELECT * FROM {BeatmapDifficultyAttribute.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup, transaction);
+                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup, transaction);
 
                 return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
             }
