@@ -37,7 +37,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
     /// This is important to guarantee that scores are inserted in the same sequential order that they originally occured,
     /// which can be used for tie-breaker scenarios.
     /// </remarks>
-    [Command("import-high-scores", Description = $"Imports high scores from the osu_scores_high tables into the new {SoloScore.TABLE_NAME} table.")]
+    [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo_scores table.")]
     public class ImportHighScoresCommand : BaseCommand
     {
         /// <summary>
@@ -381,10 +381,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     insertCommand.CommandText =
                         // main score insert
-                        $"INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, updated_at) "
+                        "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, updated_at) "
                         + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, @has_replay, 1, @date, @date);"
                         // pp insert
-                        + $"INSERT INTO solo_scores_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
+                        + "INSERT INTO solo_scores_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
                         // mapping insert
                         + $"INSERT INTO solo_scores_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
 

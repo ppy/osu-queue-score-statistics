@@ -30,7 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
     /// I'm not sure how important this is in the first place, because they are never going to be perfectly chronological next to
     /// non-imported (lazer-first) scores anyway...
     /// </remarks>
-    [Command("delete-high-scores", Description = $"Deletes already-imported high scores from the {SoloScore.TABLE_NAME} table.")]
+    [Command("delete-high-scores", Description = "Deletes already-imported high scores from the solo_scores table.")]
     public class DeleteImportedHighScoresCommand : BaseCommand
     {
         /// <summary>
@@ -47,7 +47,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             int deleted = 0;
 
             Console.WriteLine();
-            Console.WriteLine($"Deleting from {SoloScore.TABLE_NAME} starting from {lastId}");
+            Console.WriteLine($"Deleting from solo_scores starting from {lastId}");
 
             elasticQueueProcessor = new ElasticQueueProcessor();
             Console.WriteLine($"Indexing to elasticsearch queue {elasticQueueProcessor.QueueName}");
@@ -62,7 +62,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     using (var transaction = await conn.BeginTransactionAsync(cancellationToken))
                     {
-                        var highScores = await conn.QueryAsync<SoloScore>("SELECT * FROM solo_scores WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId = lastId }, transaction);
+                        var highScores = await conn.QueryAsync<SoloScore>("SELECT * FROM solo_scores WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId }, transaction);
 
                         if (!highScores.Any())
                         {
@@ -81,7 +81,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             await conn.ExecuteAsync("DELETE FROM solo_scores_performance WHERE score_id = @id; DELETE FROM solo_scores WHERE id = @id", score, transaction);
                             await conn.ExecuteAsync("DELETE FROM solo_scores_legacy_id_map WHERE ruleset_id = @ruleset_id AND old_score_id = @legacy_score_id", new
                             {
-                                ruleset_id = score.ruleset_id,
+                                score.ruleset_id,
                                 legacy_score_id = score.ScoreInfo.LegacyScoreId
                             }, transaction);
 

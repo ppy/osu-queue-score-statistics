@@ -80,8 +80,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
 
             List<SoloScoreWithPerformance> scores = (await connection.QueryAsync<SoloScoreWithPerformance>(
-                $"SELECT `s`.*, `p`.`pp` FROM solo_scores `s` "
-                + $"JOIN solo_scores_performance `p` ON `s`.`id` = `p`.`score_id` "
+                "SELECT `s`.*, `p`.`pp` FROM solo_scores `s` "
+                + "JOIN solo_scores_performance `p` ON `s`.`id` = `p`.`score_id` "
                 + "WHERE `s`.`user_id` = @UserId "
                 + "AND `s`.`ruleset_id` = @RulesetId "
                 + "AND `s`.`preserve` = 1", new

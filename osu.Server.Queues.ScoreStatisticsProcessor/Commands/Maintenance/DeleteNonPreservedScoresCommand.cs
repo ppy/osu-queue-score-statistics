@@ -26,9 +26,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             using (var deleteCommand = deleteConnection.CreateCommand())
             {
                 deleteCommand.CommandText =
-                    $"DELETE FROM solo_scores_performance WHERE score_id = @id;" +
-                    $"DELETE FROM solo_scores_process_history WHERE score_id = @id;" +
-                    $"DELETE FROM solo_scores WHERE id = @id;";
+                    "DELETE FROM solo_scores_performance WHERE score_id = @id;" +
+                    "DELETE FROM solo_scores_process_history WHERE score_id = @id;" +
+                    "DELETE FROM solo_scores WHERE id = @id;";
 
                 MySqlParameter scoreId = deleteCommand.Parameters.Add("id", MySqlDbType.UInt64);
 
