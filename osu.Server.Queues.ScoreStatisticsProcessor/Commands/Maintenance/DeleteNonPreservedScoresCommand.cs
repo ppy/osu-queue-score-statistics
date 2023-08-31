@@ -26,15 +26,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             using (var deleteCommand = deleteConnection.CreateCommand())
             {
                 deleteCommand.CommandText =
-                    $"DELETE FROM {SoloScorePerformance.TABLE_NAME} WHERE score_id = @id;" +
-                    $"DELETE FROM {ProcessHistory.TABLE_NAME} WHERE score_id = @id;" +
-                    $"DELETE FROM {SoloScore.TABLE_NAME} WHERE id = @id;";
+                    "DELETE FROM solo_scores_performance WHERE score_id = @id;" +
+                    "DELETE FROM solo_scores_process_history WHERE score_id = @id;" +
+                    "DELETE FROM solo_scores WHERE id = @id;";
 
                 MySqlParameter scoreId = deleteCommand.Parameters.Add("id", MySqlDbType.UInt64);
 
                 await deleteCommand.PrepareAsync(cancellationToken);
 
-                var scores = await readConnection.QueryAsync<SoloScore>(new CommandDefinition($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE preserve = 0 AND updated_at < DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR)", flags: CommandFlags.None, cancellationToken: cancellationToken));
+                var scores = await readConnection.QueryAsync<SoloScore>(new CommandDefinition($"SELECT * FROM solo_scores WHERE preserve = 0 AND updated_at < DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR)", flags: CommandFlags.None, cancellationToken: cancellationToken));
 
                 foreach (var score in scores)
                 {

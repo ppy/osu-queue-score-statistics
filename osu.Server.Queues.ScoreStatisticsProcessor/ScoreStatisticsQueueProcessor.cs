@@ -108,7 +108,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         if (score.Passed)
                         {
                             // For now, just assume all passing scores are to be preserved.
-                            conn.Execute($"UPDATE {SoloScore.TABLE_NAME} SET preserve = 1 WHERE id = @Id", new { Id = score.ID }, transaction);
+                            conn.Execute("UPDATE solo_scores SET preserve = 1 WHERE id = @Id", new { Id = score.ID }, transaction);
                         }
 
                         transaction.Commit();

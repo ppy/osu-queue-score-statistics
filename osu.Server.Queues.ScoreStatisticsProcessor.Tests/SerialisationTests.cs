@@ -21,7 +21,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 db.Insert(score.ProcessHistory);
 
-                db.QueryFirst<ProcessHistory>($"SELECT * FROM {ProcessHistory.TABLE_NAME}").ShouldDeepEqual(score.ProcessHistory);
+                db.QueryFirst<ProcessHistory>("SELECT * FROM solo_scores_process_history").ShouldDeepEqual(score.ProcessHistory);
             }
         }
 
@@ -51,7 +51,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 db.Insert(score);
 
-                var retrieved = db.QueryFirst<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME}");
+                var retrieved = db.QueryFirst<SoloScore>("SELECT * FROM solo_scores");
 
                 // ignore time values for now until we can figure how to test without precision issues.
                 retrieved.created_at = score.created_at;

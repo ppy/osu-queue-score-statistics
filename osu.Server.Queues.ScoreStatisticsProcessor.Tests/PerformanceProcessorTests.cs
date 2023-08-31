@@ -24,7 +24,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             using (var db = Processor.GetDatabaseConnection())
             {
-                db.Execute($"TRUNCATE TABLE {BeatmapDifficultyAttribute.TABLE_NAME}");
+                db.Execute("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
             }
         }
 

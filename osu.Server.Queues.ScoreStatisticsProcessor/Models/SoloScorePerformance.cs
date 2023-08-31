@@ -9,11 +9,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table(TABLE_NAME)]
+    [Table("solo_scores_performance")]
     public class SoloScorePerformance
     {
-        public const string TABLE_NAME = $"{SoloScore.TABLE_NAME}_performance";
-
         [ExplicitKey]
         public ulong score_id { get; set; }
 
