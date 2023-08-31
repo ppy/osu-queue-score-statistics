@@ -76,7 +76,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 + "AND `s`.`beatmap_id` = @BeatmapId "
                 + "AND `s`.`ruleset_id` = @RulesetId "
                 + "AND `s`.`preserve` = 1 "
-                + "ORDER BY `s`.`data`->'$.total_score' DESC, `s`.`id` DESC", new
+                + "ORDER BY `s`.`data`->'$.total_score' DESC, `s`.`id` DESC "
+                + "LIMIT 1", new
                 {
                     ExcludedScoreId = excludedScoreId,
                     UserId = userId,
