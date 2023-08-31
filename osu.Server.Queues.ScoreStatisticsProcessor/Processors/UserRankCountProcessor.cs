@@ -71,7 +71,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             var rankSource = conn.QueryFirstOrDefault<SoloScore?>(
                 "SELECT * FROM solo_scores `s`"
                 + "JOIN solo_scores_process_history `ph` ON `ph`.`score_id` = `s`.`id`"
-                + "WHERE (@ExcludedScoreId IS NULL OR `s`.`id` <> @ExcludedScoreId) "
+                + "WHERE (@ExcludedScoreId IS NULL OR `s`.`id` != @ExcludedScoreId) "
                 + "AND `s`.`user_id` = @UserId "
                 + "AND `s`.`beatmap_id` = @BeatmapId "
                 + "AND `s`.`ruleset_id` = @RulesetId "
