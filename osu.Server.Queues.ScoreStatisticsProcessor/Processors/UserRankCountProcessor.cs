@@ -69,8 +69,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             // purpose of join with `process_history` is to only look for already-processed scores
             var rankSource = conn.QueryFirstOrDefault<SoloScore?>(
-                $"SELECT * FROM {SoloScore.TABLE_NAME} `s`"
-                + $"JOIN {ProcessHistory.TABLE_NAME} `ph` ON `ph`.`score_id` = `s`.`id`"
+                "SELECT * FROM solo_scores `s`"
+                + "JOIN solo_scores_process_history `ph` ON `ph`.`score_id` = `s`.`id`"
                 + "WHERE (@ExcludedScoreId IS NULL OR `s`.`id` <> @ExcludedScoreId) "
                 + "AND `s`.`user_id` = @UserId "
                 + "AND `s`.`beatmap_id` = @BeatmapId "
