@@ -18,7 +18,6 @@ using osu.Game.Database;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
-using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
@@ -570,42 +569,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     return scoreInfo;
                 }
 
-                const int legacy_accuracy_score = 23;
-                const int legacy_combo_score = 25;
-                const int legacy_bonus_score_ratio = 27;
-
-                if (!dbAttributes.ContainsKey(legacy_accuracy_score) || !dbAttributes.ContainsKey(legacy_combo_score) || !dbAttributes.ContainsKey(legacy_bonus_score_ratio))
-                {
-                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not find legacy scoring values in the difficulty attributes of beatmap {highScore.beatmap_id}.");
-                    return scoreInfo;
-                }
-
 #pragma warning disable CS0618
                 // Pad the maximum combo.
                 if ((int)maxComboAttribute.value > maxComboFromStatistics)
                     scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = (int)maxComboAttribute.value - maxComboFromStatistics;
 #pragma warning restore CS0618
 
-                int maximumLegacyAccuracyScore = (int)dbAttributes[legacy_accuracy_score].value;
-                int maximumLegacyComboScore = (int)dbAttributes[legacy_combo_score].value;
-                double maximumLegacyBonusRatio = dbAttributes[legacy_bonus_score_ratio].value;
+                BeatmapScoringAttributes scoreAttributes = await connection.QuerySingleAsync<BeatmapScoringAttributes>(
+                    "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
+                    {
+                        BeatmapId = highScore.beatmap_id,
+                        RulesetId = ruleset.RulesetInfo.OnlineID
+                    }, transaction);
 
-                // Although the combo-multiplied portion is stored into difficulty attributes, attributes are only present for mod combinations that affect difficulty.
-                // For example, an incoming highscore may be +HDHR, but only difficulty attributes for +HR exist in the database.
-                // To handle this case, the combo-multiplied portion is readjusted with the new mod multiplier.
-                if (difficultyMods != highScore.enabled_mods)
-                {
-                    double difficultyAdjustmentModMultiplier = ruleset.ConvertFromLegacyMods((LegacyMods)difficultyMods).Select(m => m.ScoreMultiplier).Aggregate(1.0, (c, n) => c * n);
-                    double modMultiplier = scoreInfo.Mods.Select(m => m.ScoreMultiplier).Aggregate(1.0, (c, n) => c * n);
-                    maximumLegacyComboScore = (int)Math.Round(maximumLegacyComboScore * modMultiplier / difficultyAdjustmentModMultiplier);
-                }
-
-                scoreInfo.TotalScore = StandardisedScoreMigrationTools.ConvertFromLegacyTotalScore(scoreInfo, new DifficultyAttributes
-                {
-                    LegacyAccuracyScore = maximumLegacyAccuracyScore,
-                    LegacyComboScore = maximumLegacyComboScore,
-                    LegacyBonusScoreRatio = maximumLegacyBonusRatio
-                });
+                scoreInfo.TotalScore = StandardisedScoreMigrationTools.ConvertFromLegacyTotalScore(scoreInfo, scoreAttributes.ToAttributes());
 
                 int baseScore = scoreInfo.Statistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
                 int maxBaseScore = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
