@@ -374,10 +374,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 using (var updateCommand = db.CreateCommand())
                 {
                     // check for existing and skip
-                    (ulong oldId, ulong newId)[] existingIds = db.Query($"SELECT `old_score_id`, `score_id` FROM solo_scores_legacy_id_map WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds", new
-                    {
-                        oldScoreIds = scores.Select(s => s.score_id)
-                    }, transaction).Select(s => ((ulong)s.old_score_id, (ulong)s.score_id)).ToArray();
+                    SoloScoreLegacyIDMap[] existingIds = (await db.QueryAsync<SoloScoreLegacyIDMap>(
+                        $"SELECT * FROM solo_scores_legacy_id_map WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds",
+                        new
+                        {
+                            oldScoreIds = scores.Select(s => s.score_id)
+                        }, transaction)).ToArray();
 
                     insertCommand.CommandText =
                         // main score insert
@@ -407,7 +409,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     foreach (var highScore in scores)
                     {
-                        (ulong oldId, ulong newId)? existingMapping = existingIds.FirstOrDefault(e => e.oldId == highScore.score_id);
+                        SoloScoreLegacyIDMap? existingMapping = existingIds.FirstOrDefault(e => e.old_score_id == highScore.score_id);
 
                         if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
                         {
@@ -443,13 +445,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             // Note that this only updates the `data` field. We could add others in the future as required.
                             updateCommand.Transaction = transaction;
 
-                            updateId.Value = existingMapping.Value.newId;
+                            updateId.Value = existingMapping.score_id;
                             updateData.Value = serialisedScore;
 
                             // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
                             // this does not improve throughput.
                             await updateCommand.ExecuteNonQueryAsync();
-                            IndexableSoloScoreIDs.Add((long)existingMapping.Value.newId);
+                            IndexableSoloScoreIDs.Add((long)existingMapping.score_id);
 
                             Interlocked.Increment(ref currentReportUpdateCount);
                             Interlocked.Increment(ref totalUpdateCount);
