@@ -14,7 +14,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
     {
         private static readonly CancellationTokenSource cts = new CancellationTokenSource();
 
-        public static async Task Main(string[] args)
+        public static async Task<int> Main(string[] args)
         {
             Console.CancelKeyPress += (_, e) =>
             {
@@ -24,7 +24,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 e.Cancel = true;
             };
 
-            await CommandLineApplication.ExecuteAsync<Program>(args, cts.Token);
+            return await CommandLineApplication.ExecuteAsync<Program>(args, cts.Token);
         }
 
         public Task<int> OnExecuteAsync(CommandLineApplication app, CancellationToken cancellationToken)
