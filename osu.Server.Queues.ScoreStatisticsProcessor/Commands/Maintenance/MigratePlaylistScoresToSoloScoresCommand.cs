@@ -78,8 +78,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             foreach (var m in roomMods)
                                 Debug.Assert(scoreMods.Contains(m));
 
-                            Console.WriteLine($"Mods: {string.Join(',', scoreMods.Select(m => m.ToString()))}");
-
                             int insertId = await db.InsertAsync(new SoloScore
                             {
                                 user_id = (int)score.userId,
