@@ -78,24 +78,30 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             foreach (var m in roomMods)
                                 Debug.Assert(scoreMods.Contains(m));
 
+                            var soloScoreInfo = SoloScoreInfo.ForSubmission(new ScoreInfo
+                            {
+                                Statistics = statistics,
+                                MaximumStatistics = maximumStatistics,
+                                Ruleset = ruleset.RulesetInfo,
+                                MaxCombo = (int)score.max_combo!,
+                                APIMods = scoreMods,
+                                Accuracy = (double)score.accuracy!,
+                                TotalScore = (long)score.total_score!,
+                                Rank = Enum.Parse<ScoreRank>(score.rank),
+                                Passed = score.passed,
+                            });
+
+                            soloScoreInfo.StartedAt = score.started_at;
+                            soloScoreInfo.EndedAt = score.started_at;
+                            soloScoreInfo.BeatmapID = (int)score.beatmapId;
+
                             int insertId = await db.InsertAsync(new SoloScore
                             {
                                 user_id = (int)score.userId,
                                 beatmap_id = (int)score.beatmapId,
                                 ruleset_id = item.ruleset_id,
                                 preserve = true,
-                                ScoreInfo = SoloScoreInfo.ForSubmission(new ScoreInfo
-                                {
-                                    Statistics = statistics,
-                                    MaximumStatistics = maximumStatistics,
-                                    Ruleset = ruleset.RulesetInfo,
-                                    MaxCombo = (int)score.max_combo!,
-                                    APIMods = scoreMods,
-                                    Accuracy = (double)score.accuracy!,
-                                    TotalScore = (long)score.total_score!,
-                                    Rank = Enum.Parse<ScoreRank>(score.rank),
-                                    Passed = score.passed,
-                                }),
+                                ScoreInfo = soloScoreInfo,
                                 created_at = (DateTimeOffset)score.created_at!,
                                 updated_at = (DateTimeOffset)score.updated_at!,
                             });
@@ -107,7 +113,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 score.beatmapId,
                                 score.playlistItemId,
                                 scoreId = insertId,
-                                createdAt = score.started_at,
+                                createdAt = score.ended_at,
                                 updatedAt = score.ended_at
                             });
 
