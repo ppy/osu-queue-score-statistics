@@ -91,7 +91,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                     Statistics = statistics,
                                     MaximumStatistics = maximumStatistics,
                                     Ruleset = ruleset.RulesetInfo,
-                                    MaxCombo = score.max_combo,
+                                    MaxCombo = (int)score.max_combo!,
                                     APIMods = scoreMods,
                                     Accuracy = (double)score.accuracy!,
                                     TotalScore = (long)score.total_score!,
@@ -150,16 +150,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         // ReSharper disable InconsistentNaming
         public class MultiplayerScore
         {
-            public long id { get; set; }
+            public ulong id { get; set; }
             public uint userId { get; set; }
-            public long roomId { get; set; }
-            public long playlistItemId { get; set; }
-            public long beatmapId { get; set; }
+            public ulong roomId { get; set; }
+            public ulong playlistItemId { get; set; }
+            public uint beatmapId { get; set; }
             public string rank { get; set; } = string.Empty;
             public long? total_score { get; set; }
             public double? accuracy { get; set; }
             public double? pp { get; set; }
-            public int max_combo { get; set; }
+            public uint? max_combo { get; set; }
             public string mods { get; set; } = string.Empty;
             public string statistics { get; set; } = string.Empty;
             public DateTime started_at { get; set; }
@@ -172,8 +172,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public class MultiplayerPlaylistItem
         {
-            public long id { get; set; }
-            public long room_id { get; set; }
+            public ulong id { get; set; }
+            public ulong room_id { get; set; }
             public uint owner_id { get; set; }
             public uint beatmap_id { get; set; }
             public ushort ruleset_id { get; set; }
