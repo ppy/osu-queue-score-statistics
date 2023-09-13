@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Diagnostics;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
@@ -18,24 +19,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     {
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
+            if (!score.Passed)
+                return;
+
             if (previousVersion >= 7)
             {
-                // note that this implementation is only supposed to be correct if a revert is immediately succeeded by a reprocessing of the same score.
-                // at the time of writing this is the only case where this method is called, but if that ever changes this will likely need reconsideration.
+                // It is assumed that in the case of a revert, either the score is deleted, or a reapplication will immediately follow.
 
-                // first, see if the score we're reverting is the user's best (and as such included in the rank counts).
-                var bestScore = getBestScore(score.UserID, score.BeatmapID, score.RulesetID, excludedScoreId: null, conn, transaction);
+                // First, see if the score we're reverting is the user's best (and as such included in the rank counts).
+                var bestScore = getBestScore(score, conn, transaction);
 
                 if (bestScore?.ID != score.ID)
                 {
-                    // this score isn't the user's best on the beatmap, so nothing needs to be reverted.
+                    // This score isn't the user's best on the beatmap, so nothing needs to be reverted.
                     return;
                 }
 
                 updateRankCounts(userStats, score.Rank, revert: true);
 
-                // this score is the user's best, so fetch the next best (excluding it) so that we can apply the rank from that score.
-                var secondBestScore = getBestScore(score.UserID, score.BeatmapID, score.RulesetID, excludedScoreId: score.ID, conn, transaction);
+                // This score is the user's best, so fetch the next best so that we can apply the rank from that score.
+                var secondBestScore = getSecondBestScore(score, conn, transaction);
                 if (secondBestScore != null)
                     updateRankCounts(userStats, secondBestScore.Rank, revert: false);
             }
@@ -43,46 +46,48 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            // while looking for the best score, exclude the score being processed right now.
-            // this does nothing on the first process (as `getBestScore()` already only looks at scores processed at least once),
-            // but is important on subsequent reprocessings during `processed_version` bumps.
-            var bestScore = getBestScore(score.UserID, score.BeatmapID, score.RulesetID, excludedScoreId: score.ID, conn, transaction);
-
-            if (bestScore == null)
-            {
-                updateRankCounts(userStats, score.Rank, revert: false);
+            if (!score.Passed)
                 return;
-            }
 
-            if (score.TotalScore < bestScore.TotalScore) return;
-            if (score.TotalScore == bestScore.TotalScore && score.ID <= bestScore.ID) return;
+            var bestScore = getBestScore(score, conn, transaction);
 
-            updateRankCounts(userStats, bestScore.Rank, revert: true);
-            updateRankCounts(userStats, score.Rank, revert: false);
+            // If there's already another higher score than this one, nothing needs to be done.
+            if (bestScore?.ID != score.ID)
+                return;
+
+            // If there is, the higher score's rank count should be reverted before we replace it.
+            var secondBestScore = getSecondBestScore(score, conn, transaction);
+            if (secondBestScore != null)
+                updateRankCounts(userStats, secondBestScore.Rank, revert: true);
+
+            Debug.Assert(bestScore != null);
+            updateRankCounts(userStats, bestScore.Rank, revert: false);
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
         }
 
-        private static SoloScoreInfo? getBestScore(int userId, int beatmapId, int rulesetId, ulong? excludedScoreId, MySqlConnection conn, MySqlTransaction transaction)
+        private static SoloScoreInfo? getSecondBestScore(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
+            => getBestScore(score, conn, transaction, 1);
+
+        private static SoloScoreInfo? getBestScore(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, int offset = 0)
         {
-            // purpose of join with `process_history` is to only look for already-processed scores
             var rankSource = conn.QueryFirstOrDefault<SoloScore?>(
-                "SELECT * FROM solo_scores `s` "
-                + "JOIN solo_scores_process_history `ph` ON `ph`.`score_id` = `s`.`id` "
-                + "WHERE (@ExcludedScoreId IS NULL OR `s`.`id` != @ExcludedScoreId) "
-                + "AND `s`.`user_id` = @UserId "
-                + "AND `s`.`beatmap_id` = @BeatmapId "
-                + "AND `s`.`ruleset_id` = @RulesetId "
-                + "AND `s`.`preserve` = 1 "
-                + "ORDER BY `s`.`data`->'$.total_score' DESC, `s`.`id` DESC "
-                + "LIMIT 1", new
+                "SELECT * FROM solo_scores WHERE `user_id` = @user_id "
+                + "AND `beatmap_id` = @beatmap_id "
+                + "AND `ruleset_id` = @ruleset_id "
+                // preserve is not flagged on the newly arriving score until it has been completely processed (see logic in `ScoreStatisticsQueueProcessor.cs`)
+                // therefore we need to make an exception here to ensure it's included.
+                + "AND `preserve` = 1 OR `id` = @new_score_id "
+                + "ORDER BY `data`->'$.total_score' DESC, `id` DESC "
+                + "LIMIT @offset, 1", new
                 {
-                    ExcludedScoreId = excludedScoreId,
-                    UserId = userId,
-                    BeatmapId = beatmapId,
-                    RulesetId = rulesetId,
+                    user_id = score.UserID,
+                    beatmap_id = score.BeatmapID,
+                    ruleset_id = score.RulesetID,
+                    new_score_id = score.ID,
+                    offset = offset,
                 }, transaction);
 
             return rankSource?.ScoreInfo;
