@@ -77,7 +77,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 + "AND `ruleset_id` = @ruleset_id "
                 // preserve is not flagged on the newly arriving score until it has been completely processed (see logic in `ScoreStatisticsQueueProcessor.cs`)
                 // therefore we need to make an exception here to ensure it's included.
-                + "AND `preserve` = 1 OR `id` = @new_score_id "
+                + "AND (`preserve` = 1 OR `id` = @new_score_id) "
                 + "ORDER BY `data`->'$.total_score' DESC, `id` DESC "
                 + "LIMIT @offset, 1", new
                 {
