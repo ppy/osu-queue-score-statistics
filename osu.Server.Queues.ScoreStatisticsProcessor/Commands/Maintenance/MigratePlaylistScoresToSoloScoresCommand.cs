@@ -80,7 +80,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                             int? insertId = null;
 
-                            if (score.total_score != null)
+                            if (score.total_score != null || score.ended_at != null)
                             {
                                 var soloScoreInfo = SoloScoreInfo.ForSubmission(new ScoreInfo
                                 {
@@ -90,13 +90,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                     MaxCombo = (int)score.max_combo!,
                                     APIMods = scoreMods,
                                     Accuracy = (double)score.accuracy!,
-                                    TotalScore = (long)score.total_score,
+                                    TotalScore = (long)score.total_score!,
                                     Rank = Enum.Parse<ScoreRank>(score.rank),
                                     Passed = score.passed,
                                 });
 
-                                soloScoreInfo.StartedAt = score.started_at;
-                                soloScoreInfo.EndedAt = score.ended_at ?? default;
+                                soloScoreInfo.StartedAt = DateTime.SpecifyKind(score.started_at, DateTimeKind.Utc);
+                                soloScoreInfo.EndedAt = DateTime.SpecifyKind(score.ended_at!.Value, DateTimeKind.Utc);
                                 soloScoreInfo.BeatmapID = (int)score.beatmapId;
 
                                 insertId = await db.InsertAsync(new SoloScore
@@ -106,8 +106,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                     ruleset_id = item.ruleset_id,
                                     preserve = true,
                                     ScoreInfo = soloScoreInfo,
-                                    created_at = (DateTimeOffset)score.created_at!,
-                                    updated_at = (DateTimeOffset)score.updated_at!,
+                                    created_at = DateTime.SpecifyKind(score.created_at!.Value, DateTimeKind.Utc),
+                                    updated_at = DateTime.SpecifyKind(score.updated_at!.Value, DateTimeKind.Utc),
                                 });
                             }
 
