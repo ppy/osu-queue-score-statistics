@@ -162,10 +162,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
 
-            var score = CreateTestScore();
-            score.Score.ScoreInfo.Rank = ScoreRank.A;
-
-            PushToQueueAndWaitForProcess(score);
+            var score = SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
+            {
+                item.Score.ScoreInfo.Rank = ScoreRank.A;
+                item.Score.ScoreInfo.TotalScore = 600_000;
+            });
 
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -176,6 +177,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             score.MarkProcessed();
 
             PushToQueueAndWaitForProcess(score);
+
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
                 [ScoreRank.A] = 1,
