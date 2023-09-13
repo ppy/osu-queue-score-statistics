@@ -97,12 +97,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                                 soloScoreInfo.StartedAt = DateTime.SpecifyKind(score.started_at, DateTimeKind.Utc);
                                 soloScoreInfo.EndedAt = DateTime.SpecifyKind(score.ended_at!.Value, DateTimeKind.Utc);
-                                soloScoreInfo.BeatmapID = (int)score.beatmapId;
+                                soloScoreInfo.BeatmapID = (int)score.beatmap_id;
 
                                 insertId = await db.InsertAsync(new SoloScore
                                 {
-                                    user_id = (int)score.userId,
-                                    beatmap_id = (int)score.beatmapId,
+                                    user_id = (int)score.user_id,
+                                    beatmap_id = (int)score.beatmap_id,
                                     ruleset_id = item.ruleset_id,
                                     preserve = true,
                                     ScoreInfo = soloScoreInfo,
@@ -113,10 +113,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                             await db.ExecuteAsync("INSERT INTO multiplayer_score_links (user_id, room_id, beatmap_id, playlist_item_id, score_id, created_at, updated_at) VALUES (@userId, @roomId, @beatmapId, @playlistItemId, @scoreId, @createdAt, @updatedAt)", new
                             {
-                                score.userId,
-                                score.roomId,
-                                score.beatmapId,
-                                score.playlistItemId,
+                                userId = score.user_id,
+                                roomId = score.room_id,
+                                beatmapId = score.beatmap_id,
+                                playlistItemId = score.playlist_item_id,
                                 scoreId = insertId,
                                 createdAt = score.ended_at,
                                 updatedAt = score.ended_at
@@ -160,10 +160,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public class MultiplayerScore
         {
             public ulong id { get; set; }
-            public uint userId { get; set; }
-            public ulong roomId { get; set; }
-            public ulong playlistItemId { get; set; }
-            public uint beatmapId { get; set; }
+            public uint user_id { get; set; }
+            public ulong room_id { get; set; }
+            public ulong playlist_item_id { get; set; }
+            public uint beatmap_id { get; set; }
             public string rank { get; set; } = string.Empty;
             public long? total_score { get; set; }
             public double? accuracy { get; set; }
