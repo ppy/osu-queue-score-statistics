@@ -61,6 +61,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestNonPassingScoreDoesNothing()
+        {
+            AddBeatmap();
+            waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
+            {
+                item.Score.ScoreInfo.Passed = false;
+                item.Score.ScoreInfo.Rank = ScoreRank.A;
+            });
+
+            waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
+        }
+
+        [Fact]
         public void TestScoreWithRankBelowADoesNothing()
         {
             AddBeatmap();
