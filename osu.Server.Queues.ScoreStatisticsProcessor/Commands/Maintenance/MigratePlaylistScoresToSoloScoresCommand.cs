@@ -96,7 +96,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 });
 
                                 soloScoreInfo.StartedAt = score.started_at;
-                                soloScoreInfo.EndedAt = score.started_at;
+                                soloScoreInfo.EndedAt = score.ended_at ?? default;
                                 soloScoreInfo.BeatmapID = (int)score.beatmapId;
 
                                 insertId = await db.InsertAsync(new SoloScore
