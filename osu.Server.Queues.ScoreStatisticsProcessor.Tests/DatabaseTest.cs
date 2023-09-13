@@ -32,12 +32,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         protected const int TEST_BEATMAP_ID = 1;
         protected const int TEST_BEATMAP_SET_ID = 1;
 
-        private readonly CancellationTokenSource cancellationSource = new CancellationTokenSource(10000);
+        private readonly CancellationTokenSource cancellationSource;
 
         private Exception? firstError;
 
         protected DatabaseTest()
         {
+            cancellationSource = Debugger.IsAttached
+                ? new CancellationTokenSource()
+                : new CancellationTokenSource(10000);
+
             Environment.SetEnvironmentVariable("SCHEMA", "1");
             Environment.SetEnvironmentVariable("REALTIME_DIFFICULTY", "0");
 
@@ -67,7 +71,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
         }
 
-        protected void SetScoreForBeatmap(int beatmapId, Action<ScoreItem>? scoreSetup = null)
+        protected ScoreItem SetScoreForBeatmap(int beatmapId, Action<ScoreItem>? scoreSetup = null)
         {
             using (MySqlConnection conn = Processor.GetDatabaseConnection())
             {
@@ -77,6 +81,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 conn.Insert(score.Score);
                 PushToQueueAndWaitForProcess(score);
+
+                return score;
             }
         }
 
