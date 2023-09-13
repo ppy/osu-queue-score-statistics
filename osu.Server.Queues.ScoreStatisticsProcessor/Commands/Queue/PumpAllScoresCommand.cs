@@ -27,7 +27,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             using (var dbMainQuery = Queue.GetDatabaseConnection())
             using (var db = Queue.GetDatabaseConnection())
             {
-                string query = $"SELECT * FROM {SoloScore.TABLE_NAME} WHERE id >= @StartId";
+                string query = "SELECT * FROM solo_scores WHERE id >= @StartId";
 
                 if (!string.IsNullOrEmpty(CustomQuery))
                     query += $" AND {CustomQuery}";
@@ -41,7 +41,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         break;
 
                     // attach any previous processing information
-                    var history = db.QuerySingleOrDefault<ProcessHistory>($"SELECT * FROM {ProcessHistory.TABLE_NAME} WHERE score_id = @id", score);
+                    var history = db.QuerySingleOrDefault<ProcessHistory>("SELECT * FROM solo_scores_process_history WHERE score_id = @id", score);
 
                     Console.WriteLine($"Pumping {score}");
                     Queue.PushToQueue(new ScoreItem(score, history));

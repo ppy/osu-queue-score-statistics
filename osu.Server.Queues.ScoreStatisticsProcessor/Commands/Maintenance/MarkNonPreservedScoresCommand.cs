@@ -45,11 +45,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             var parameters = new
             {
-                userId = userId,
+                userId,
                 rulesetId = RulesetId,
             };
 
-            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId", parameters, cancellationToken: cancellationToken));
+            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition("SELECT * FROM solo_scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId", parameters, cancellationToken: cancellationToken));
 
             if (!scores.Any())
                 return;
@@ -84,7 +84,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 Console.WriteLine($"Marking score {score.id} non-preserved...");
 
-                await db.ExecuteAsync($"UPDATE {SoloScore.TABLE_NAME} SET preserve = 0 WHERE id = @scoreId;", new
+                await db.ExecuteAsync("UPDATE solo_scores SET preserve = 0 WHERE id = @scoreId;", new
                 {
                     scoreId = score.id
                 });

@@ -34,7 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (score.Mods.Select(m => m.ToMod(ruleset)).Any(m => m.Type == ModType.Automation))
                 return;
 
-            var beatmap = conn.QuerySingleOrDefault<Beatmap?>($"SELECT * FROM {Beatmap.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId", new
+            var beatmap = conn.QuerySingleOrDefault<Beatmap?>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
             {
                 BeatmapId = score.BeatmapID
             }, transaction: transaction);

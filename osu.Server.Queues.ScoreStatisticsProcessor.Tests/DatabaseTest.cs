@@ -57,11 +57,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_stats_mania");
                 db.Execute("TRUNCATE TABLE osu_user_beatmap_playcount");
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
-                db.Execute($"TRUNCATE TABLE {Beatmap.TABLE_NAME}");
-                db.Execute($"TRUNCATE TABLE {BeatmapSet.TABLE_NAME}");
-                db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
-                db.Execute($"TRUNCATE TABLE {ProcessHistory.TABLE_NAME}");
-                db.Execute($"TRUNCATE TABLE {SoloScorePerformance.TABLE_NAME}");
+                db.Execute("TRUNCATE TABLE osu_beatmaps");
+                db.Execute("TRUNCATE TABLE osu_beatmapsets");
+                db.Execute("TRUNCATE TABLE solo_scores");
+                db.Execute("TRUNCATE TABLE solo_scores_process_history");
+                db.Execute("TRUNCATE TABLE solo_scores_performance");
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
@@ -94,7 +94,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             Processor.PushToQueue(item);
 
-            WaitForDatabaseState($"SELECT score_id FROM {ProcessHistory.TABLE_NAME} WHERE score_id = {item.Score.id}", item.Score.id, CancellationToken);
+            WaitForDatabaseState($"SELECT score_id FROM solo_scores_process_history WHERE score_id = {item.Score.id}", item.Score.id, CancellationToken);
             WaitForTotalProcessed(processedBefore + 1, CancellationToken);
         }
 
