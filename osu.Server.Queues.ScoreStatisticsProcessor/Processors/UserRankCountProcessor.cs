@@ -29,18 +29,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 // First, see if the score we're reverting is the user's best (and as such included in the rank counts).
                 var bestScore = getBestScore(score, conn, transaction);
 
+                // If this score isn't the user's best on the beatmap, nothing needs to be reverted.
                 if (bestScore?.ID != score.ID)
-                {
-                    // This score isn't the user's best on the beatmap, so nothing needs to be reverted.
                     return;
-                }
 
-                updateRankCounts(userStats, score.Rank, revert: true);
+                // If it is, remove the rank before applying the next-best.
+                removeRank(userStats, score.Rank);
 
-                // This score is the user's best, so fetch the next best so that we can apply the rank from that score.
                 var secondBestScore = getSecondBestScore(score, conn, transaction);
                 if (secondBestScore != null)
-                    updateRankCounts(userStats, secondBestScore.Rank, revert: false);
+                    addRank(userStats, secondBestScore.Rank);
             }
         }
 
@@ -55,13 +53,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (bestScore?.ID != score.ID)
                 return;
 
-            // If there is, the higher score's rank count should be reverted before we replace it.
+            // If this score is the new best and there's a previous higher score, that score's rank should be removed before we apply the new one.
             var secondBestScore = getSecondBestScore(score, conn, transaction);
             if (secondBestScore != null)
-                updateRankCounts(userStats, secondBestScore.Rank, revert: true);
+                removeRank(userStats, secondBestScore.Rank);
 
             Debug.Assert(bestScore != null);
-            updateRankCounts(userStats, bestScore.Rank, revert: false);
+            addRank(userStats, bestScore.Rank);
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
@@ -92,6 +90,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             return rankSource?.ScoreInfo;
         }
+
+        private static void addRank(UserStats stats, ScoreRank rank)
+            => updateRankCounts(stats, rank, revert: false);
+
+        private static void removeRank(UserStats stats, ScoreRank rank)
+            => updateRankCounts(stats, rank, revert: true);
 
         private static void updateRankCounts(UserStats stats, ScoreRank rank, bool revert)
         {
