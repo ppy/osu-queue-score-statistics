@@ -59,7 +59,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(item.ruleset_id);
                             HitResult maxRulesetJudgement = ruleset.GetHitResults().First().result;
-                            Dictionary<HitResult, int> statistics = JsonConvert.DeserializeObject<Dictionary<HitResult, int>>(score.statistics)!;
+
+                            Dictionary<HitResult, int> statistics = JsonConvert.DeserializeObject<Dictionary<HitResult, int>>(score.statistics)
+                                                                    ?? new Dictionary<HitResult, int>();
+
                             List<HitResult> allHits = statistics
                                                       .SelectMany(kvp => Enumerable.Repeat(kvp.Key, kvp.Value))
                                                       .ToList();
