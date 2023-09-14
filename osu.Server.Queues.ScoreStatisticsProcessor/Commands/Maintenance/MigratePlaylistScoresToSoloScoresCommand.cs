@@ -121,7 +121,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 beatmapId = score.beatmap_id,
                                 playlistItemId = score.playlist_item_id,
                                 scoreId = insertId,
-                                createdAt = score.ended_at,
+                                createdAt = score.created_at,
                                 updatedAt = score.ended_at
                             });
 
