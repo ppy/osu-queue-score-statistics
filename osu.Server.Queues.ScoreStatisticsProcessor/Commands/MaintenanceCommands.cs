@@ -11,6 +11,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Command(Name = "maintenance", Description = "General database maintenance commands which are usually run on a cron schedule.")]
     [Subcommand(typeof(DeleteNonPreservedScoresCommand))]
     [Subcommand(typeof(MarkNonPreservedScoresCommand))]
+    [Subcommand(typeof(MigratePlaylistScoresToSoloScoresCommand))]
     public sealed class MaintenanceCommands
     {
         public Task<int> OnExecuteAsync(CommandLineApplication app, CancellationToken cancellationToken)
