@@ -39,6 +39,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (!process_user_totals)
                 return;
 
+            if (!score.Passed)
+                return;
+
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.RulesetID);
 
             int warnings = conn.QuerySingleOrDefault<int>($"SELECT `user_warnings` FROM {dbInfo.UsersTable} WHERE `user_id` = @UserId", new

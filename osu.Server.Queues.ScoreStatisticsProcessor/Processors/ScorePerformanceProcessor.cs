@@ -100,6 +100,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="transaction">An existing transaction.</param>
         public async Task ProcessScoreAsync(SoloScoreInfo score, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
+            if (!score.Passed)
+                return;
+
             beatmapStore ??= await BeatmapStore.CreateAsync(connection, transaction);
 
             try
