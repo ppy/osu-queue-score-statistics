@@ -6,6 +6,7 @@ using osu.Framework.Extensions.TypeExtensions;
 using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Taiko.Mods;
@@ -29,7 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void PerformanceIndexUpdates()
         {
             AddBeatmap();
-            AddBeatmapAttributes();
+            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -192,7 +193,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void FailedScoreDoesNotProcess()
         {
             AddBeatmap();
-            AddBeatmapAttributes();
+            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {

@@ -12,7 +12,6 @@ using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Difficulty;
-using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -172,23 +171,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             return beatmap;
         }
 
-        protected void AddBeatmapAttributes(Action<DifficultyAttributes>? setup = null)
+        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null)
+            where TDifficultyAttributes : DifficultyAttributes, new()
         {
-            var attribs = new OsuDifficultyAttributes
+            var attribs = new TDifficultyAttributes
             {
                 StarRating = 5,
                 MaxCombo = 5,
-                AimDifficulty = 5,
-                SpeedDifficulty = 5,
-                SpeedNoteCount = 5,
-                FlashlightDifficulty = 5,
-                SliderFactor = 5,
-                ApproachRate = 5,
-                OverallDifficulty = 5,
-                DrainRate = 5,
-                HitCircleCount = 5,
-                SliderCount = 5,
-                SpinnerCount = 5
             };
 
             setup?.Invoke(attribs);
@@ -199,7 +188,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 {
                     db.Insert(new BeatmapDifficultyAttribute
                     {
-                        beatmap_id = TEST_BEATMAP_ID,
+                        beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
                         mode = 0,
                         mods = 0,
                         attrib_id = (ushort)a.attributeId,
