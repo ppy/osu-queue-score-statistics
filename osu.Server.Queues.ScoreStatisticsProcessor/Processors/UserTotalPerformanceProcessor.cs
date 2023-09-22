@@ -110,6 +110,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (s.pp == null)
                     return true;
 
+                // Score must be a pass (safeguard - should be redundant with preserve flag).
+                if (!s.ScoreInfo.Passed)
+                    return true;
+
                 // Beatmap must exist.
                 if (!beatmaps.TryGetValue(s.beatmap_id, out var beatmap) || beatmap == null)
                     return true;
