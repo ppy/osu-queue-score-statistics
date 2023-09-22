@@ -14,6 +14,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     [UsedImplicitly]
     public class PackMedalAwarder : IMedalAwarder
     {
+        public bool RunOnFailedScores => false;
+
         public IEnumerable<Medal> Check(SoloScoreInfo score, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
         {
             int beatmapSetId = conn.QuerySingle<int>("SELECT beatmapset_id FROM osu_beatmaps WHERE beatmap_id = @beatmapId", new

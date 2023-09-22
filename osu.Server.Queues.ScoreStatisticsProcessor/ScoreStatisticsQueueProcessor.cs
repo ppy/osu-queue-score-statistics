@@ -10,6 +10,7 @@ using System.Reflection;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -91,7 +92,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                             item.Tags = new[] { "type:upgraded" };
                             byte version = item.ProcessHistory.processed_version;
 
-                            foreach (var p in processors)
+                            foreach (var p in enumerateValidProcessors(score))
                                 p.RevertFromUserStats(score, userStats, version, conn, transaction);
                         }
                         else
@@ -99,7 +100,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                             item.Tags = new[] { "type:new" };
                         }
 
-                        foreach (var p in processors)
+                        foreach (var p in enumerateValidProcessors(score))
                             p.ApplyToUserStats(score, userStats, conn, transaction);
 
                         DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
@@ -115,7 +116,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         transaction.Commit();
                     }
 
-                    foreach (var p in processors)
+                    foreach (var p in enumerateValidProcessors(score))
                         p.ApplyGlobal(score, conn);
                 }
 
@@ -131,6 +132,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 throw;
             }
         }
+
+        private IEnumerable<IProcessor> enumerateValidProcessors(SoloScoreInfo score) => score.Passed ? processors : processors.Where(p => p.RunOnFailedScores);
 
         private static void updateHistoryEntry(ScoreItem item, MySqlConnection db, MySqlTransaction transaction)
         {

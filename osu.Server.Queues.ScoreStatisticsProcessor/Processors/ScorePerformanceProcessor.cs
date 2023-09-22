@@ -30,6 +30,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public int Order => ORDER;
 
+        public bool RunOnFailedScores => false;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -100,6 +102,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="transaction">An existing transaction.</param>
         public async Task ProcessScoreAsync(SoloScoreInfo score, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
+            // This method is also used by the CLI batch processor.
             if (!score.Passed)
                 return;
 

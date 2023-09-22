@@ -16,6 +16,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     public interface IMedalAwarder
     {
         /// <summary>
+        /// Whether this awarder should be run on failed scores.
+        /// </summary>
+        bool RunOnFailedScores { get; }
+
+        /// <summary>
         /// For a given score and collection of valid medals, check which should be awarded (if any).
         /// </summary>
         /// <param name="score">The score to be checked.</param>

@@ -30,6 +30,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         // This processor needs to run after the score's PP value has been processed.
         public int Order => ScorePerformanceProcessor.ORDER + 1;
 
+        public bool RunOnFailedScores => false;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -37,9 +39,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (!process_user_totals)
-                return;
-
-            if (!score.Passed)
                 return;
 
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.RulesetID);
