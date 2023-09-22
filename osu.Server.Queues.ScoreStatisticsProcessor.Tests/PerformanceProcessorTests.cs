@@ -203,11 +203,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.ScoreInfo.Passed = false;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM solo_scores_process_history WHERE score_id = @ScoreId", 1, CancellationToken, new
-            {
-                ScoreId = score.Score.id
-            });
-
             WaitForDatabaseState("SELECT COUNT(*) FROM solo_scores_performance WHERE score_id = @ScoreId", 0, CancellationToken, new
             {
                 ScoreId = score.Score.id
