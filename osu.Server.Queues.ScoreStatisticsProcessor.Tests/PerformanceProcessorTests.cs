@@ -1,9 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System;
 using Dapper;
-using Dapper.Contrib.Extensions;
 using osu.Framework.Extensions.TypeExtensions;
 using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Mania.Mods;
@@ -32,38 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void PerformanceIndexUpdates()
         {
             AddBeatmap();
-
-            var attribs = new OsuDifficultyAttributes
-            {
-                StarRating = 5,
-                MaxCombo = 5,
-                AimDifficulty = 5,
-                SpeedDifficulty = 5,
-                SpeedNoteCount = 5,
-                FlashlightDifficulty = 5,
-                SliderFactor = 5,
-                ApproachRate = 5,
-                OverallDifficulty = 5,
-                DrainRate = 5,
-                HitCircleCount = 5,
-                SliderCount = 5,
-                SpinnerCount = 5
-            }.ToDatabaseAttributes();
-
-            using (var db = Processor.GetDatabaseConnection())
-            {
-                foreach (var a in attribs)
-                {
-                    db.Insert(new BeatmapDifficultyAttribute
-                    {
-                        beatmap_id = TEST_BEATMAP_ID,
-                        mode = 0,
-                        mods = 0,
-                        attrib_id = (ushort)a.attributeId,
-                        value = Convert.ToSingle(a.value),
-                    });
-                }
-            }
+            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -220,6 +187,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             foreach (var mod in mods)
                 Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+        }
+
+        [Fact]
+        public void FailedScoreDoesNotProcess()
+        {
+            AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>();
+
+            ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
+                score.Score.ScoreInfo.MaxCombo = 100;
+                score.Score.ScoreInfo.Accuracy = 1;
+                score.Score.ScoreInfo.Passed = false;
+            });
+
+            WaitForDatabaseState("SELECT COUNT(*) FROM solo_scores_performance WHERE score_id = @ScoreId", 0, CancellationToken, new
+            {
+                ScoreId = score.Score.id
+            });
         }
     }
 }

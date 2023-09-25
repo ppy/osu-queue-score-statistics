@@ -11,6 +11,7 @@ using MySqlConnector;
 using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -170,6 +171,33 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             return beatmap;
         }
 
+        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null)
+            where TDifficultyAttributes : DifficultyAttributes, new()
+        {
+            var attribs = new TDifficultyAttributes
+            {
+                StarRating = 5,
+                MaxCombo = 5,
+            };
+
+            setup?.Invoke(attribs);
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                foreach (var a in attribs.ToDatabaseAttributes())
+                {
+                    db.Insert(new BeatmapDifficultyAttribute
+                    {
+                        beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
+                        mode = 0,
+                        mods = 0,
+                        attrib_id = (ushort)a.attributeId,
+                        value = Convert.ToSingle(a.value),
+                    });
+                }
+            }
+        }
+
         protected void WaitForTotalProcessed(long count, CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -183,7 +211,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             throw new XunitException("All scores were not successfully processed");
         }
 
-        protected void WaitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken)
+        protected void WaitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken, object? param = null)
         {
             using (var db = Processor.GetDatabaseConnection())
             {
@@ -197,7 +225,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                             throw new TimeoutException($"Waiting for database state took too long (expected: {expected} last: {lastValue} sql: {sql})");
                     }
 
-                    lastValue = db.QueryFirstOrDefault<T>(sql);
+                    lastValue = db.QueryFirstOrDefault<T>(sql, param);
 
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;

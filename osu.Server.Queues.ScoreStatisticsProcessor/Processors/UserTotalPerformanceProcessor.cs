@@ -30,6 +30,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         // This processor needs to run after the score's PP value has been processed.
         public int Order => ScorePerformanceProcessor.ORDER + 1;
 
+        public bool RunOnFailedScores => false;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -105,6 +107,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             {
                 // Score must have a valid pp.
                 if (s.pp == null)
+                    return true;
+
+                // Score must be a pass (safeguard - should be redundant with preserve flag).
+                if (!s.ScoreInfo.Passed)
                     return true;
 
                 // Beatmap must exist.
