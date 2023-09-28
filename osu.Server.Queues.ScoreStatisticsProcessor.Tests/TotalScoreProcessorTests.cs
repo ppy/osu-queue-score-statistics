@@ -12,10 +12,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
-            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 100000, CancellationToken);
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 10081, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
-            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 200000, CancellationToken);
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 20162, CancellationToken);
         }
 
         [Fact]
@@ -45,12 +45,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(score);
-            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 100000, CancellationToken);
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 10081, CancellationToken);
 
             score.MarkProcessed();
 
             PushToQueueAndWaitForProcess(score);
-            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 100000, CancellationToken);
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 10081, CancellationToken);
         }
     }
 }
