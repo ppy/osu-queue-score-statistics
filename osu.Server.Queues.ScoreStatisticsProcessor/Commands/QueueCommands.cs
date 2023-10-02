@@ -14,6 +14,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(ClearQueueCommand))]
     [Subcommand(typeof(WatchQueueCommand))]
     [Subcommand(typeof(ImportHighScoresCommand))]
+    [Subcommand(typeof(DeleteImportedHighScoresCommand))]
     public sealed class QueueCommands
     {
         public Task<int> OnExecuteAsync(CommandLineApplication app, CancellationToken cancellationToken)

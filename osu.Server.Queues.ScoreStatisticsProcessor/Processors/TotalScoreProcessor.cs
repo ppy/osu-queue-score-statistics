@@ -14,6 +14,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class TotalScoreProcessor : IProcessor
     {
+        public bool RunOnFailedScores => false;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (previousVersion >= 2)

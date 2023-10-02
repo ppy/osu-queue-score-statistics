@@ -18,6 +18,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// </remarks>
         int Order => 0;
 
+        /// <summary>
+        /// Whether this processor should be run on failed scores.
+        /// </summary>
+        bool RunOnFailedScores { get; }
+
         void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction);
 
         void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction);

@@ -30,6 +30,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public int Order => ORDER;
 
+        public bool RunOnFailedScores => false;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -52,7 +54,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="transaction">An existing transaction.</param>
         public async Task ProcessUserScoresAsync(int userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            var scores = (await connection.QueryAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
+            var scores = (await connection.QueryAsync<SoloScore>("SELECT * FROM solo_scores WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
             {
                 UserId = userId,
                 RulesetId = rulesetId
@@ -70,7 +72,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="transaction">An existing transaction.</param>
         public async Task ProcessScoreAsync(ulong scoreId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            var score = await connection.QuerySingleOrDefaultAsync<SoloScore>($"SELECT * FROM {SoloScore.TABLE_NAME} WHERE `id` = @ScoreId", new
+            var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM solo_scores WHERE `id` = @ScoreId", new
             {
                 ScoreId = scoreId
             }, transaction: transaction);
@@ -100,6 +102,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="transaction">An existing transaction.</param>
         public async Task ProcessScoreAsync(SoloScoreInfo score, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
+            // This method is also used by the CLI batch processor.
+            if (!score.Passed)
+                return;
+
             beatmapStore ??= await BeatmapStore.CreateAsync(connection, transaction);
 
             try
@@ -128,7 +134,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (performanceAttributes == null)
                     return;
 
-                await connection.ExecuteAsync($"INSERT INTO {SoloScorePerformance.TABLE_NAME} (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
+                await connection.ExecuteAsync("INSERT INTO solo_scores_performance (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
                 {
                     ScoreId = score.ID,
                     Pp = performanceAttributes.Total

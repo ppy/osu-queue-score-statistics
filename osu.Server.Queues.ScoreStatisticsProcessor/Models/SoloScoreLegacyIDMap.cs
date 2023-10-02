@@ -9,11 +9,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table(TABLE_NAME)]
+    [Table("solo_scores_legacy_id_map")]
     public class SoloScoreLegacyIDMap
     {
-        public const string TABLE_NAME = $"{SoloScore.TABLE_NAME}_legacy_id_map";
-
         [ExplicitKey]
         public ushort ruleset_id { get; set; }
 

@@ -57,6 +57,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         /// <summary>
+        /// The pack awarder should skip scores that are failed.
+        /// </summary>
+        [Fact]
+        public void TestDoesNotAwardOnFailedScores()
+        {
+            var beatmap = AddBeatmap();
+
+            const int medal_id = 7;
+            const int pack_id = 40;
+
+            addPackMedal(medal_id, pack_id, new[] { beatmap });
+
+            assertNotAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Passed = false);
+
+            assertNotAwarded();
+        }
+
+        /// <summary>
         /// This tests the simplest case of a medal being awarded for completing a pack.
         /// This mimics the "video game" pack, but is intended to test the process rather than the
         /// content of that pack specifically.

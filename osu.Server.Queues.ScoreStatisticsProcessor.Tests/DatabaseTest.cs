@@ -11,6 +11,7 @@ using MySqlConnector;
 using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -32,12 +33,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         protected const int TEST_BEATMAP_ID = 1;
         protected const int TEST_BEATMAP_SET_ID = 1;
 
-        private readonly CancellationTokenSource cancellationSource = new CancellationTokenSource(10000);
+        private readonly CancellationTokenSource cancellationSource;
 
         private Exception? firstError;
 
         protected DatabaseTest()
         {
+            cancellationSource = Debugger.IsAttached
+                ? new CancellationTokenSource()
+                : new CancellationTokenSource(10000);
+
             Environment.SetEnvironmentVariable("SCHEMA", "1");
             Environment.SetEnvironmentVariable("REALTIME_DIFFICULTY", "0");
 
@@ -57,17 +62,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_stats_mania");
                 db.Execute("TRUNCATE TABLE osu_user_beatmap_playcount");
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
-                db.Execute($"TRUNCATE TABLE {Beatmap.TABLE_NAME}");
-                db.Execute($"TRUNCATE TABLE {BeatmapSet.TABLE_NAME}");
-                db.Execute($"TRUNCATE TABLE {SoloScore.TABLE_NAME}");
-                db.Execute($"TRUNCATE TABLE {ProcessHistory.TABLE_NAME}");
-                db.Execute($"TRUNCATE TABLE {SoloScorePerformance.TABLE_NAME}");
+                db.Execute("TRUNCATE TABLE osu_beatmaps");
+                db.Execute("TRUNCATE TABLE osu_beatmapsets");
+                db.Execute("TRUNCATE TABLE solo_scores");
+                db.Execute("TRUNCATE TABLE solo_scores_process_history");
+                db.Execute("TRUNCATE TABLE solo_scores_performance");
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
         }
 
-        protected void SetScoreForBeatmap(int beatmapId, Action<ScoreItem>? scoreSetup = null)
+        protected ScoreItem SetScoreForBeatmap(int beatmapId, Action<ScoreItem>? scoreSetup = null)
         {
             using (MySqlConnection conn = Processor.GetDatabaseConnection())
             {
@@ -77,6 +82,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 conn.Insert(score.Score);
                 PushToQueueAndWaitForProcess(score);
+
+                return score;
             }
         }
 
@@ -92,7 +99,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             Processor.PushToQueue(item);
 
-            WaitForDatabaseState($"SELECT score_id FROM {ProcessHistory.TABLE_NAME} WHERE score_id = {item.Score.id}", item.Score.id, CancellationToken);
+            WaitForDatabaseState($"SELECT score_id FROM solo_scores_process_history WHERE score_id = {item.Score.id}", item.Score.id, CancellationToken);
             WaitForTotalProcessed(processedBefore + 1, CancellationToken);
         }
 
@@ -164,6 +171,33 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             return beatmap;
         }
 
+        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null)
+            where TDifficultyAttributes : DifficultyAttributes, new()
+        {
+            var attribs = new TDifficultyAttributes
+            {
+                StarRating = 5,
+                MaxCombo = 5,
+            };
+
+            setup?.Invoke(attribs);
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                foreach (var a in attribs.ToDatabaseAttributes())
+                {
+                    db.Insert(new BeatmapDifficultyAttribute
+                    {
+                        beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
+                        mode = 0,
+                        mods = 0,
+                        attrib_id = (ushort)a.attributeId,
+                        value = Convert.ToSingle(a.value),
+                    });
+                }
+            }
+        }
+
         protected void WaitForTotalProcessed(long count, CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -177,7 +211,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             throw new XunitException("All scores were not successfully processed");
         }
 
-        protected void WaitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken)
+        protected void WaitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken, object? param = null)
         {
             using (var db = Processor.GetDatabaseConnection())
             {
@@ -191,7 +225,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                             throw new TimeoutException($"Waiting for database state took too long (expected: {expected} last: {lastValue} sql: {sql})");
                     }
 
-                    lastValue = db.QueryFirstOrDefault<T>(sql);
+                    lastValue = db.QueryFirstOrDefault<T>(sql, param);
 
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;

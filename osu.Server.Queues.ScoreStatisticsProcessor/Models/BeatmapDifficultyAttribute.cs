@@ -9,11 +9,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table(TABLE_NAME)]
+    [Table("osu_beatmap_difficulty_attribs")]
     public class BeatmapDifficultyAttribute
     {
-        public const string TABLE_NAME = "osu_beatmap_difficulty_attribs";
-
         [ExplicitKey]
         public uint beatmap_id { get; set; }
 

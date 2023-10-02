@@ -30,6 +30,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         // This processor needs to run after the score's PP value has been processed.
         public int Order => ScorePerformanceProcessor.ORDER + 1;
 
+        public bool RunOnFailedScores => false;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -80,8 +82,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
 
             List<SoloScoreWithPerformance> scores = (await connection.QueryAsync<SoloScoreWithPerformance>(
-                $"SELECT `s`.*, `p`.`pp` FROM {SoloScore.TABLE_NAME} `s` "
-                + $"JOIN {SoloScorePerformance.TABLE_NAME} `p` ON `s`.`id` = `p`.`score_id` "
+                "SELECT `s`.*, `p`.`pp` FROM solo_scores `s` "
+                + "JOIN solo_scores_performance `p` ON `s`.`id` = `p`.`score_id` "
                 + "WHERE `s`.`user_id` = @UserId "
                 + "AND `s`.`ruleset_id` = @RulesetId "
                 + "AND `s`.`preserve` = 1", new
@@ -105,6 +107,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             {
                 // Score must have a valid pp.
                 if (s.pp == null)
+                    return true;
+
+                // Score must be a pass (safeguard - should be redundant with preserve flag).
+                if (!s.ScoreInfo.Passed)
                     return true;
 
                 // Beatmap must exist.

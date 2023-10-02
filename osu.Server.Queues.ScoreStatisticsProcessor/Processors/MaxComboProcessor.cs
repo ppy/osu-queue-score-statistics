@@ -21,6 +21,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class MaxComboProcessor : IProcessor
     {
+        public bool RunOnFailedScores => false;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             // TODO: this will require access to stable scores to be implemented correctly.
@@ -34,7 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (score.Mods.Select(m => m.ToMod(ruleset)).Any(m => m.Type == ModType.Automation))
                 return;
 
-            var beatmap = conn.QuerySingleOrDefault<Beatmap?>($"SELECT * FROM {Beatmap.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId", new
+            var beatmap = conn.QuerySingleOrDefault<Beatmap?>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
             {
                 BeatmapId = score.BeatmapID
             }, transaction: transaction);

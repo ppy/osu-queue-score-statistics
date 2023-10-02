@@ -41,6 +41,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             // TODO: ensure that every medal is accounted for.
         }
 
+        public bool RunOnFailedScores => true; // This is handled by each awarder.
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -62,6 +64,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             foreach (var awarder in medal_awarders)
             {
+                if (!score.Passed && !awarder.RunOnFailedScores)
+                    continue;
+
                 foreach (var awardedMedal in awarder.Check(score, availableMedalsForUser, conn, transaction))
                 {
                     awardMedal(score, awardedMedal);

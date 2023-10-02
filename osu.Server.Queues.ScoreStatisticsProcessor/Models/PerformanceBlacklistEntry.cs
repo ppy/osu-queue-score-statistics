@@ -9,11 +9,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table(TABLE_NAME)]
+    [Table("osu_beatmap_performance_blacklist")]
     public class PerformanceBlacklistEntry
     {
-        public const string TABLE_NAME = "osu_beatmap_performance_blacklist";
-
         public int beatmap_id { get; set; }
         public int mode { get; set; }
     }
