@@ -576,7 +576,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = (int)maxComboAttribute.value - maxComboFromStatistics;
 #pragma warning restore CS0618
 
-                Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>($"SELECT * FROM {Beatmap.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId", new
+                Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>($"SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
                 {
                     BeatmapId = highScore.beatmap_id
                 }, transaction);
