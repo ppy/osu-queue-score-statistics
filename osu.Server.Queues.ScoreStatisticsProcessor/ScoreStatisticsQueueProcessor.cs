@@ -29,8 +29,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// version 5: added performance processor
         /// version 6: added play time processor
         /// version 7: added user rank count processor
+        /// version 8: added ranked score processor
         /// </summary>
-        public const int VERSION = 7;
+        public const int VERSION = 8;
 
         public static readonly List<Ruleset> AVAILABLE_RULESETS = getRulesets();
 
