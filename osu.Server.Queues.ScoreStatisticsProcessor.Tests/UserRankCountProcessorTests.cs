@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System.Collections.Generic;
+using osu.Game.Beatmaps;
 using osu.Game.Scoring;
 using Xunit;
 
@@ -83,6 +84,36 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.ScoreInfo.Rank = ScoreRank.B);
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
+        }
+
+        [Theory]
+        [InlineData(BeatmapOnlineStatus.Graveyard)]
+        [InlineData(BeatmapOnlineStatus.WIP)]
+        [InlineData(BeatmapOnlineStatus.Pending)]
+        [InlineData(BeatmapOnlineStatus.Qualified)]
+        public void TestScoreWithRankAOrAboveOnUnrankedMapDoesNothing(BeatmapOnlineStatus status)
+        {
+            AddBeatmap(b => b.approved = status);
+            waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.ScoreInfo.Rank = ScoreRank.A);
+            waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
+        }
+
+        [Theory]
+        [InlineData(BeatmapOnlineStatus.Ranked)]
+        [InlineData(BeatmapOnlineStatus.Approved)]
+        [InlineData(BeatmapOnlineStatus.Loved)]
+        public void TestScoreWithRankAOrAboveOnRankedMapChangesRankCounts(BeatmapOnlineStatus status)
+        {
+            AddBeatmap(b => b.approved = status);
+            waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.ScoreInfo.Rank = ScoreRank.A);
+            waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
+            {
+                [ScoreRank.A] = 1
+            });
         }
 
         [Fact]
