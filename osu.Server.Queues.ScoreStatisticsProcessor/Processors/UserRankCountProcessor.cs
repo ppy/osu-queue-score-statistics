@@ -2,11 +2,11 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System.Diagnostics;
-using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Scoring;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
@@ -29,7 +29,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 // It is assumed that in the case of a revert, either the score is deleted, or a reapplication will immediately follow.
 
                 // First, see if the score we're reverting is the user's best (and as such included in the rank counts).
-                var bestScore = getBestScore(score, conn, transaction);
+                var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
 
                 // If this score isn't the user's best on the beatmap, nothing needs to be reverted.
                 if (bestScore?.ID != score.ID)
@@ -38,7 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 // If it is, remove the rank before applying the next-best.
                 removeRank(userStats, score.Rank);
 
-                var secondBestScore = getSecondBestScore(score, conn, transaction);
+                var secondBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction, offset: 1);
                 if (secondBestScore != null)
                     addRank(userStats, secondBestScore.Rank);
             }
@@ -49,14 +49,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (!score.Passed)
                 return;
 
-            var bestScore = getBestScore(score, conn, transaction);
+            var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
 
             // If there's already another higher score than this one, nothing needs to be done.
             if (bestScore?.ID != score.ID)
                 return;
 
             // If this score is the new best and there's a previous higher score, that score's rank should be removed before we apply the new one.
-            var secondBestScore = getSecondBestScore(score, conn, transaction);
+            var secondBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction, offset: 1);
             if (secondBestScore != null)
                 removeRank(userStats, secondBestScore.Rank);
 
@@ -66,31 +66,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
-        }
-
-        private static SoloScoreInfo? getSecondBestScore(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
-            => getBestScore(score, conn, transaction, 1);
-
-        private static SoloScoreInfo? getBestScore(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, int offset = 0)
-        {
-            var rankSource = conn.QueryFirstOrDefault<SoloScore?>(
-                "SELECT * FROM solo_scores WHERE `user_id` = @user_id "
-                + "AND `beatmap_id` = @beatmap_id "
-                + "AND `ruleset_id` = @ruleset_id "
-                // preserve is not flagged on the newly arriving score until it has been completely processed (see logic in `ScoreStatisticsQueueProcessor.cs`)
-                // therefore we need to make an exception here to ensure it's included.
-                + "AND (`preserve` = 1 OR `id` = @new_score_id) "
-                + "ORDER BY `data`->'$.total_score' DESC, `id` DESC "
-                + "LIMIT @offset, 1", new
-                {
-                    user_id = score.UserID,
-                    beatmap_id = score.BeatmapID,
-                    ruleset_id = score.RulesetID,
-                    new_score_id = score.ID,
-                    offset = offset,
-                }, transaction);
-
-            return rankSource?.ScoreInfo;
         }
 
         private static void addRank(UserStats stats, ScoreRank rank)
