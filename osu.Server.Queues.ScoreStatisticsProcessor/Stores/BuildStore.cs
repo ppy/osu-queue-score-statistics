@@ -28,7 +28,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The created <see cref="BuildStore"/>.</returns>
-        public static async Task<BuildStore> CreateAsync(MySqlConnection? connection, MySqlTransaction? transaction = null)
+        public static async Task<BuildStore> CreateAsync(MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             var dbBuilds = await connection.QueryAsync<Build>("SELECT * FROM osu_builds WHERE `allow_ranking` = TRUE OR `allow_performance` = TRUE", transaction: transaction);
 

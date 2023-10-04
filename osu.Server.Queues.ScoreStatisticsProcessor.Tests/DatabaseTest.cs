@@ -132,6 +132,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 0 }
                 },
+                MaximumStatistics =
+                {
+                    { HitResult.Perfect, 5 },
+                    { HitResult.LargeBonus, 2 }
+                },
                 Passed = true
             };
 

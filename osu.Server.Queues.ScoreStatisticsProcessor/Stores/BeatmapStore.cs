@@ -44,7 +44,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The created <see cref="BeatmapStore"/>.</returns>
-        public static async Task<BeatmapStore> CreateAsync(MySqlConnection? connection, MySqlTransaction? transaction = null)
+        public static async Task<BeatmapStore> CreateAsync(MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             var dbBlacklist = await connection.QueryAsync<PerformanceBlacklistEntry>("SELECT * FROM osu_beatmap_performance_blacklist", transaction: transaction);
 
