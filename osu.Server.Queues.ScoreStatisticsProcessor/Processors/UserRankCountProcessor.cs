@@ -24,6 +24,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (!score.Passed)
                 return;
 
+            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.BeatmapID, conn, transaction))
+                return;
+
             if (previousVersion >= 7)
             {
                 // It is assumed that in the case of a revert, either the score is deleted, or a reapplication will immediately follow.
@@ -47,6 +50,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (!score.Passed)
+                return;
+
+            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.BeatmapID, conn, transaction))
                 return;
 
             var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
