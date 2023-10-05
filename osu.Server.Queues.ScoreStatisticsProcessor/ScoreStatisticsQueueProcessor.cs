@@ -30,7 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// version 6: added play time processor
         /// version 7: added user rank count processor
         /// </summary>
-        public const int VERSION = 7;
+        public const int VERSION = 7; // Do not change this, it will break everything ever and needs to be reconsidered.
 
         public static readonly List<Ruleset> AVAILABLE_RULESETS = getRulesets();
 
