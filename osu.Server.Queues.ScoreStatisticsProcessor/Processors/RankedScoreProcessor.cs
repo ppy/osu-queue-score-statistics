@@ -25,7 +25,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.BeatmapID, conn, transaction))
                 return;
 
-            if (previousVersion >= 8)
+            if (previousVersion >= 9)
             {
                 // It is assumed that in the case of a revert, either the score is deleted, or a reapplication will immediately follow.
 
