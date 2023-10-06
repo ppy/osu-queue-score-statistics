@@ -110,16 +110,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 {
                                     insertCommand.CommandText = "INSERT INTO osu.solo_scores (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) VALUES (@user_id, @beatmap_id, @ruleset_id, @data, @preserve, @created_at, @updated_at)";
 
-                                    var paramUserId = insertCommand.Parameters.Add("user_id", DbType.Int32);
-                                    var paramBeatmapId = insertCommand.Parameters.Add("beatmap_id", DbType.Int32);
-                                    var paramRulesetId = insertCommand.Parameters.Add("ruleset_id", DbType.Int32);
+                                    var paramUserId = insertCommand.Parameters.Add("user_id", DbType.UInt32);
+                                    var paramBeatmapId = insertCommand.Parameters.Add("beatmap_id", MySqlDbType.UInt24);
+                                    var paramRulesetId = insertCommand.Parameters.Add("ruleset_id", DbType.UInt16);
                                     var paramData = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
                                     var paramPreserve = insertCommand.Parameters.Add("preserve", DbType.Boolean);
                                     var paramCreatedAt = insertCommand.Parameters.Add("created_at", MySqlDbType.Timestamp);
                                     var paramUpdatedAt = insertCommand.Parameters.Add("updated_at", MySqlDbType.Timestamp);
 
-                                    paramUserId.Value = (int)score.user_id;
-                                    paramBeatmapId.Value = (int)score.beatmap_id;
+                                    paramUserId.Value = score.user_id;
+                                    paramBeatmapId.Value = score.beatmap_id;
                                     paramRulesetId.Value = item.ruleset_id;
                                     paramPreserve.Value = true;
                                     paramData.Value = JsonConvert.SerializeObject(soloScoreInfo);
