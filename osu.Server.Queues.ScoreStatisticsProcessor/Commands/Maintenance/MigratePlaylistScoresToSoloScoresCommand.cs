@@ -108,7 +108,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 // InsertAsync is broken and doesn't support BIGINT primary keys...
                                 using (var insertCommand = db.CreateCommand())
                                 {
-                                    insertCommand.CommandText = "INSERT INTO osu.solo_scores (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) VALUES (@user_id, @beatmap_id, @ruleset_id, @data, @preserve, @created_at, @updated_at)";
+                                    insertCommand.CommandText = "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) VALUES (@user_id, @beatmap_id, @ruleset_id, @data, @preserve, @created_at, @updated_at)";
 
                                     var paramUserId = insertCommand.Parameters.Add("user_id", DbType.UInt32);
                                     var paramBeatmapId = insertCommand.Parameters.Add("beatmap_id", MySqlDbType.UInt24);
