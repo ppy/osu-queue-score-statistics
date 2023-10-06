@@ -15,7 +15,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     public class SoloScore
     {
         [ExplicitKey]
-        [Key]
         public ulong id { get; set; }
 
         public int user_id { get; set; }
