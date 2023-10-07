@@ -4,13 +4,14 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
-using Dapper.Contrib.Extensions;
 using McMaster.Extensions.CommandLineUtils;
+using MySqlConnector;
 using Newtonsoft.Json;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
@@ -18,7 +19,6 @@ using osu.Game.Rulesets;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
-using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -36,6 +36,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             foreach (string id in PlaylistIds.Split(','))
             {
+                Console.WriteLine($"Processing playlist {id}...");
+
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
@@ -53,10 +55,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                         MultiplayerScore[] scores = (await db.QueryAsync<MultiplayerScore>($"SELECT * FROM multiplayer_scores WHERE playlist_item_id = {item.id}")).ToArray();
 
+                        Console.Write($"Processing {scores.Length} scores for playlist item {item.id}");
+
                         foreach (var score in scores)
                         {
-                            Console.WriteLine($"Reprocessing score {score.id} from playlist {item.id}");
-
+                            Console.Write(".");
                             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(item.ruleset_id);
                             HitResult maxRulesetJudgement = ruleset.GetHitResults().First().result;
 
@@ -81,7 +84,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             foreach (var m in roomMods)
                                 Debug.Assert(scoreMods.Contains(m));
 
-                            int? insertId = null;
+                            long? insertId = null;
 
                             if (score.total_score != null || score.ended_at != null)
                             {
@@ -102,16 +105,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 soloScoreInfo.EndedAt = DateTime.SpecifyKind(score.ended_at!.Value, DateTimeKind.Utc);
                                 soloScoreInfo.BeatmapID = (int)score.beatmap_id;
 
-                                insertId = await db.InsertAsync(new SoloScore
+                                // InsertAsync is broken and doesn't support BIGINT primary keys...
+                                using (var insertCommand = db.CreateCommand())
                                 {
-                                    user_id = (int)score.user_id,
-                                    beatmap_id = (int)score.beatmap_id,
-                                    ruleset_id = item.ruleset_id,
-                                    preserve = true,
-                                    ScoreInfo = soloScoreInfo,
-                                    created_at = DateTime.SpecifyKind(score.created_at!.Value, DateTimeKind.Utc),
-                                    updated_at = DateTime.SpecifyKind(score.updated_at!.Value, DateTimeKind.Utc),
-                                });
+                                    insertCommand.CommandText = "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) VALUES (@user_id, @beatmap_id, @ruleset_id, @data, @preserve, @created_at, @updated_at)";
+
+                                    var paramUserId = insertCommand.Parameters.Add("user_id", DbType.UInt32);
+                                    var paramBeatmapId = insertCommand.Parameters.Add("beatmap_id", MySqlDbType.UInt24);
+                                    var paramRulesetId = insertCommand.Parameters.Add("ruleset_id", DbType.UInt16);
+                                    var paramData = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
+                                    var paramPreserve = insertCommand.Parameters.Add("preserve", DbType.Boolean);
+                                    var paramCreatedAt = insertCommand.Parameters.Add("created_at", MySqlDbType.Timestamp);
+                                    var paramUpdatedAt = insertCommand.Parameters.Add("updated_at", MySqlDbType.Timestamp);
+
+                                    paramUserId.Value = score.user_id;
+                                    paramBeatmapId.Value = score.beatmap_id;
+                                    paramRulesetId.Value = item.ruleset_id;
+                                    paramPreserve.Value = true;
+                                    paramData.Value = JsonConvert.SerializeObject(soloScoreInfo);
+                                    paramCreatedAt.Value = DateTime.SpecifyKind(score.created_at!.Value, DateTimeKind.Utc);
+                                    paramUpdatedAt.Value = DateTime.SpecifyKind(score.updated_at!.Value, DateTimeKind.Utc);
+
+                                    await insertCommand.PrepareAsync(cancellationToken);
+                                    await insertCommand.ExecuteNonQueryAsync(cancellationToken);
+
+                                    insertId = insertCommand.LastInsertedId;
+                                }
                             }
 
                             await db.ExecuteAsync("INSERT INTO multiplayer_score_links (user_id, room_id, beatmap_id, playlist_item_id, score_id, created_at, updated_at) VALUES (@userId, @roomId, @beatmapId, @playlistItemId, @scoreId, @createdAt, @updatedAt)", new
@@ -124,9 +143,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 createdAt = score.created_at,
                                 updatedAt = score.ended_at
                             });
-
-                            Console.WriteLine();
                         }
+
+                        Console.WriteLine();
                     }
                 }
             }
