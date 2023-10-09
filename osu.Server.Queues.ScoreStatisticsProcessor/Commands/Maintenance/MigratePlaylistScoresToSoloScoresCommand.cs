@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Diagnostics;
 using System.Linq;
@@ -28,125 +27,148 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         /// <summary>
         /// The playlist room ID to reprocess.
         /// </summary>
-        [Required]
-        [Argument(0, Description = "Command separated list of playlist room IDs to reprocess.")]
+        [Option("--playlist-ids", Description = "Command separated list of playlist room IDs to reprocess.")]
         public string PlaylistIds { get; set; } = string.Empty;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            foreach (string id in PlaylistIds.Split(','))
-            {
-                Console.WriteLine($"Processing playlist {id}...");
+            using var db = Queue.GetDatabaseConnection();
 
+            int[] playlistIds;
+
+            if (!string.IsNullOrEmpty(PlaylistIds))
+            {
+                playlistIds = PlaylistIds.Split(',').Select(int.Parse).ToArray();
+            }
+            else
+            {
+                Console.WriteLine("Finding non-migrated playlists");
+                playlistIds = (await db.QueryAsync<int>("SELECT id FROM multiplayer_rooms WHERE type = 'playlists' AND id NOT IN (SELECT DISTINCT(room_id) FROM multiplayer_score_links)"))
+                    .ToArray();
+            }
+
+            Console.WriteLine($"Running on {playlistIds.Length} playlists");
+            Thread.Sleep(5000);
+
+            using var insertCommand = db.CreateCommand();
+            insertCommand.CommandText = "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) VALUES (@user_id, @beatmap_id, @ruleset_id, @data, @preserve, @created_at, @updated_at)";
+
+            var paramUserId = insertCommand.Parameters.Add("user_id", DbType.UInt32);
+            var paramBeatmapId = insertCommand.Parameters.Add("beatmap_id", MySqlDbType.UInt24);
+            var paramRulesetId = insertCommand.Parameters.Add("ruleset_id", DbType.UInt16);
+            var paramData = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
+            var paramPreserve = insertCommand.Parameters.Add("preserve", DbType.Boolean);
+            var paramCreatedAt = insertCommand.Parameters.Add("created_at", MySqlDbType.Timestamp);
+            var paramUpdatedAt = insertCommand.Parameters.Add("updated_at", MySqlDbType.Timestamp);
+
+            await insertCommand.PrepareAsync(cancellationToken);
+
+            foreach (int id in playlistIds)
+            {
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
-                using (var db = Queue.GetDatabaseConnection())
-                {
-                    var playlistItems = await db.QueryAsync<MultiplayerPlaylistItem>("SELECT * FROM multiplayer_playlist_items WHERE room_id = @PlaylistId", new
-                    {
-                        PlaylistId = int.Parse(id),
-                    });
+                Console.WriteLine($"Processing playlist {id}...");
 
-                    foreach (var item in playlistItems)
+                var playlistItems = await db.QueryAsync<MultiplayerPlaylistItem>("SELECT * FROM multiplayer_playlist_items WHERE room_id = @PlaylistId", new
+                {
+                    PlaylistId = id,
+                });
+
+                foreach (var item in playlistItems)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                        break;
+
+                    MultiplayerScore[] scores = (await db.QueryAsync<MultiplayerScore>($"SELECT * FROM multiplayer_scores WHERE playlist_item_id = {item.id}")).ToArray();
+
+                    Console.Write($"Processing {scores.Length} scores for playlist item {item.id}");
+
+                    foreach (var score in scores)
                     {
                         if (cancellationToken.IsCancellationRequested)
                             break;
 
-                        MultiplayerScore[] scores = (await db.QueryAsync<MultiplayerScore>($"SELECT * FROM multiplayer_scores WHERE playlist_item_id = {item.id}")).ToArray();
+                        Console.Write(".");
+                        Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(item.ruleset_id);
+                        HitResult maxRulesetJudgement = ruleset.GetHitResults().First().result;
 
-                        Console.Write($"Processing {scores.Length} scores for playlist item {item.id}");
+                        Dictionary<HitResult, int> statistics = JsonConvert.DeserializeObject<Dictionary<HitResult, int>>(score.statistics)
+                                                                ?? new Dictionary<HitResult, int>();
 
-                        foreach (var score in scores)
+                        List<HitResult> allHits = statistics
+                                                  .SelectMany(kvp => Enumerable.Repeat(kvp.Key, kvp.Value))
+                                                  .ToList();
+                        var maximumStatistics = new Dictionary<HitResult, int>();
+
+                        foreach (var groupedStats in allHits
+                                                     .Select(r => getMaxJudgementFor(r, maxRulesetJudgement))
+                                                     .GroupBy(r => r))
                         {
-                            Console.Write(".");
-                            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(item.ruleset_id);
-                            HitResult maxRulesetJudgement = ruleset.GetHitResults().First().result;
-
-                            Dictionary<HitResult, int> statistics = JsonConvert.DeserializeObject<Dictionary<HitResult, int>>(score.statistics)
-                                                                    ?? new Dictionary<HitResult, int>();
-
-                            List<HitResult> allHits = statistics
-                                                      .SelectMany(kvp => Enumerable.Repeat(kvp.Key, kvp.Value))
-                                                      .ToList();
-                            var maximumStatistics = new Dictionary<HitResult, int>();
-
-                            foreach (var groupedStats in allHits
-                                                         .Select(r => getMaxJudgementFor(r, maxRulesetJudgement))
-                                                         .GroupBy(r => r))
-                            {
-                                maximumStatistics[groupedStats.Key] = groupedStats.Count();
-                            }
-
-                            APIMod[] roomMods = JsonConvert.DeserializeObject<APIMod[]>(item.required_mods)!;
-                            APIMod[] scoreMods = JsonConvert.DeserializeObject<APIMod[]>(score.mods)!;
-
-                            foreach (var m in roomMods)
-                                Debug.Assert(scoreMods.Contains(m));
-
-                            long? insertId = null;
-
-                            if (score.total_score != null || score.ended_at != null)
-                            {
-                                var soloScoreInfo = SoloScoreInfo.ForSubmission(new ScoreInfo
-                                {
-                                    Statistics = statistics,
-                                    MaximumStatistics = maximumStatistics,
-                                    Ruleset = ruleset.RulesetInfo,
-                                    MaxCombo = (int)score.max_combo!,
-                                    APIMods = scoreMods,
-                                    Accuracy = (double)score.accuracy!,
-                                    TotalScore = (long)score.total_score!,
-                                    Rank = Enum.Parse<ScoreRank>(score.rank),
-                                    Passed = score.passed,
-                                });
-
-                                soloScoreInfo.StartedAt = DateTime.SpecifyKind(score.started_at, DateTimeKind.Utc);
-                                soloScoreInfo.EndedAt = DateTime.SpecifyKind(score.ended_at!.Value, DateTimeKind.Utc);
-                                soloScoreInfo.BeatmapID = (int)score.beatmap_id;
-
-                                // InsertAsync is broken and doesn't support BIGINT primary keys...
-                                using (var insertCommand = db.CreateCommand())
-                                {
-                                    insertCommand.CommandText = "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) VALUES (@user_id, @beatmap_id, @ruleset_id, @data, @preserve, @created_at, @updated_at)";
-
-                                    var paramUserId = insertCommand.Parameters.Add("user_id", DbType.UInt32);
-                                    var paramBeatmapId = insertCommand.Parameters.Add("beatmap_id", MySqlDbType.UInt24);
-                                    var paramRulesetId = insertCommand.Parameters.Add("ruleset_id", DbType.UInt16);
-                                    var paramData = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
-                                    var paramPreserve = insertCommand.Parameters.Add("preserve", DbType.Boolean);
-                                    var paramCreatedAt = insertCommand.Parameters.Add("created_at", MySqlDbType.Timestamp);
-                                    var paramUpdatedAt = insertCommand.Parameters.Add("updated_at", MySqlDbType.Timestamp);
-
-                                    paramUserId.Value = score.user_id;
-                                    paramBeatmapId.Value = score.beatmap_id;
-                                    paramRulesetId.Value = item.ruleset_id;
-                                    paramPreserve.Value = true;
-                                    paramData.Value = JsonConvert.SerializeObject(soloScoreInfo);
-                                    paramCreatedAt.Value = DateTime.SpecifyKind(score.created_at!.Value, DateTimeKind.Utc);
-                                    paramUpdatedAt.Value = DateTime.SpecifyKind(score.updated_at!.Value, DateTimeKind.Utc);
-
-                                    await insertCommand.PrepareAsync(cancellationToken);
-                                    await insertCommand.ExecuteNonQueryAsync(cancellationToken);
-
-                                    insertId = insertCommand.LastInsertedId;
-                                }
-                            }
-
-                            await db.ExecuteAsync("INSERT INTO multiplayer_score_links (user_id, room_id, beatmap_id, playlist_item_id, score_id, created_at, updated_at) VALUES (@userId, @roomId, @beatmapId, @playlistItemId, @scoreId, @createdAt, @updatedAt)", new
-                            {
-                                userId = score.user_id,
-                                roomId = score.room_id,
-                                beatmapId = score.beatmap_id,
-                                playlistItemId = score.playlist_item_id,
-                                scoreId = insertId,
-                                createdAt = score.created_at,
-                                updatedAt = score.ended_at
-                            });
+                            maximumStatistics[groupedStats.Key] = groupedStats.Count();
                         }
 
-                        Console.WriteLine();
+                        APIMod[] roomMods = JsonConvert.DeserializeObject<APIMod[]>(item.required_mods)!;
+                        APIMod[] scoreMods = JsonConvert.DeserializeObject<APIMod[]>(score.mods)!;
+
+                        foreach (var m in roomMods)
+                            Debug.Assert(scoreMods.Contains(m));
+
+                        long? insertId = null;
+
+                        if (score.total_score != null || score.ended_at != null)
+                        {
+                            var soloScoreInfo = SoloScoreInfo.ForSubmission(new ScoreInfo
+                            {
+                                Statistics = statistics,
+                                MaximumStatistics = maximumStatistics,
+                                Ruleset = ruleset.RulesetInfo,
+                                MaxCombo = (int)score.max_combo!,
+                                APIMods = scoreMods,
+                                Accuracy = (double)score.accuracy!,
+                                TotalScore = (long)score.total_score!,
+                                Rank = Enum.Parse<ScoreRank>(score.rank),
+                                Passed = score.passed,
+                            });
+
+                            soloScoreInfo.StartedAt = DateTime.SpecifyKind(score.started_at, DateTimeKind.Utc);
+                            soloScoreInfo.EndedAt = DateTime.SpecifyKind(score.ended_at!.Value, DateTimeKind.Utc);
+                            soloScoreInfo.BeatmapID = (int)score.beatmap_id;
+
+                            paramUserId.Value = score.user_id;
+                            paramBeatmapId.Value = score.beatmap_id;
+                            paramRulesetId.Value = item.ruleset_id;
+                            paramPreserve.Value = true;
+                            paramData.Value = JsonConvert.SerializeObject(soloScoreInfo);
+                            paramCreatedAt.Value = DateTime.SpecifyKind(score.created_at!.Value, DateTimeKind.Utc);
+                            paramUpdatedAt.Value = DateTime.SpecifyKind(score.updated_at!.Value, DateTimeKind.Utc);
+
+                            await insertCommand.ExecuteNonQueryAsync(cancellationToken);
+
+                            insertId = insertCommand.LastInsertedId;
+                        }
+
+                        long scoreLinkId = await db.QuerySingleAsync<long>("INSERT INTO multiplayer_score_links (user_id, room_id, beatmap_id, playlist_item_id, score_id, created_at, updated_at) VALUES (@userId, @roomId, @beatmapId, @playlistItemId, @scoreId, @createdAt, @updatedAt); SELECT LAST_INSERT_ID()", new
+                        {
+                            userId = score.user_id,
+                            roomId = score.room_id,
+                            beatmapId = score.beatmap_id,
+                            playlistItemId = score.playlist_item_id,
+                            scoreId = insertId,
+                            createdAt = score.created_at,
+                            updatedAt = score.ended_at
+                        });
+
+                        await db.ExecuteAsync("UPDATE multiplayer_scores_high SET score_link_id = @scoreLinkId, score_id = 0 WHERE user_id = @userId AND playlist_item_id = @playlistItemId AND score_id = @scoreId", new
+                        {
+                            scoreLinkId = scoreLinkId,
+                            userId = score.user_id,
+                            playlistItemId = score.playlist_item_id,
+                            scoreId = score.id,
+                        });
                     }
+
+                    Console.WriteLine();
                 }
             }
 
