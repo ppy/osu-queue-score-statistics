@@ -65,10 +65,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             foreach (int id in playlistIds)
             {
-                Console.WriteLine($"Processing playlist {id}...");
-
                 if (cancellationToken.IsCancellationRequested)
                     break;
+
+                Console.WriteLine($"Processing playlist {id}...");
 
                 var playlistItems = await db.QueryAsync<MultiplayerPlaylistItem>("SELECT * FROM multiplayer_playlist_items WHERE room_id = @PlaylistId", new
                 {
@@ -86,6 +86,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     foreach (var score in scores)
                     {
+                        if (cancellationToken.IsCancellationRequested)
+                            break;
+
                         Console.Write(".");
                         Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(item.ruleset_id);
                         HitResult maxRulesetJudgement = ruleset.GetHitResults().First().result;
