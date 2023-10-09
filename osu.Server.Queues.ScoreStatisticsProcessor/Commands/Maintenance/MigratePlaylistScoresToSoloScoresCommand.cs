@@ -159,7 +159,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             updatedAt = score.ended_at
                         });
 
-                        await db.ExecuteAsync($"UPDATE multiplayer_scores_high SET score_link_id = {scoreLinkId}, score_id = 0 WHERE score_id = {score.id}");
+                        await db.ExecuteAsync($"UPDATE multiplayer_scores_high SET score_link_id = {scoreLinkId}, score_id = 0 WHERE user_id = @userId AND playlist_item_id = @playlistItemId AND score_id = @scoreId", new
+                        {
+                            userId = score.user_id,
+                            playlistItemId = score.playlist_item_id,
+                            scoreId = score.id,
+                        });
                     }
 
                     Console.WriteLine();
