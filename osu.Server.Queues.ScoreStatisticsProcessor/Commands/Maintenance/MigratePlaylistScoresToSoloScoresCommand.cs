@@ -145,7 +145,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             insertId = insertCommand.LastInsertedId;
                         }
 
-                        await db.ExecuteAsync("INSERT INTO multiplayer_score_links (user_id, room_id, beatmap_id, playlist_item_id, score_id, created_at, updated_at) VALUES (@userId, @roomId, @beatmapId, @playlistItemId, @scoreId, @createdAt, @updatedAt)", new
+                        long scoreLinkId = await db.QuerySingleAsync<long>("INSERT INTO multiplayer_score_links (user_id, room_id, beatmap_id, playlist_item_id, score_id, created_at, updated_at) VALUES (@userId, @roomId, @beatmapId, @playlistItemId, @scoreId, @createdAt, @updatedAt); SELECT LAST_INSERT_ID()", new
                         {
                             userId = score.user_id,
                             roomId = score.room_id,
@@ -155,6 +155,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             createdAt = score.created_at,
                             updatedAt = score.ended_at
                         });
+
+                        await db.ExecuteAsync($"UPDATE multiplayer_scores_high SET score_link_id = {scoreLinkId}, score_id = 0 WHERE score_id = {score.id}");
                     }
 
                     Console.WriteLine();
