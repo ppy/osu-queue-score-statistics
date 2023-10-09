@@ -50,6 +50,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             Console.WriteLine($"Running on {playlistIds.Length} playlists");
             Thread.Sleep(5000);
 
+            using var insertCommand = db.CreateCommand();
+            insertCommand.CommandText = "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) VALUES (@user_id, @beatmap_id, @ruleset_id, @data, @preserve, @created_at, @updated_at)";
+
+            var paramUserId = insertCommand.Parameters.Add("user_id", DbType.UInt32);
+            var paramBeatmapId = insertCommand.Parameters.Add("beatmap_id", MySqlDbType.UInt24);
+            var paramRulesetId = insertCommand.Parameters.Add("ruleset_id", DbType.UInt16);
+            var paramData = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
+            var paramPreserve = insertCommand.Parameters.Add("preserve", DbType.Boolean);
+            var paramCreatedAt = insertCommand.Parameters.Add("created_at", MySqlDbType.Timestamp);
+            var paramUpdatedAt = insertCommand.Parameters.Add("updated_at", MySqlDbType.Timestamp);
+
+            await insertCommand.PrepareAsync(cancellationToken);
+
             foreach (int id in playlistIds)
             {
                 Console.WriteLine($"Processing playlist {id}...");
@@ -119,32 +132,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             soloScoreInfo.EndedAt = DateTime.SpecifyKind(score.ended_at!.Value, DateTimeKind.Utc);
                             soloScoreInfo.BeatmapID = (int)score.beatmap_id;
 
-                            // InsertAsync is broken and doesn't support BIGINT primary keys...
-                            using (var insertCommand = db.CreateCommand())
-                            {
-                                insertCommand.CommandText = "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) VALUES (@user_id, @beatmap_id, @ruleset_id, @data, @preserve, @created_at, @updated_at)";
+                            paramUserId.Value = score.user_id;
+                            paramBeatmapId.Value = score.beatmap_id;
+                            paramRulesetId.Value = item.ruleset_id;
+                            paramPreserve.Value = true;
+                            paramData.Value = JsonConvert.SerializeObject(soloScoreInfo);
+                            paramCreatedAt.Value = DateTime.SpecifyKind(score.created_at!.Value, DateTimeKind.Utc);
+                            paramUpdatedAt.Value = DateTime.SpecifyKind(score.updated_at!.Value, DateTimeKind.Utc);
 
-                                var paramUserId = insertCommand.Parameters.Add("user_id", DbType.UInt32);
-                                var paramBeatmapId = insertCommand.Parameters.Add("beatmap_id", MySqlDbType.UInt24);
-                                var paramRulesetId = insertCommand.Parameters.Add("ruleset_id", DbType.UInt16);
-                                var paramData = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
-                                var paramPreserve = insertCommand.Parameters.Add("preserve", DbType.Boolean);
-                                var paramCreatedAt = insertCommand.Parameters.Add("created_at", MySqlDbType.Timestamp);
-                                var paramUpdatedAt = insertCommand.Parameters.Add("updated_at", MySqlDbType.Timestamp);
+                            await insertCommand.ExecuteNonQueryAsync(cancellationToken);
 
-                                paramUserId.Value = score.user_id;
-                                paramBeatmapId.Value = score.beatmap_id;
-                                paramRulesetId.Value = item.ruleset_id;
-                                paramPreserve.Value = true;
-                                paramData.Value = JsonConvert.SerializeObject(soloScoreInfo);
-                                paramCreatedAt.Value = DateTime.SpecifyKind(score.created_at!.Value, DateTimeKind.Utc);
-                                paramUpdatedAt.Value = DateTime.SpecifyKind(score.updated_at!.Value, DateTimeKind.Utc);
-
-                                await insertCommand.PrepareAsync(cancellationToken);
-                                await insertCommand.ExecuteNonQueryAsync(cancellationToken);
-
-                                insertId = insertCommand.LastInsertedId;
-                            }
+                            insertId = insertCommand.LastInsertedId;
                         }
 
                         await db.ExecuteAsync("INSERT INTO multiplayer_score_links (user_id, room_id, beatmap_id, playlist_item_id, score_id, created_at, updated_at) VALUES (@userId, @roomId, @beatmapId, @playlistItemId, @scoreId, @createdAt, @updatedAt)", new
