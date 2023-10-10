@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
+using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
@@ -144,6 +146,76 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 throw new InvalidOperationException($"Unable to retrieve count '{key}'.");
 
             return res.Value;
+        }
+
+        /// <summary>
+        /// Returns <see langword="true"/> if the beatmap with the given <paramref name="beatmapId"/>
+        /// is valid to be included in ranked counts, such as total ranked score and user rank (grade) counts.
+        /// </summary>
+        /// <seealso cref="RankedScoreProcessor"/>
+        /// <seealso cref="UserRankCountProcessor"/>
+        /// <param name="beatmapId">The ID of the beatmap to check.</param>
+        /// <param name="conn">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">The current transaction, if applicable.</param>
+        /// <exception cref="InvalidOperationException">The beatmap with the supplied <paramref name="beatmapId"/> could not be found.</exception>
+        public static bool IsBeatmapValidForRankedCounts(int beatmapId, MySqlConnection conn, MySqlTransaction? transaction = null)
+        {
+            var status = conn.QuerySingleOrDefault<BeatmapOnlineStatus?>("SELECT `approved` FROM osu_beatmaps WHERE `beatmap_id` = @beatmap_id",
+                new { beatmap_id = beatmapId },
+                transaction);
+
+            if (status == null)
+                throw new InvalidOperationException($"Cannot find beatmap with ID = {beatmapId} in database.");
+
+            // see https://osu.ppy.sh/wiki/en/Gameplay/Score/Ranked_score
+            return status == BeatmapOnlineStatus.Ranked
+                   || status == BeatmapOnlineStatus.Approved
+                   || status == BeatmapOnlineStatus.Loved;
+        }
+
+        /// <summary>
+        /// Given a <paramref name="score"/>, returns the best score set by the same <see cref="SoloScoreInfo.User"/>,
+        /// on the same <see cref="SoloScoreInfo.Beatmap"/>, with the same <see cref="SoloScoreInfo.RulesetID"/>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The returned score can be the same score as the supplied <paramref name="score"/>,
+        /// which means that the supplied <paramref name="score"/> is the user's best.
+        /// </para>
+        /// <para>
+        /// This method also supports fetching the second-best, third-best score etc.,
+        /// by supplying a non-zero value for the <paramref name="offset"/> parameter.
+        /// </para>
+        /// <para>
+        /// The "best" score is defined as the score with the biggest standardised total score.
+        /// If two or more scores have equal standardised total score, the newest one wins.
+        /// </para>
+        /// </remarks>
+        /// <param name="score">The score from which to retrieve user, beatmap, and ruleset info for lookup.</param>
+        /// <param name="conn">The <see cref="MySqlConnection"/>.</param>
+        /// <param name="transaction">The current transaction, if applicable.</param>
+        /// <param name="offset">How many records to skip in the sort order.</param>
+        public static SoloScoreInfo? GetUserBestScoreFor(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction? transaction = null, int offset = 0)
+        {
+            var rankSource = conn.QueryFirstOrDefault<SoloScore?>(
+                "SELECT * FROM solo_scores WHERE `user_id` = @user_id "
+                + "AND `beatmap_id` = @beatmap_id "
+                + "AND `ruleset_id` = @ruleset_id "
+                // preserve is not flagged on a newly arriving score until it has been completely processed (see logic in `ScoreStatisticsQueueProcessor.cs`)
+                // usages in processors will generally pass in an unprocessed score, but still expect it to be included in the results of this query as if it was processed.
+                // therefore we need to make an exception here to ensure it's included.
+                + "AND (`preserve` = 1 OR `id` = @new_score_id) "
+                + "ORDER BY `data`->'$.total_score' DESC, `id` DESC "
+                + "LIMIT @offset, 1", new
+                {
+                    user_id = score.UserID,
+                    beatmap_id = score.BeatmapID,
+                    ruleset_id = score.RulesetID,
+                    new_score_id = score.ID,
+                    offset = offset,
+                }, transaction);
+
+            return rankSource?.ScoreInfo;
         }
     }
 }
