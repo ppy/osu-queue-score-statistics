@@ -110,7 +110,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 id = Interlocked.Increment(ref scoreIDSource),
                 user_id = 2,
                 beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
-                ruleset_id = rulesetId ?? 0,
+                ruleset_id = (ushort)(rulesetId ?? 0),
                 created_at = DateTimeOffset.Now,
                 updated_at = DateTimeOffset.Now,
             };
@@ -131,6 +131,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 0 }
+                },
+                MaximumStatistics =
+                {
+                    { HitResult.Perfect, 5 },
+                    { HitResult.LargeBonus, 2 }
                 },
                 Passed = true
             };

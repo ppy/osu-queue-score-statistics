@@ -4,6 +4,8 @@
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Rulesets.Scoring;
+using osu.Game.Scoring.Legacy;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
@@ -18,13 +20,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (previousVersion >= 2)
+            if (previousVersion < 2)
+                return;
+
+            if (previousVersion < 8)
+            {
                 userStats.total_score -= score.TotalScore;
+                return;
+            }
+
+            userStats.total_score -= score.GetDisplayScore(ScoringMode.Classic);
         }
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            userStats.total_score += score.TotalScore;
+            userStats.total_score += score.GetDisplayScore(ScoringMode.Classic);
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
