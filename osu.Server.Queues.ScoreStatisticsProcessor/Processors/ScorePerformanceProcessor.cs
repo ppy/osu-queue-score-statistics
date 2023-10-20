@@ -163,9 +163,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     case ManiaModKey10:
                         return false;
 
+                    case ModNightcore nc:
+                        // Disallow non-default rate adjustments for now.
+                        if (!nc.SpeedChange.IsDefault)
+                            return false;
+
+                        continue;
+
                     case ModDoubleTime dt:
                         // Disallow non-default rate adjustments for now.
                         if (!dt.SpeedChange.IsDefault)
+                            return false;
+
+                        continue;
+
+                    case ModDaycore dc:
+                        // Disallow non-default rate adjustments for now.
+                        if (!dc.SpeedChange.IsDefault)
                             return false;
 
                         continue;
