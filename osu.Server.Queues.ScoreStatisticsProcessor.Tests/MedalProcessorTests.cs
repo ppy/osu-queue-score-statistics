@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Dapper;
@@ -106,10 +107,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addPackMedal(medal_id, pack_id, allBeatmaps);
 
+            // Need to space out submissions else we will hit rate limits.
+            int minutesOffset = -allBeatmaps.Length;
+
             foreach (var beatmap in allBeatmaps)
             {
                 assertNotAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id);
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.created_at = DateTimeOffset.Now.AddMinutes(minutesOffset++));
             }
 
             assertAwarded(medal_id);
