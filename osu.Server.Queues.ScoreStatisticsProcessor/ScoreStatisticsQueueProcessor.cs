@@ -76,6 +76,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     var scoreRow = item.Score;
                     var score = scoreRow.ScoreInfo;
 
+                    score.Beatmap = conn.QuerySingleOrDefault<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                    {
+                        BeatmapId = score.BeatmapID
+                    })?.ToAPIBeatmap();
+
                     using (var transaction = conn.BeginTransaction())
                     {
                         var userStats = DatabaseHelper.GetUserStatsAsync(score, conn, transaction).Result;
