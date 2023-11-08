@@ -26,16 +26,30 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             if (previousVersion >= 3)
             {
-                adjustMonthlyPlaycount(score, conn, transaction, true);
+                adjustUserMonthlyPlaycount(score, conn, transaction, true);
                 adjustUserBeatmapPlaycount(score, conn, transaction, true);
             }
         }
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            userStats.playcount++;
-            adjustMonthlyPlaycount(score, conn, transaction);
-            adjustUserBeatmapPlaycount(score, conn, transaction);
+            const int beatmap_count = 12;
+            const int over_time = 120;
+
+            int secondsForRecentScores = conn.QuerySingleOrDefault<int?>("SELECT UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(created_at) FROM solo_scores WHERE user_id = @user_id AND ruleset_id = @ruleset_id ORDER BY id DESC LIMIT 1 OFFSET @beatmap_count", new
+            {
+                user_id = score.UserID,
+                ruleset_id = score.RulesetID,
+                beatmap_count,
+            }, transaction) ?? int.MaxValue;
+
+            if (secondsForRecentScores > over_time)
+            {
+                userStats.playcount++;
+
+                adjustUserMonthlyPlaycount(score, conn, transaction);
+                adjustUserBeatmapPlaycount(score, conn, transaction);
+            }
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
@@ -54,7 +68,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 }, transaction);
         }
 
-        private static void adjustMonthlyPlaycount(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, bool revert = false)
+        private static void adjustUserMonthlyPlaycount(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, bool revert = false)
         {
             DateTimeOffset? date = score.StartedAt ?? score.EndedAt;
 
