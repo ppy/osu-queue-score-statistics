@@ -1,4 +1,6 @@
+using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
@@ -17,6 +19,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             PushToQueueAndWaitForProcess(CreateTestScore(3));
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", 2, CancellationToken);
+        }
+
+        [Fact]
+        public void TestGlobalPlaycountIncrement()
+        {
+            const int attempt_count = 5000;
+
+            AddBeatmap();
+
+            Task.Run(() =>
+            {
+                for (int i = 0; i < attempt_count; i++)
+                {
+                    int offset = i - attempt_count;
+                    SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.created_at = DateTimeOffset.Now.AddMinutes(offset));
+                }
+
+                PushToQueueAndWaitForProcess(CreateTestScore());
+            });
+
+            WaitForDatabaseState("SELECT IF(count > 0, 1, 0) FROM osu_counts WHERE name = 'playcount'", 1, CancellationToken);
         }
 
         [Fact]
