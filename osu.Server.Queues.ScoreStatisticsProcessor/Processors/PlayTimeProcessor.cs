@@ -3,7 +3,6 @@
 
 using System;
 using System.Linq;
-using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
@@ -39,10 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private static int getPlayLength(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
         {
             // to ensure sanity, first get the maximum time feasible from the beatmap's length
-            double totalLengthSeconds = conn.QueryFirstOrDefault<double>("SELECT total_length FROM osu_beatmaps WHERE beatmap_id = @beatmap_id", new
-            {
-                beatmap_id = score.BeatmapID
-            }, transaction);
+            double totalLengthSeconds = score.Beatmap!.Length;
 
             Ruleset ruleset = ScoreStatisticsQueueProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.RulesetID);
 
