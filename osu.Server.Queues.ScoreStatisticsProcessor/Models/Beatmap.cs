@@ -29,21 +29,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public float diff_overall { get; set; }
         public float diff_approach { get; set; }
         public byte playmode { get; set; }
+        public int playcount { get; set; }
         public BeatmapOnlineStatus approved { get; set; }
         public float difficultyrating { get; set; }
 
         public APIBeatmap ToAPIBeatmap() => new APIBeatmap
         {
             OnlineID = beatmap_id,
+            OnlineBeatmapSetID = beatmapset_id,
             CircleCount = (int)countNormal,
             SliderCount = (int)countSlider,
             SpinnerCount = (int)countSpinner,
             DrainRate = diff_drain,
+            Length = total_length,
             CircleSize = diff_size,
             OverallDifficulty = diff_overall,
             ApproachRate = diff_approach,
             RulesetID = playmode,
-            StarRating = difficultyrating
+            StarRating = difficultyrating,
+            PlayCount = playcount,
+            Status = approved,
         };
     }
 }
