@@ -22,9 +22,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestGlobalPlaycountIncrement()
+        public void TestGlobalPlaycountsIncrement()
         {
-            const int attempt_count = 5000;
+            const int attempt_count = 100;
 
             AddBeatmap();
 
@@ -35,11 +35,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     int offset = i - attempt_count;
                     SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.created_at = DateTimeOffset.Now.AddMinutes(offset));
                 }
-
-                PushToQueueAndWaitForProcess(CreateTestScore());
             });
 
             WaitForDatabaseState("SELECT IF(count > 0, 1, 0) FROM osu_counts WHERE name = 'playcount'", 1, CancellationToken);
+            WaitForDatabaseState($"SELECT IF(playcount > 0, 1, 0) FROM osu_beatmaps WHERE beatmap_id = {TEST_BEATMAP_ID}", 1, CancellationToken);
+            WaitForDatabaseState($"SELECT IF(play_count > 0, 1, 0) FROM osu_beatmapsets WHERE beatmapset_id = {TEST_BEATMAP_SET_ID}", 1, CancellationToken);
         }
 
         [Fact]

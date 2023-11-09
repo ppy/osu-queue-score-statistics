@@ -6,6 +6,7 @@ using System.Diagnostics;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Framework.Development;
 using osu.Framework.Utils;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -65,7 +66,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             // We want to reduce database overhead here, so we only update the global playcount every n plays.
             // Note that we use a non-round number to make the display more natural.
-            const int increment = 99;
+            int increment = DebugUtils.IsNUnitRunning ? 5 : 99;
 
             if (RNG.Next(0, increment) == 0)
             {
