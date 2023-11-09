@@ -3,7 +3,6 @@
 
 using System;
 using System.Linq;
-using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Beatmaps;
@@ -11,7 +10,6 @@ using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -21,6 +19,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class MaxComboProcessor : IProcessor
     {
+        public bool RunOnFailedScores => false;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             // TODO: this will require access to stable scores to be implemented correctly.
@@ -28,18 +28,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            Ruleset ruleset = ScoreStatisticsProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.RulesetID);
+            Ruleset ruleset = ScoreStatisticsQueueProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.RulesetID);
 
             // Automation mods should not count towards max combo statistic.
             if (score.Mods.Select(m => m.ToMod(ruleset)).Any(m => m.Type == ModType.Automation))
                 return;
 
-            var beatmap = conn.QuerySingleOrDefault<Beatmap?>($"SELECT * FROM {Beatmap.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId", new
-            {
-                BeatmapId = score.BeatmapID
-            }, transaction: transaction);
-
-            if (beatmap == null || beatmap.approved < BeatmapOnlineStatus.Ranked)
+            if (score.Beatmap == null || score.Beatmap.Status < BeatmapOnlineStatus.Ranked)
                 return;
 
             // TODO: assert the user's score is not higher than the max combo for the beatmap.

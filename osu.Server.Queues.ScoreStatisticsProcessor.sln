@@ -5,8 +5,6 @@ VisualStudioVersion = 16.0.30804.86
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "osu.Server.Queues.ScoreStatisticsProcessor", "osu.Server.Queues.ScoreStatisticsProcessor\osu.Server.Queues.ScoreStatisticsProcessor.csproj", "{6504492D-D8E1-464C-AD66-9A90C06DCA4D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "osu.Server.Queues.ScorePump", "osu.Server.Queues.ScorePump\osu.Server.Queues.ScorePump.csproj", "{5AA03D2C-5BC4-4CBF-83F1-8D71EC49E838}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "osu.Server.Queues.ScoreStatisticsProcessor.Tests", "osu.Server.Queues.ScoreStatisticsProcessor.Tests\osu.Server.Queues.ScoreStatisticsProcessor.Tests.csproj", "{386227E2-74CD-4C08-8BFF-F8F2E3D1D57F}"
 EndProject
 Global

@@ -11,41 +11,44 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table(TABLE_NAME)]
+    [Table("osu_beatmaps")]
     public class Beatmap
     {
-        public const string TABLE_NAME = "osu_beatmaps";
-
         [ExplicitKey]
         public int beatmap_id { get; set; }
 
         public int beatmapset_id { get; set; }
 
-        public ushort countTotal { get; set; }
-        public ushort countNormal { get; set; }
-        public ushort countSlider { get; set; }
-        public ushort countSpinner { get; set; }
+        public uint countTotal { get; set; }
+        public uint countNormal { get; set; }
+        public uint countSlider { get; set; }
+        public uint countSpinner { get; set; }
         public int total_length { get; set; }
         public float diff_drain { get; set; }
         public float diff_size { get; set; }
         public float diff_overall { get; set; }
         public float diff_approach { get; set; }
         public byte playmode { get; set; }
+        public int playcount { get; set; }
         public BeatmapOnlineStatus approved { get; set; }
         public float difficultyrating { get; set; }
 
         public APIBeatmap ToAPIBeatmap() => new APIBeatmap
         {
             OnlineID = beatmap_id,
-            CircleCount = countNormal,
-            SliderCount = countSlider,
-            SpinnerCount = countSpinner,
+            OnlineBeatmapSetID = beatmapset_id,
+            CircleCount = (int)countNormal,
+            SliderCount = (int)countSlider,
+            SpinnerCount = (int)countSpinner,
             DrainRate = diff_drain,
+            Length = total_length,
             CircleSize = diff_size,
             OverallDifficulty = diff_overall,
             ApproachRate = diff_approach,
             RulesetID = playmode,
-            StarRating = difficultyrating
+            StarRating = difficultyrating,
+            PlayCount = playcount,
+            Status = approved,
         };
     }
 }

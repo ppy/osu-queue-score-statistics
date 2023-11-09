@@ -11,11 +11,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table(TABLE_NAME)]
+    [Table("solo_scores")]
     public class SoloScore
     {
-        public const string TABLE_NAME = "solo_scores";
-
         [ExplicitKey]
         public ulong id { get; set; }
 
@@ -46,6 +44,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         [JsonIgnore]
         public bool preserve { get; set; }
+
+        [JsonIgnore]
+        public bool has_replay { get; set; }
 
         [JsonIgnore]
         public SoloScoreInfo ScoreInfo = new SoloScoreInfo();

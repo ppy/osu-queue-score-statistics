@@ -15,13 +15,14 @@ using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
 {
     /// <summary>
-    /// A store for retrieving <see cref="Beatmap"/>s.
+    /// A store for retrieving <see cref="Models.Beatmap"/>s.
     /// </summary>
     public class BeatmapStore
     {
@@ -43,9 +44,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The created <see cref="BeatmapStore"/>.</returns>
-        public static async Task<BeatmapStore> CreateAsync(MySqlConnection? connection, MySqlTransaction? transaction = null)
+        public static async Task<BeatmapStore> CreateAsync(MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            var dbBlacklist = await connection.QueryAsync<PerformanceBlacklistEntry>($"SELECT * FROM {PerformanceBlacklistEntry.TABLE_NAME}", transaction: transaction);
+            var dbBlacklist = await connection.QueryAsync<PerformanceBlacklistEntry>("SELECT * FROM osu_beatmap_performance_blacklist", transaction: transaction);
 
             return new BeatmapStore
             (
@@ -91,7 +92,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
             {
                 rawDifficultyAttributes = attributeCache[key] = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
-                    $"SELECT * FROM {BeatmapDifficultyAttribute.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
+                    "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
                     {
                         key.BeatmapId,
                         key.RulesetId,
@@ -120,7 +121,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             if (beatmapCache.TryGetValue(beatmapId, out var beatmap))
                 return beatmap;
 
-            return beatmapCache[beatmapId] = await connection.QuerySingleOrDefaultAsync<Beatmap?>($"SELECT * FROM {Beatmap.TABLE_NAME} WHERE `beatmap_id` = @BeatmapId", new
+            return beatmapCache[beatmapId] = await connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
             {
                 BeatmapId = beatmapId
             }, transaction: transaction);
