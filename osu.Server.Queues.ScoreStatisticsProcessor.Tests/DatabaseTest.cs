@@ -67,6 +67,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE solo_scores");
                 db.Execute("TRUNCATE TABLE solo_scores_process_history");
                 db.Execute("TRUNCATE TABLE solo_scores_performance");
+
+                db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);

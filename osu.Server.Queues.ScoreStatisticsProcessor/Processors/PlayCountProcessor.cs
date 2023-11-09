@@ -6,7 +6,10 @@ using System.Diagnostics;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Framework.Development;
+using osu.Framework.Utils;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
@@ -49,11 +52,55 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                 adjustUserMonthlyPlaycount(score, conn, transaction);
                 adjustUserBeatmapPlaycount(score, conn, transaction);
+
+                adjustGlobalPlaycount(conn, transaction);
+                adjustGlobalBeatmapPlaycount(score, conn, transaction);
             }
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
+        }
+
+        private static void adjustGlobalPlaycount(MySqlConnection conn, MySqlTransaction transaction)
+        {
+            // We want to reduce database overhead here, so we only update the global playcount every n plays.
+            // Note that we use a non-round number to make the display more natural.
+            int increment = DebugUtils.IsNUnitRunning ? 5 : 99;
+
+            if (RNG.Next(0, increment) == 0)
+            {
+                conn.Execute("UPDATE osu_counts SET count = count + @increment WHERE name = 'playcount'", new
+                {
+                    increment
+                }, transaction);
+            }
+        }
+
+        private static void adjustGlobalBeatmapPlaycount(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
+        {
+            // We want to reduce database overhead here, so we only update the global beatmap playcount every n plays.
+            // Note that we use a non-round number to make the display more natural.
+            int increment = score.Beatmap!.PlayCount < 1000 ? 1 : 9;
+
+            if (RNG.Next(0, increment) == 0)
+            {
+                conn.Execute("UPDATE osu_beatmaps SET playcount = playcount + @increment WHERE beatmap_id = @beatmapId; UPDATE osu_beatmapsets SET play_count = play_count + @increment WHERE beatmapset_id = @beatmapSetId", new
+                {
+                    increment,
+                    beatmapId = score.BeatmapID,
+                    beatmapSetId = score.Beatmap.OnlineBeatmapSetID
+                }, transaction);
+
+                // Reindex beatmap occasionally.
+                if (RNG.Next(0, 10) == 0)
+                    LegacyDatabaseHelper.RunLegacyIO("indexing/bulk", "POST", $"beatmapset[]={score.Beatmap.OnlineBeatmapSetID}");
+
+                // TODO: announce playcount milestones
+                // const int notify_amount = 1000000;
+                // if (score.Beatmap.PlayCount > 0 && Math.Abs((incrementedPlaycount % notify_amount) - (score.Beatmap.PlayCount % notify_amount)) > increment)
+                //     throw new NotImplementedException("addEvent");
+            }
         }
 
         private static void adjustUserBeatmapPlaycount(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction, bool revert = false)
