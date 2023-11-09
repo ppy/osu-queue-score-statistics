@@ -22,7 +22,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
     [Command("recalculate-playlist-scores", Description = "Process all scores in a specific playlist, recalculating and writing any changes.")]
-    public class RecalculatePlaylistTotalScores : BaseCommand
+    public class RecalculatePlaylistTotalScoresCommand : BaseCommand
     {
         /// <summary>
         /// The playlist room ID to reprocess.
