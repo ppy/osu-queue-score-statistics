@@ -78,16 +78,30 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestRapidPlaysHasLimitedIncrease()
+        {
+            AddBeatmap();
+
+            WaitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {TEST_BEATMAP_ID}", (int?)null, CancellationToken);
+
+            for (int i = 0; i < 30; i++)
+                SetScoreForBeatmap(TEST_BEATMAP_ID);
+
+            WaitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {TEST_BEATMAP_ID}", 12, CancellationToken);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 12, CancellationToken);
+        }
+
+        [Fact]
         public void TestUserBeatmapPlaycountIncrease()
         {
             AddBeatmap();
 
             WaitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {TEST_BEATMAP_ID}", (int?)null, CancellationToken);
 
-            PushToQueueAndWaitForProcess(CreateTestScore());
+            SetScoreForBeatmap(TEST_BEATMAP_ID);
             WaitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {TEST_BEATMAP_ID}", 1, CancellationToken);
 
-            PushToQueueAndWaitForProcess(CreateTestScore());
+            SetScoreForBeatmap(TEST_BEATMAP_ID);
             WaitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {TEST_BEATMAP_ID}", 2, CancellationToken);
         }
 
