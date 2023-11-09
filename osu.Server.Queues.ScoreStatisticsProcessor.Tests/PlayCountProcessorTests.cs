@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -22,24 +23,33 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestGlobalPlaycountsIncrement()
+        public Task TestGlobalPlaycountsIncrement()
         {
             const int attempt_count = 100;
 
             AddBeatmap();
 
-            Task.Run(() =>
+            var cts = new CancellationTokenSource();
+
+            var incrementTask = Task.Run(() =>
             {
                 for (int i = 0; i < attempt_count; i++)
                 {
+                    if (cts.IsCancellationRequested)
+                        break;
+
                     int offset = i - attempt_count;
                     SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.created_at = DateTimeOffset.Now.AddMinutes(offset));
                 }
-            });
+            }, cts.Token);
 
             WaitForDatabaseState("SELECT IF(count > 0, 1, 0) FROM osu_counts WHERE name = 'playcount'", 1, CancellationToken);
             WaitForDatabaseState($"SELECT IF(playcount > 0, 1, 0) FROM osu_beatmaps WHERE beatmap_id = {TEST_BEATMAP_ID}", 1, CancellationToken);
             WaitForDatabaseState($"SELECT IF(play_count > 0, 1, 0) FROM osu_beatmapsets WHERE beatmapset_id = {TEST_BEATMAP_SET_ID}", 1, CancellationToken);
+
+            cts.Cancel();
+
+            return incrementTask;
         }
 
         [Fact]
