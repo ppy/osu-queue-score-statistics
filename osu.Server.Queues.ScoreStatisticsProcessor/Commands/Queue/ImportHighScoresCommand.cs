@@ -24,6 +24,7 @@ using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Scoring.Legacy;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -38,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
     /// which can be used for tie-breaker scenarios.
     /// </remarks>
     [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo_scores table.")]
-    public class ImportHighScoresCommand : BaseCommand
+    public class ImportHighScoresCommand
     {
         /// <summary>
         /// The ruleset to run this import job for.
@@ -141,7 +142,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 lastId = StartId.Value;
             else
             {
-                using (var db = Queue.GetDatabaseConnection())
+                using (var db = DatabaseAccess.GetConnection())
                     lastId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM solo_scores_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
 
                 Console.WriteLine($"StartId not provided, using last legacy ID map entry ({lastId})");
@@ -159,7 +160,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             Thread.Sleep(5000);
 
-            using (var dbMainQuery = Queue.GetDatabaseConnection())
+            using (var dbMainQuery = DatabaseAccess.GetConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
@@ -276,7 +277,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if (batch.Count == 0)
                             return;
 
-                        runningBatches.Add(new BatchInserter(ruleset, () => Queue.GetDatabaseConnection(), batch.ToArray(), SkipExisting, SkipNew));
+                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), SkipExisting, SkipNew));
                         batch.Clear();
                     }
                 }
@@ -353,7 +354,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private class BatchInserter
         {
             private readonly Ruleset ruleset;
-            private readonly Func<MySqlConnection> getConnection;
             private readonly bool skipExisting;
             private readonly bool skipNew;
 
@@ -363,10 +363,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             public List<long> IndexableSoloScoreIDs { get; } = new List<long>();
 
-            public BatchInserter(Ruleset ruleset, Func<MySqlConnection> getConnection, HighScore[] scores, bool skipExisting, bool skipNew)
+            public BatchInserter(Ruleset ruleset, HighScore[] scores, bool skipExisting, bool skipNew)
             {
                 this.ruleset = ruleset;
-                this.getConnection = getConnection;
                 this.skipExisting = skipExisting;
                 this.skipNew = skipNew;
 
@@ -376,7 +375,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             public async Task Run(HighScore[] scores)
             {
-                using (var db = getConnection())
+                using (var db = DatabaseAccess.GetConnection())
                 using (var transaction = await db.BeginTransactionAsync())
                 using (var insertCommand = db.CreateCommand())
                 using (var updateCommand = db.CreateCommand())

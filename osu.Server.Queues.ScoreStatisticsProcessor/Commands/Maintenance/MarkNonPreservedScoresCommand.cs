@@ -9,13 +9,14 @@ using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
     [Command("mark-non-preserved", Description = "Mark any scores which no longer need to be preserved.")]
-    public class MarkNonPreservedScoresCommand : BaseCommand
+    public class MarkNonPreservedScoresCommand
     {
         private readonly ElasticQueueProcessor elasticQueueProcessor = new ElasticQueueProcessor();
 
@@ -28,7 +29,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             Console.WriteLine($"Running for ruleset {RulesetId}");
 
-            using (var db = Queue.GetDatabaseConnection())
+            using (var db = DatabaseAccess.GetConnection())
             {
                 Console.WriteLine("Fetching all users...");
                 int[] userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();

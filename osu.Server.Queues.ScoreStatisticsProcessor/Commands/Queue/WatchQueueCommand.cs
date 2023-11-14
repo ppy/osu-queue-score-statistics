@@ -8,11 +8,13 @@ using McMaster.Extensions.CommandLineUtils;
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     [Command("watch", Description = "Begins processing of the queue.")]
-    public class WatchQueueCommand : BaseCommand
+    public class WatchQueueCommand
     {
+        private readonly ScoreStatisticsQueueProcessor queue = new ScoreStatisticsQueueProcessor();
+
         public Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            Queue.Run(cancellationToken);
+            queue.Run(cancellationToken);
             return Task.FromResult(0);
         }
     }

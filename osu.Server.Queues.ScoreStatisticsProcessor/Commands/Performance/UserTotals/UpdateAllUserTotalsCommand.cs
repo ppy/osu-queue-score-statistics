@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTotals
@@ -22,7 +23,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTo
 
             Console.WriteLine("Fetching all users...");
 
-            using (var db = Queue.GetDatabaseConnection())
+            using (var db = DatabaseAccess.GetConnection())
                 userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
 
             Console.WriteLine($"Fetched {userIds.Length} users");

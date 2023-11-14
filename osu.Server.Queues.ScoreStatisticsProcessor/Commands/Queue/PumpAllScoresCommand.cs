@@ -6,12 +6,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     [Command("pump-all", Description = "Pumps all existing `solo_scores` scores through the queue for reprocessing")]
-    public class PumpAllScoresCommand : BaseCommand
+    public class PumpAllScoresCommand
     {
         [Option("--start_id")]
         public long StartId { get; set; }
@@ -22,10 +23,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         [Option("--sql", Description = "Specify a custom query to limit the scope of pumping")]
         public string? CustomQuery { get; set; }
 
+        private readonly ScoreStatisticsQueueProcessor queue = new ScoreStatisticsQueueProcessor();
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using (var dbMainQuery = Queue.GetDatabaseConnection())
-            using (var db = Queue.GetDatabaseConnection())
+            using (var dbMainQuery = DatabaseAccess.GetConnection())
+            using (var db = DatabaseAccess.GetConnection())
             {
                 string query = "SELECT * FROM solo_scores WHERE id >= @StartId";
 
@@ -44,7 +47,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     var history = db.QuerySingleOrDefault<ProcessHistory>("SELECT * FROM solo_scores_process_history WHERE score_id = @id", score);
 
                     Console.WriteLine($"Pumping {score}");
-                    Queue.PushToQueue(new ScoreItem(score, history));
+                    queue.PushToQueue(new ScoreItem(score, history));
 
                     if (Delay > 0)
                         await Task.Delay(Delay, cancellationToken);

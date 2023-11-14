@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
@@ -31,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
     /// non-imported (lazer-first) scores anyway...
     /// </remarks>
     [Command("delete-high-scores", Description = "Deletes already-imported high scores from the solo_scores table.")]
-    public class DeleteImportedHighScoresCommand : BaseCommand
+    public class DeleteImportedHighScoresCommand
     {
         /// <summary>
         /// The high score ID to start deleting imported high scores from.
@@ -54,7 +55,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             Thread.Sleep(5000);
 
-            using (var conn = Queue.GetDatabaseConnection())
+            using (var conn = DatabaseAccess.GetConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
