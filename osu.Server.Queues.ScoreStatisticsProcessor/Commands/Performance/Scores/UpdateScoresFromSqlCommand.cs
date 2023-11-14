@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Dapper;
 using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.QueueProcessor;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
@@ -23,7 +24,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
         {
             int[] userIds;
 
-            using (var db = Queue.GetDatabaseConnection())
+            using (var db = DatabaseAccess.GetConnection())
                 userIds = (await db.QueryAsync<int>(Statement)).ToArray();
 
             await ProcessUserScores(userIds, cancellationToken);

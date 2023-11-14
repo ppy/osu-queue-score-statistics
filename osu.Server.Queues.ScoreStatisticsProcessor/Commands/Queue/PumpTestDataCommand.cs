@@ -10,8 +10,10 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     [Command("pump-test", Description = "Pumps empty test scores to the queue")]
-    public class PumpTestDataCommand : BaseCommand
+    public class PumpTestDataCommand
     {
+        private readonly ScoreStatisticsQueueProcessor queue = new ScoreStatisticsQueueProcessor();
+
         public Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -20,7 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 var scoreItem = new ScoreItem(new SoloScore());
                 Console.WriteLine($"Pumping {scoreItem}");
 
-                Queue.PushToQueue(scoreItem);
+                queue.PushToQueue(scoreItem);
                 Thread.Sleep(200);
             }
 

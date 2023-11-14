@@ -17,12 +17,13 @@ using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
     [Command("migrate-playlist-scores", Description = "Migrate scores from `multiplayer_scores` to `solo_scores`.")]
-    public class MigratePlaylistScoresToSoloScoresCommand : BaseCommand
+    public class MigratePlaylistScoresToSoloScoresCommand
     {
         /// <summary>
         /// The playlist room ID to reprocess.
@@ -32,7 +33,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using var db = Queue.GetDatabaseConnection();
+            using var db = DatabaseAccess.GetConnection();
 
             int[] playlistIds;
 

@@ -16,13 +16,14 @@ using osu.Game.Online.API;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 
 // ReSharper disable InconsistentNaming
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
     [Command("recalculate-playlist-scores", Description = "Process all scores in a specific playlist, recalculating and writing any changes.")]
-    public class RecalculatePlaylistTotalScoresCommand : BaseCommand
+    public class RecalculatePlaylistTotalScoresCommand
     {
         /// <summary>
         /// The playlist room ID to reprocess.
@@ -35,7 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             foreach (string id in PlaylistIds.Split(','))
             {
-                using (var db = Queue.GetDatabaseConnection())
+                using (var db = DatabaseAccess.GetConnection())
                 {
                     var playlistItems = await db.QueryAsync<MultiplayerPlaylistItem>("SELECT * FROM multiplayer_playlist_items WHERE room_id = @PlaylistId", new
                     {

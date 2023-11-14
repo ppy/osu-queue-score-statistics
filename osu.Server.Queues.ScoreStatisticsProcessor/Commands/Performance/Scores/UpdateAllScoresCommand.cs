@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
@@ -25,7 +26,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             long currentUserId;
 
-            using (var db = Queue.GetDatabaseConnection())
+            using (var db = DatabaseAccess.GetConnection())
             {
                 if (Continue)
                     currentUserId = await DatabaseHelper.GetCountAsync(databaseInfo.LastProcessedPpUserCount, db);
@@ -38,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             int? totalCount;
 
-            using (var db = Queue.GetDatabaseConnection())
+            using (var db = DatabaseAccess.GetConnection())
             {
                 totalCount = await db.QuerySingleAsync<int?>($"SELECT COUNT(`user_id`) FROM {databaseInfo.UserStatsTable} WHERE `user_id` >= @UserId", new
                 {
@@ -57,7 +58,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             {
                 int[] userIds;
 
-                using (var db = Queue.GetDatabaseConnection())
+                using (var db = DatabaseAccess.GetConnection())
                 {
                     userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE `user_id` > @UserId ORDER BY `user_id` LIMIT @Limit", new
                     {
@@ -71,14 +72,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
                 await ProcessPartitioned(userIds, async userId =>
                 {
-                    using (var db = Queue.GetDatabaseConnection())
+                    using (var db = DatabaseAccess.GetConnection())
                         await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
                     Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
                 }, cancellationToken);
 
                 currentUserId = userIds.Max();
 
-                using (var db = Queue.GetDatabaseConnection())
+                using (var db = DatabaseAccess.GetConnection())
                     await DatabaseHelper.SetCountAsync(databaseInfo.LastProcessedPpUserCount, currentUserId, db);
             }
 

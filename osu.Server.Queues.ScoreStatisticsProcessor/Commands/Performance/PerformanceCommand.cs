@@ -8,12 +8,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 {
-    public abstract class PerformanceCommand : BaseCommand
+    public abstract class PerformanceCommand
     {
         protected ScorePerformanceProcessor ScoreProcessor { get; private set; } = null!;
         protected UserTotalPerformanceProcessor TotalProcessor { get; private set; } = null!;
@@ -61,7 +62,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
             await ProcessPartitioned(userIds, async userId =>
             {
-                using (var db = Queue.GetDatabaseConnection())
+                using (var db = DatabaseAccess.GetConnection())
                 {
                     var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db);
 
@@ -90,7 +91,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
             await ProcessPartitioned(userIds, async userId =>
             {
-                using (var db = Queue.GetDatabaseConnection())
+                using (var db = DatabaseAccess.GetConnection())
                     await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);

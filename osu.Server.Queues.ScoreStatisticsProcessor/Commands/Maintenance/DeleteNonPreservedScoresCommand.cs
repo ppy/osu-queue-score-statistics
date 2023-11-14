@@ -7,12 +7,13 @@ using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
     [Command("cleanup", Description = "Delete non-preserved scores which are stale enough.")]
-    public class DeleteNonPreservedScoresCommand : BaseCommand
+    public class DeleteNonPreservedScoresCommand
     {
         /// <summary>
         /// How many hours non-preserved scores should be retained before being purged.
@@ -21,8 +22,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using (var readConnection = Queue.GetDatabaseConnection())
-            using (var deleteConnection = Queue.GetDatabaseConnection())
+            using (var readConnection = DatabaseAccess.GetConnection())
+            using (var deleteConnection = DatabaseAccess.GetConnection())
             using (var deleteCommand = deleteConnection.CreateCommand())
             {
                 deleteCommand.CommandText =
