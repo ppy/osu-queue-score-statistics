@@ -166,8 +166,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     if (CheckSlaveLatency)
                         checkSlaveLatency(dbMainQuery);
 
-                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} WHERE score_id >= @lastId ORDER BY score_id LIMIT {scoresPerQuery}",
-                        new { lastId });
+                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} " +
+                                                                             "LEFT JOIN score_process_queue USING (score_id) " +
+                                                                             // Either the score is so old the process queue entry is deleted, or it has finished pp processing.
+                                                                             // Without this we could insert scores before pp processing is completed.
+                                                                             "WHERE score_id >= @lastId AND (status IS NULL OR status > 0) " +
+                                                                             "ORDER BY score_id LIMIT @scoresPerQuery", new
+                    {
+                        lastId,
+                        scoresPerQuery
+                    });
 
                     if (!highScores.Any())
                     {
