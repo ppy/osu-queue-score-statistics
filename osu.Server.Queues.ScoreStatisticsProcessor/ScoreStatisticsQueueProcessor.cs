@@ -10,6 +10,7 @@ using System.Reflection;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
+using osu.Framework.Extensions.TypeExtensions;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Server.QueueProcessor;
@@ -40,19 +41,59 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         private readonly ElasticQueueProcessor elasticQueueProcessor = new ElasticQueueProcessor();
 
-        public ScoreStatisticsQueueProcessor()
+        public ScoreStatisticsQueueProcessor(string[]? disabledProcessors = null)
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
         {
             DapperExtensions.InstallDateTimeOffsetMapper();
 
-            // add each processor automagically.
-            foreach (var t in typeof(ScoreStatisticsQueueProcessor).Assembly.GetTypes().Where(t => !t.IsInterface && typeof(IProcessor).IsAssignableFrom(t)))
+            List<Type> enabledTypes = createProcessors(disabledProcessors);
+
+            foreach (var t in enabledTypes)
             {
                 if (Activator.CreateInstance(t) is IProcessor processor)
                     processors.Add(processor);
             }
 
             processors = processors.OrderBy(p => p.Order).ToList();
+        }
+
+        private List<Type> createProcessors(string[]? disabledProcessors)
+        {
+            List<Type> enabledTypes = typeof(ScoreStatisticsQueueProcessor)
+                                      .Assembly
+                                      .GetTypes()
+                                      .Where(t => !t.IsInterface && typeof(IProcessor).IsAssignableFrom(t))
+                                      .ToList();
+
+            List<Type> disabledTypes = new List<Type>();
+
+            if (disabledProcessors?.Length > 0)
+            {
+                foreach (string s in disabledProcessors)
+                {
+                    var match = enabledTypes.FirstOrDefault(t => t.ReadableName() == s);
+
+                    if (match == null)
+                        throw new ArgumentException($"Could not find matching processor to disable (\"{s}\")");
+
+                    enabledTypes.Remove(match);
+                    disabledTypes.Add(match);
+                }
+            }
+
+            Console.WriteLine("Active processors:");
+            foreach (var type in enabledTypes)
+                Console.WriteLine($"- {type.ReadableName()}");
+
+            Console.WriteLine();
+
+            Console.WriteLine("Disabled processors:");
+            foreach (var type in disabledTypes)
+                Console.WriteLine($"- {type.ReadableName()}");
+
+            Console.WriteLine();
+
+            return enabledTypes;
         }
 
         protected override void ProcessResult(ScoreItem item)
