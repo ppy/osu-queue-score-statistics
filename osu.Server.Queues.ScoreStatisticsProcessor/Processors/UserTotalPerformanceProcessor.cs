@@ -25,8 +25,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private long lastStoreRefresh;
 
-        private static readonly bool process_user_totals = Environment.GetEnvironmentVariable("PROCESS_USER_TOTALS") != "0";
-
         // This processor needs to run after the score's PP value has been processed.
         public int Order => ScorePerformanceProcessor.ORDER + 1;
 
@@ -38,9 +36,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (!process_user_totals)
-                return;
-
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.RulesetID);
 
             int warnings = conn.QuerySingleOrDefault<int>($"SELECT `user_warnings` FROM {dbInfo.UsersTable} WHERE `user_id` = @UserId", new
