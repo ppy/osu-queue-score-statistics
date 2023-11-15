@@ -19,6 +19,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
+            string? disabledProcessorsEnv = Environment.GetEnvironmentVariable("DISABLED_PROCESSORS");
+
+            if (!string.IsNullOrEmpty(disabledProcessorsEnv))
+            {
+                if (!string.IsNullOrEmpty(DisabledProcessors))
+                    throw new ArgumentException("Attempted to specify disabled processors via parameter and environment at the same time");
+
+                DisabledProcessors = disabledProcessorsEnv;
+            }
+
             ScoreStatisticsQueueProcessor queue = new ScoreStatisticsQueueProcessor(DisabledProcessors.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
 
             queue.Run(cancellationToken);
