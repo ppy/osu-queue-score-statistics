@@ -73,7 +73,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             if (string.IsNullOrEmpty(shared_interop_secret))
             {
 #if !DEBUG
-                throw new InvalidOperationException("Attempted to award medal with no legacy IO secret set");
+                throw new InvalidOperationException($"Attempted legacy IO call without secret set ({command}");
 #endif
                 return null!;
             }
