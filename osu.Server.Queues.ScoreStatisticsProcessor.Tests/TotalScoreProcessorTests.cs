@@ -24,6 +24,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestLevelIncrease()
+        {
+            AddBeatmap();
+
+            WaitForDatabaseState("SELECT level FROM osu_user_stats WHERE user_id = 2", (float?)null, CancellationToken);
+
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            WaitForDatabaseState("SELECT level FROM osu_user_stats WHERE user_id = 2", 1, CancellationToken);
+
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            WaitForDatabaseState("SELECT level FROM osu_user_stats WHERE user_id = 2", 2, CancellationToken);
+
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            WaitForDatabaseState("SELECT level FROM osu_user_stats WHERE user_id = 2", 3, CancellationToken);
+        }
+
+        [Fact]
         public void TestTotalScoreForLegacyScoreDoesntIncrease()
         {
             AddBeatmap();
