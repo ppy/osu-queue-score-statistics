@@ -131,6 +131,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
+            if (!CheckSlaveLatency)
+                scoresPerQuery = maximum_scores_per_query;
+
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
             string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
 
