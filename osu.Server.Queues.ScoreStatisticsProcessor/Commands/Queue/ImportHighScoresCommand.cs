@@ -100,7 +100,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// The number of scores done in a single processing query. These scores are read in one go, then distributed to parallel insertion workers.
         /// May be adjusted at runtime based on the replication state.
         /// </summary>
-        private const int maximum_scores_per_query = 50000;
+        private const int maximum_scores_per_query = 40000;
 
         /// <summary>
         /// In cases of slave replication latency, this will be the minimum scores processed per top-level query.
