@@ -161,10 +161,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Thread.Sleep(5000);
 
             string where;
+            ulong maxProcessableId = ulong.MaxValue;
 
             if (singleRun)
             {
-                where = "WHERE score_id >= @lastId";
+                // when doing a single run, we need to make sure not to run into scores which are in the process queue (to avoid
+                // touching them while they are still being written).
+                using (var db = DatabaseAccess.GetConnection())
+                    maxProcessableId = db.QuerySingle<ulong?>("SELECT MIN(score_id) FROM score_process_queue") - 1 ?? ulong.MaxValue;
+
+                where = "WHERE score_id >= @lastId AND score_id <= @";
             }
             else
             {
@@ -186,6 +192,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                                                                              "ORDER BY score_id LIMIT @scoresPerQuery", new
                     {
                         lastId,
+                        maxProcessableId,
                         scoresPerQuery
                     });
 
