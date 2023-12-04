@@ -24,11 +24,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public float legacy_bonus_score_ratio { get; set; }
 
+        public int legacy_bonus_score { get; set; }
+
+        public int legacy_max_combo { get; set; }
+
         public LegacyScoreAttributes ToAttributes() => new LegacyScoreAttributes
         {
             AccuracyScore = legacy_accuracy_score,
             ComboScore = legacy_combo_score,
-            BonusScoreRatio = legacy_bonus_score_ratio
+            BonusScoreRatio = legacy_bonus_score_ratio,
+            BonusScore = legacy_bonus_score,
+            MaxCombo = legacy_max_combo
         };
     }
 }
