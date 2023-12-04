@@ -49,6 +49,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         /// <summary>
         /// The high score ID to start the import process from. This can be used to perform batch reimporting for special cases.
+        /// When a value is specified, execution will end after all available items are processed.
         /// </summary>
         [Option(CommandOptionType.SingleValue, Template = "--start-id")]
         public ulong? StartId { get; set; }
@@ -77,12 +78,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// </summary>
         [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-indexing")]
         public bool SkipIndexing { get; set; }
-
-        /// <summary>
-        /// Whether to exit when there are no scores left at the tail end of the import. Defaults to <c>false</c>.
-        /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--exit-on-completion")]
-        public bool ExitOnCompletion { get; set; }
 
         private long lastCommitTimestamp;
         private long lastLatencyCheckTimestamp;
@@ -141,8 +136,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             ulong lastId;
 
-            if (StartId.HasValue)
-                lastId = StartId.Value;
+            bool singleRun = StartId.HasValue;
+
+            if (singleRun)
+                lastId = StartId!.Value;
             else
             {
                 using (var db = DatabaseAccess.GetConnection())
@@ -153,7 +150,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             Console.WriteLine();
             Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
-            Console.WriteLine($"Inserting into solo_scores and processing {(ExitOnCompletion ? "as single run" : "indefinitely")}");
+            Console.WriteLine($"Inserting into solo_scores and processing {(singleRun ? "as single run" : "indefinitely")}");
 
             if (!SkipIndexing)
             {
@@ -183,7 +180,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     if (!highScores.Any())
                     {
-                        if (ExitOnCompletion)
+                        if (singleRun)
                         {
                             Console.WriteLine("No scores found, all done!");
                             break;
