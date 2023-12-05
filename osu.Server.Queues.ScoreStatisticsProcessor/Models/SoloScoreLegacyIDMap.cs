@@ -16,7 +16,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public ushort ruleset_id { get; set; }
 
         [ExplicitKey]
-        public uint old_score_id { get; set; }
+        public ulong old_score_id { get; set; }
 
         public ulong score_id { get; set; }
     }
