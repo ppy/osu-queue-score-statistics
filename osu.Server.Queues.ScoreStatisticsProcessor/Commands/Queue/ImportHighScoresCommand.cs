@@ -170,7 +170,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 using (var db = DatabaseAccess.GetConnection())
                     maxProcessableId = db.QuerySingle<ulong?>("SELECT MIN(score_id) FROM score_process_queue") - 1 ?? ulong.MaxValue;
 
-                where = "WHERE score_id >= @lastId AND score_id <= @";
+                where = "WHERE score_id >= @lastId AND score_id <= @maxProcessableId";
             }
             else
             {
