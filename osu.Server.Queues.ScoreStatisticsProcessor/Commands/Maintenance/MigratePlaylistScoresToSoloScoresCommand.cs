@@ -22,7 +22,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
-    [Command("migrate-playlist-scores", Description = "Migrate scores from `multiplayer_scores` to `solo_scores`.")]
+    [Command("migrate-playlist-scores", Description = "Migrate scores from `multiplayer_scores` to `scores`.")]
     public class MigratePlaylistScoresToSoloScoresCommand
     {
         /// <summary>
@@ -52,7 +52,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             Thread.Sleep(5000);
 
             using var insertCommand = db.CreateCommand();
-            insertCommand.CommandText = "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) VALUES (@user_id, @beatmap_id, @ruleset_id, @data, @preserve, @created_at, @updated_at)";
+            insertCommand.CommandText = "INSERT INTO scores (user_id, beatmap_id, ruleset_id, data, preserve, created_at, updated_at) VALUES (@user_id, @beatmap_id, @ruleset_id, @data, @preserve, @created_at, @updated_at)";
 
             var paramUserId = insertCommand.Parameters.Add("user_id", DbType.UInt32);
             var paramBeatmapId = insertCommand.Parameters.Add("beatmap_id", MySqlDbType.UInt24);

@@ -9,7 +9,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table("solo_scores_legacy_id_map")]
+    [Table("score_legacy_id_map")]
     public class SoloScoreLegacyIDMap
     {
         [ExplicitKey]

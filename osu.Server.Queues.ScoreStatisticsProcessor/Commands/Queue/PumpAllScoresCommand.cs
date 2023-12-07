@@ -11,7 +11,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
-    [Command("pump-all", Description = "Pumps all existing `solo_scores` scores through the queue for reprocessing")]
+    [Command("pump-all", Description = "Pumps all existing `scores` scores through the queue for reprocessing")]
     public class PumpAllScoresCommand
     {
         [Option("--start_id")]
@@ -30,7 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             using (var dbMainQuery = DatabaseAccess.GetConnection())
             using (var db = DatabaseAccess.GetConnection())
             {
-                string query = "SELECT * FROM solo_scores WHERE id >= @StartId";
+                string query = "SELECT * FROM scores WHERE id >= @StartId";
 
                 if (!string.IsNullOrEmpty(CustomQuery))
                     query += $" AND {CustomQuery}";
@@ -44,7 +44,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         break;
 
                     // attach any previous processing information
-                    var history = db.QuerySingleOrDefault<ProcessHistory>("SELECT * FROM solo_scores_process_history WHERE score_id = @id", score);
+                    var history = db.QuerySingleOrDefault<ProcessHistory>("SELECT * FROM score_process_history WHERE score_id = @id", score);
 
                     Console.WriteLine($"Pumping {score}");
                     queue.PushToQueue(new ScoreItem(score, history));

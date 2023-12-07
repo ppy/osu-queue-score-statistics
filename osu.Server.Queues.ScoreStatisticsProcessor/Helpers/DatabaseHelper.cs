@@ -198,7 +198,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         public static SoloScoreInfo? GetUserBestScoreFor(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction? transaction = null, int offset = 0)
         {
             var rankSource = conn.QueryFirstOrDefault<SoloScore?>(
-                "SELECT * FROM solo_scores WHERE `user_id` = @user_id "
+                "SELECT * FROM scores WHERE `user_id` = @user_id "
                 + "AND `beatmap_id` = @beatmap_id "
                 + "AND `ruleset_id` = @ruleset_id "
                 // preserve is not flagged on a newly arriving score until it has been completely processed (see logic in `ScoreStatisticsQueueProcessor.cs`)
