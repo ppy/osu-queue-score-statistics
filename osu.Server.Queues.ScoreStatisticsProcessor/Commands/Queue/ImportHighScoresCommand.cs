@@ -189,7 +189,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         checkSlaveLatency(dbMainQuery);
 
                     var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} {where}" +
-                                                                             "ORDER BY score_id LIMIT @scoresPerQuery", new
+                                                                             " ORDER BY score_id LIMIT @scoresPerQuery", new
                     {
                         lastId,
                         maxProcessableId,
