@@ -136,17 +136,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             DateTimeOffset start = DateTimeOffset.Now;
 
             ulong lastId;
-
+            string where;
             bool singleRun = StartId.HasValue;
+            ulong maxProcessableId = ulong.MaxValue;
 
             if (singleRun)
+            {
+                maxProcessableId = getMaxProcessable(ruleset);
+                where = "WHERE score_id >= @lastId AND score_id <= @maxProcessableId";
                 lastId = StartId!.Value;
+
+                Console.WriteLine(maxProcessableId != ulong.MaxValue
+                    ? $"Will process scores up to ID {maxProcessableId}"
+                    : "Will process all scores to end of table (could not determine queue state from `score_process_queue`)");
+            }
             else
             {
+                // Assume that `score_process_queue` is processed by a single process sequentially.
+                // We don't want to import until the score has finished processing or we may import incorrect pp data.
+                where =
+                    "JOIN score_process_queue USING (score_id) " +
+                    "WHERE score_id >= @lastId AND status > 0";
+
+                // Find the last processed entry and work forwards from there.
                 using (var db = DatabaseAccess.GetConnection())
                     lastId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM solo_scores_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
-
-                Console.WriteLine($"StartId not provided, using last legacy ID map entry ({lastId})");
+                Console.WriteLine($"StartId not provided, using last processed legacy ID in map table ({lastId})");
             }
 
             Console.WriteLine();
@@ -160,24 +175,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             }
 
             Thread.Sleep(5000);
-
-            string where;
-            ulong maxProcessableId = ulong.MaxValue;
-
-            if (singleRun)
-            {
-                maxProcessableId = getMaxProcessable(ruleset);
-
-                where = "WHERE score_id >= @lastId AND score_id <= @maxProcessableId";
-            }
-            else
-            {
-                // Assume that `score_process_queue` is processed by a single process sequentially.
-                // We don't want to import until the score has finished processing or we may import incorrect pp data.
-                where =
-                    "JOIN score_process_queue USING (score_id) " +
-                    "WHERE score_id >= @lastId AND status > 0";
-            }
 
             using (var dbMainQuery = DatabaseAccess.GetConnection())
             {
@@ -347,7 +344,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 // when doing a single run, we need to make sure not to run into scores which are in the process queue (to avoid
                 // touching them while they are still being written).
                 using (var db = DatabaseAccess.GetConnection())
-                    return db.QuerySingle<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deleted = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1 ?? ulong.MaxValue;
+                    return db.QuerySingle<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deletion = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1 ?? ulong.MaxValue;
             }
             catch
             {
