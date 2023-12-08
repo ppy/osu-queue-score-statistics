@@ -166,10 +166,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             if (singleRun)
             {
-                // when doing a single run, we need to make sure not to run into scores which are in the process queue (to avoid
-                // touching them while they are still being written).
-                using (var db = DatabaseAccess.GetConnection())
-                    maxProcessableId = db.QuerySingle<ulong?>("SELECT MIN(score_id) FROM score_process_queue") - 1 ?? ulong.MaxValue;
+                maxProcessableId = getMaxProcessable(ruleset);
 
                 where = "WHERE score_id >= @lastId AND score_id <= @maxProcessableId";
             }
@@ -341,6 +338,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine();
             Console.WriteLine();
             return 0;
+        }
+
+        private ulong getMaxProcessable(Ruleset ruleset)
+        {
+            try
+            {
+                // when doing a single run, we need to make sure not to run into scores which are in the process queue (to avoid
+                // touching them while they are still being written).
+                using (var db = DatabaseAccess.GetConnection())
+                    return db.QuerySingle<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deleted = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1 ?? ulong.MaxValue;
+            }
+            catch
+            {
+                return ulong.MaxValue;
+            }
         }
 
         private void checkSlaveLatency(MySqlConnection db)
