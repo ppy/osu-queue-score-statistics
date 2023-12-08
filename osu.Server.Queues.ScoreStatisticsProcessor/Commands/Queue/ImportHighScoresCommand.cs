@@ -31,14 +31,14 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     /// <summary>
-    /// Imports high scores from the osu_scores_high tables into the new scores table.
+    /// Imports high scores from the osu_scores_high tables into the new solo_scores table.
     /// </summary>
     /// <remarks>
     /// This command is written under the assumption that only one importer instance is running concurrently.
     /// This is important to guarantee that scores are inserted in the same sequential order that they originally occured,
     /// which can be used for tie-breaker scenarios.
     /// </remarks>
-    [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new scores table.")]
+    [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo_scores table.")]
     public class ImportHighScoresCommand
     {
         /// <summary>
@@ -143,14 +143,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             else
             {
                 using (var db = DatabaseAccess.GetConnection())
-                    lastId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM score_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
+                    lastId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM solo_scores_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
 
                 Console.WriteLine($"StartId not provided, using last legacy ID map entry ({lastId})");
             }
 
             Console.WriteLine();
             Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
-            Console.WriteLine($"Inserting into scores and processing {(singleRun ? "as single run" : "indefinitely")}");
+            Console.WriteLine($"Inserting into solo_scores and processing {(singleRun ? "as single run" : "indefinitely")}");
 
             if (!SkipIndexing)
             {
@@ -400,7 +400,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 {
                     // check for existing and skip
                     SoloScoreLegacyIDMap[] existingIds = (await db.QueryAsync<SoloScoreLegacyIDMap>(
-                        $"SELECT * FROM score_legacy_id_map WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds",
+                        $"SELECT * FROM solo_scores_legacy_id_map WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds",
                         new
                         {
                             oldScoreIds = scores.Select(s => s.score_id)
@@ -408,15 +408,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     insertCommand.CommandText =
                         // main score insert
-                        "INSERT INTO scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, updated_at) "
+                        "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, updated_at) "
                         + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, @has_replay, 1, @date, @date);"
                         // pp insert
-                        + "INSERT INTO score_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
+                        + "INSERT INTO solo_scores_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
                         // mapping insert
-                        + $"INSERT INTO score_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
+                        + $"INSERT INTO solo_scores_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
 
                     updateCommand.CommandText =
-                        "UPDATE scores SET data = @data WHERE id = @id";
+                        "UPDATE solo_scores SET data = @data WHERE id = @id";
 
                     var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
                     var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt64);

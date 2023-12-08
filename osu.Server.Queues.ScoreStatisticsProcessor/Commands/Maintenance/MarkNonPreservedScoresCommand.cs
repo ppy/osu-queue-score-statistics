@@ -50,7 +50,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 rulesetId = RulesetId,
             };
 
-            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition("SELECT * FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId", parameters, cancellationToken: cancellationToken));
+            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition("SELECT * FROM solo_scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId", parameters, cancellationToken: cancellationToken));
 
             if (!scores.Any())
                 return;
@@ -85,7 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 Console.WriteLine($"Marking score {score.id} non-preserved...");
 
-                await db.ExecuteAsync("UPDATE scores SET preserve = 0 WHERE id = @scoreId;", new
+                await db.ExecuteAsync("UPDATE solo_scores SET preserve = 0 WHERE id = @scoreId;", new
                 {
                     scoreId = score.id
                 });
@@ -99,7 +99,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private bool checkIsMultiplayerScore(MySqlConnection db, SoloScore score)
         {
-            // TODO: implement (once multiplayer scores are in scores, is an ongoing effort in osu-web).
+            // TODO: implement (once multiplayer scores are in solo_scores, is an ongoing effort in osu-web).
             return false;
         }
 
