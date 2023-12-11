@@ -80,6 +80,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public bool SkipIndexing { get; set; }
 
         private long lastCommitTimestamp;
+        private long startupTimestamp;
         private long lastLatencyCheckTimestamp;
 
         private ElasticQueueProcessor? elasticQueueProcessor;
@@ -126,6 +127,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
+            startupTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
             if (!CheckSlaveLatency)
                 scoresPerQuery = maximum_scores_per_query;
 
@@ -242,9 +245,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             int inserted = Interlocked.Exchange(ref currentReportInsertCount, 0);
                             int updated = Interlocked.Exchange(ref currentReportUpdateCount, 0);
 
+                            double secondsPassed = (double)(currentTimestamp - lastCommitTimestamp) / 1000;
+                            double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
+
                             Console.WriteLine($"Inserting up to {lastId:N0} "
                                               + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
-                                              + $"{totalInsertCount:N0} inserted {totalUpdateCount:N0} updated {totalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd {(inserted + updated) / seconds_between_report:N0}/s)");
+                                              + $"{totalInsertCount:N0} inserted {totalUpdateCount:N0} updated {totalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd {(inserted + updated) / secondsPassed:N0}/s {(totalInsertCount + totalUpdateCount) / secondsSinceStart})");
 
                             lastCommitTimestamp = currentTimestamp;
                         }
