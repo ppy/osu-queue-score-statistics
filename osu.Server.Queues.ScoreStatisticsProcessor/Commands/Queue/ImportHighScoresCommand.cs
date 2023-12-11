@@ -351,7 +351,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             }
             catch
             {
-                return ulong.MaxValue;
+                using (var db = DatabaseAccess.GetConnection())
+                {
+                    string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
+                    return db.QuerySingle<ulong>($"SELECT MAX(score_id) FROM {highScoreTable}");
+                }
             }
         }
 
