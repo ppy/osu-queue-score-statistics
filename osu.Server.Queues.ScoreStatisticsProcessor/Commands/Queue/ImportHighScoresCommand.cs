@@ -283,11 +283,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             }));
                         }
 
-                        elasticQueueProcessor.PushToQueue(elasticItems);
-                        Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+                        if (elasticItems.Any())
+                        {
+                            elasticQueueProcessor.PushToQueue(elasticItems);
+                            Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+                        }
                     }
 
-                    Console.WriteLine($"Transaction commit at score_id {lastId}");
+                    Console.WriteLine($"Workers processed up to score_id {lastId}");
                     lastId++;
 
                     void queueNextBatch()
