@@ -127,8 +127,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            startupTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-
             if (!CheckSlaveLatency)
                 scoresPerQuery = maximum_scores_per_query;
 
@@ -238,19 +236,34 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     while (!runningBatches.All(t => t.Task.IsCompleted))
                     {
-                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
-                        if (currentTimestamp - lastCommitTimestamp >= seconds_between_report)
+                        if ((currentTimestamp - lastCommitTimestamp) / 1000 >= seconds_between_report)
                         {
                             int inserted = Interlocked.Exchange(ref currentReportInsertCount, 0);
                             int updated = Interlocked.Exchange(ref currentReportUpdateCount, 0);
 
-                            double secondsPassed = (double)(currentTimestamp - lastCommitTimestamp) / 1000;
+                            // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
+                            if (inserted + updated > 0 && startupTimestamp == 0)
+                                startupTimestamp = lastCommitTimestamp;
+
                             double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
+                            double processingRate = (totalInsertCount + totalUpdateCount) / secondsSinceStart;
+
+                            string eta = string.Empty;
+
+                            if (singleRun)
+                            {
+                                double secondsLeft = (maxProcessableId - lastId) / processingRate;
+
+                                int etaHours = (int)(secondsLeft / 3600);
+                                int etaMins = (int)(secondsLeft - etaHours * 3600) / 60;
+                                eta = $"{etaHours}h{etaMins}m";
+                            }
 
                             Console.WriteLine($"Inserting up to {lastId:N0} "
                                               + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
-                                              + $"{totalInsertCount:N0} inserted {totalUpdateCount:N0} updated {totalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd {(inserted + updated) / secondsPassed:N0}/s {(totalInsertCount + totalUpdateCount) / secondsSinceStart})");
+                                              + $"{totalInsertCount:N0} inserted {totalUpdateCount:N0} updated {totalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd) {processingRate:N0}/s {eta}");
 
                             lastCommitTimestamp = currentTimestamp;
                         }
