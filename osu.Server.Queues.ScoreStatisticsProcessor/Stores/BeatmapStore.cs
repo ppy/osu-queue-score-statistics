@@ -85,8 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
 
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
 
-            // Todo: We shouldn't be using legacy mods, but this requires difficulty calculation to be performed in-line.
-            LegacyMods legacyModValue = LegacyModsHelper.MaskRelevantMods(ruleset.ConvertToLegacyMods(mods), ruleset.RulesetInfo.OnlineID != beatmap.RulesetID, ruleset.RulesetInfo.OnlineID);
+            LegacyMods legacyModValue = getLegacyModsForAttributeLookup(beatmap, ruleset, mods);
             DifficultyAttributeKey key = new DifficultyAttributeKey((uint)beatmap.OnlineID, ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
 
             if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
@@ -107,6 +106,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             difficultyAttributes.FromDatabaseAttributes(rawDifficultyAttributes.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
 
             return difficultyAttributes;
+        }
+
+        /// <remarks>
+        /// This method attempts to choose the best possible set of <see cref="LegacyMods"/> to use for looking up stored difficulty attributes.
+        /// The match is not always exact; for some mods that award pp but do not exist in stable
+        /// (such as <see cref="ModHalfTime"/>) the closest available approximation is used.
+        /// Moreover, the set of <see cref="LegacyMods"/> returned is constrained to mods that actually affect difficulty in the legacy sense.
+        /// The entirety of this workaround is not used / unnecessary if <see cref="use_realtime_difficulty_calculation"/> is <see langword="true"/>.
+        /// </remarks>
+        private static LegacyMods getLegacyModsForAttributeLookup(APIBeatmap beatmap, Ruleset ruleset, Mod[] mods)
+        {
+            var legacyMods = ruleset.ConvertToLegacyMods(mods);
+
+            // mods that are not represented in `LegacyMods` (but we can approximate them well enough with others)
+            if (mods.Any(mod => mod is ModDaycore))
+                legacyMods |= LegacyMods.HalfTime;
+
+            return LegacyModsHelper.MaskRelevantMods(legacyMods, ruleset.RulesetInfo.OnlineID != beatmap.RulesetID, ruleset.RulesetInfo.OnlineID);
         }
 
         /// <summary>
