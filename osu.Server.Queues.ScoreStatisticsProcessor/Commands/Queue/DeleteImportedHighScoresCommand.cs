@@ -40,7 +40,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         [Argument(0)]
         public ulong StartId { get; set; }
 
-        private ElasticQueueProcessor? elasticQueueProcessor;
+        private ElasticQueuePusher? elasticQueueProcessor;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
@@ -50,8 +50,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine();
             Console.WriteLine($"Deleting from solo_scores starting from {lastId}");
 
-            elasticQueueProcessor = new ElasticQueueProcessor();
-            Console.WriteLine($"Indexing to elasticsearch queue {elasticQueueProcessor.QueueName}");
+            elasticQueueProcessor = new ElasticQueuePusher();
+            Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
 
             Thread.Sleep(5000);
 
@@ -59,7 +59,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    List<ElasticQueueProcessor.ElasticScoreItem> elasticItems = new List<ElasticQueueProcessor.ElasticScoreItem>();
+                    List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
 
                     using (var transaction = await conn.BeginTransactionAsync(cancellationToken))
                     {
@@ -86,7 +86,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                                 legacy_score_id = score.ScoreInfo.LegacyScoreId
                             }, transaction);
 
-                            elasticItems.Add(new ElasticQueueProcessor.ElasticScoreItem { ScoreId = (long?)score.id });
+                            elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
                             deleted++;
                         }
 

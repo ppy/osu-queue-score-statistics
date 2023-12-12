@@ -2,37 +2,61 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using osu.Server.QueueProcessor;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
-    /// <summary>
-    /// Minimal implementation of queue processor to push to queue.
-    /// This should be replaced with a dependency on `osu-elastic-indexer` ASAP.
-    /// </summary>
-    public class ElasticQueueProcessor : QueueProcessor<ElasticQueueProcessor.ElasticScoreItem>
+    public class ElasticQueuePusher
     {
-        private static readonly string queue_name = $"score-index-{Environment.GetEnvironmentVariable("SCHEMA")}";
+        private readonly List<ElasticQueueProcessor> processors = new List<ElasticQueueProcessor>();
 
-        public ElasticQueueProcessor()
-            : base(new QueueConfiguration { InputQueueName = queue_name })
+        public ElasticQueuePusher()
         {
-            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SCHEMA")))
-                throw new ArgumentException("Elasticsearch schema should be specified via environment variable SCHEMA");
-
-            // TODO: automate schema version lookup
-            // see https://github.com/ppy/osu-elastic-indexer/blob/316e3e2134933e22363f4911e0be4175984ae15e/osu.ElasticIndexer/Redis.cs#L10
+            using (var redis = RedisAccess.GetConnection())
+            {
+                var schemas = redis.GetActiveSchemas();
+                foreach (var schema in schemas)
+                    processors.Add(new ElasticQueueProcessor(schema));
+            }
         }
 
-        protected override void ProcessResult(ElasticScoreItem scoreItem)
+        public string ActiveQueues => string.Join(',', processors.Select(p => p.QueueName));
+
+        public void PushToQueue(ElasticScoreItem elasticScoreItem)
         {
-            throw new NotImplementedException();
+            foreach (var p in processors)
+                p.PushToQueue(elasticScoreItem);
+        }
+
+        public void PushToQueue(List<ElasticScoreItem> items)
+        {
+            foreach (var p in processors)
+                p.PushToQueue(items);
         }
 
         [Serializable]
         public class ElasticScoreItem : QueueItem
         {
             public long? ScoreId { get; init; }
+        }
+
+        /// <summary>
+        /// Minimal implementation of queue processor to push to queue.
+        /// This should be replaced with a dependency on `osu-elastic-indexer` ASAP.
+        /// </summary>
+        private class ElasticQueueProcessor : QueueProcessor<ElasticScoreItem>
+        {
+            public ElasticQueueProcessor(string schema)
+                : base(new QueueConfiguration { InputQueueName = schema })
+            {
+            }
+
+            protected override void ProcessResult(ElasticScoreItem scoreItem)
+            {
+                throw new NotImplementedException();
+            }
         }
     }
 }
