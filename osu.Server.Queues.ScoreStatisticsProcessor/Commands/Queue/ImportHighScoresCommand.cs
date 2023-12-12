@@ -426,10 +426,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 this.skipNew = skipNew;
 
                 Scores = scores;
-                Task = Run(scores);
+                Task = run(scores);
             }
 
-            public async Task Run(HighScore[] scores)
+            private async Task run(HighScore[] scores)
             {
                 using (var db = DatabaseAccess.GetConnection())
                 using (var transaction = await db.BeginTransactionAsync())
