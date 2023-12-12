@@ -39,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         private readonly List<IProcessor> processors = new List<IProcessor>();
 
-        private readonly ElasticQueueProcessor elasticQueueProcessor = new ElasticQueueProcessor();
+        private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
 
         public ScoreStatisticsQueueProcessor(string[]? disabledProcessors = null)
             : base(new QueueConfiguration { InputQueueName = "score-statistics" })
@@ -168,7 +168,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         p.ApplyGlobal(score, conn);
                 }
 
-                elasticQueueProcessor.PushToQueue(new ElasticQueueProcessor.ElasticScoreItem
+                elasticQueueProcessor.PushToQueue(new ElasticQueuePusher.ElasticScoreItem
                 {
                     ScoreId = (long)item.Score.id,
                 });

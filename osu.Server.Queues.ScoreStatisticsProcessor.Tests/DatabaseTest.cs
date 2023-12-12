@@ -43,7 +43,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 ? new CancellationTokenSource()
                 : new CancellationTokenSource(10000);
 
-            Environment.SetEnvironmentVariable("SCHEMA", "1");
             Environment.SetEnvironmentVariable("REALTIME_DIFFICULTY", "0");
 
             Processor = new ScoreStatisticsQueueProcessor();

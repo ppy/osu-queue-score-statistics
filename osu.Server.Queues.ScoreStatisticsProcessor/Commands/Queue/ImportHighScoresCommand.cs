@@ -83,7 +83,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private long startupTimestamp;
         private long lastLatencyCheckTimestamp;
 
-        private ElasticQueueProcessor? elasticQueueProcessor;
+        private ElasticQueuePusher? elasticQueueProcessor;
 
         private static int currentReportInsertCount;
         private static int currentReportUpdateCount;
@@ -155,8 +155,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             if (!SkipIndexing)
             {
-                elasticQueueProcessor = new ElasticQueueProcessor();
-                Console.WriteLine($"Indexing to elasticsearch queue {elasticQueueProcessor.QueueName}");
+                elasticQueueProcessor = new ElasticQueuePusher();
+                Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
             }
 
             Thread.Sleep(5000);
@@ -289,11 +289,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     if (elasticQueueProcessor != null)
                     {
-                        List<ElasticQueueProcessor.ElasticScoreItem> elasticItems = new List<ElasticQueueProcessor.ElasticScoreItem>();
+                        List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
 
                         foreach (var b in runningBatches)
                         {
-                            elasticItems.AddRange(b.IndexableSoloScoreIDs.Select(id => new ElasticQueueProcessor.ElasticScoreItem
+                            elasticItems.AddRange(b.IndexableSoloScoreIDs.Select(id => new ElasticQueuePusher.ElasticScoreItem
                             {
                                 ScoreId = id,
                             }));
