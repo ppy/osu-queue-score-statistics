@@ -467,9 +467,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     var updateData = updateCommand.Parameters.Add("data", MySqlDbType.JSON);
                     var updateId = updateCommand.Parameters.Add("id", MySqlDbType.UInt64);
 
-                    await insertCommand.PrepareAsync();
-                    await updateCommand.PrepareAsync();
-
                     foreach (var highScore in scores)
                     {
                         SoloScoreLegacyIDMap? existingMapping = existingIds.FirstOrDefault(e => e.old_score_id == highScore.score_id);
@@ -511,6 +508,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             updateId.Value = existingMapping.score_id;
                             updateData.Value = serialisedScore;
 
+                            if (!updateCommand.IsPrepared)
+                                await updateCommand.PrepareAsync();
+
                             // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
                             // this does not improve throughput.
                             await updateCommand.ExecuteNonQueryAsync();
@@ -529,6 +529,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             hasReplay.Value = highScore.replay;
                             data.Value = serialisedScore;
 
+                            if (!insertCommand.IsPrepared)
+                                await insertCommand.PrepareAsync();
                             insertCommand.Transaction = transaction;
 
                             // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
