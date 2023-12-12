@@ -135,38 +135,59 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             DateTimeOffset start = DateTimeOffset.Now;
 
-            ulong lastId;
+            ulong lastId = StartId ?? 0;
             string where;
-            bool singleRun = StartId.HasValue;
-            ulong maxProcessableId = ulong.MaxValue;
+            bool watchMode = !StartId.HasValue;
+            ulong maxProcessableId;
 
-            if (singleRun)
+            if (watchMode)
+            {
+                using var db = DatabaseAccess.GetConnection();
+
+                ulong? lastImportedLegacyScore = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM score_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
+                ulong? lowestProcessQueueEntry = db.QuerySingle<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deletion = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1 ?? ulong.MaxValue;
+
+                if (lowestProcessQueueEntry == null)
+                {
+                    // Generally for bootstrapping a local dev setup.
+                    Console.WriteLine("No start ID specified, and no `score_process_queue` entries, switching to single run.");
+                    lastId = 0;
+                    watchMode = false;
+                }
+                else if (lastImportedLegacyScore > lowestProcessQueueEntry)
+                {
+                    lastId = lastImportedLegacyScore.Value + 1;
+                    Console.WriteLine($"Continuing watch mode from last processed legacy score ({lastId})");
+                }
+                else
+                {
+                    lastId = lowestProcessQueueEntry.Value;
+                    Console.WriteLine($"WARNING: Continuing watch mode from start of score_process_queue ({lastId})");
+                    Console.WriteLine("This implies that a full import hasn't been run yet, you might want to run another import first to catch up.");
+                    await Task.Delay(5000, cancellationToken);
+                }
+            }
+
+            if (watchMode)
+            {
+                // Assume that `score_process_queue` is processed by a single process sequentially.
+                // We don't want to import until the score has finished processing or we may import incorrect pp data.
+                maxProcessableId = ulong.MaxValue;
+                where = "LEFT JOIN score_process_queue USING (score_id) WHERE score_id >= @lastId AND status > 0 AND mode = @rulesetId";
+            }
+            else
             {
                 maxProcessableId = getMaxProcessable(ruleset);
                 where = "WHERE score_id >= @lastId AND score_id <= @maxProcessableId";
-                lastId = StartId!.Value;
 
                 Console.WriteLine(maxProcessableId != ulong.MaxValue
                     ? $"Will process scores up to ID {maxProcessableId}"
                     : "Will process all scores to end of table (could not determine queue state from `score_process_queue`)");
             }
-            else
-            {
-                // Assume that `score_process_queue` is processed by a single process sequentially.
-                // We don't want to import until the score has finished processing or we may import incorrect pp data.
-                where =
-                    "JOIN score_process_queue USING (score_id) " +
-                    "WHERE score_id >= @lastId AND status > 0";
-
-                // Find the last processed entry and work forwards from there.
-                using (var db = DatabaseAccess.GetConnection())
-                    lastId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM solo_scores_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
-                Console.WriteLine($"StartId not provided, using last processed legacy ID in map table ({lastId})");
-            }
 
             Console.WriteLine();
             Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
-            Console.WriteLine($"Inserting into solo_scores and processing {(singleRun ? "as single run" : "indefinitely")}");
+            Console.WriteLine($"Inserting into scores and processing {(watchMode ? "indefinitely" : "as single run")}");
 
             if (!SkipIndexing)
             {
@@ -174,7 +195,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
             }
 
-            Thread.Sleep(5000);
+            await Task.Delay(5000, cancellationToken);
 
             using (var dbMainQuery = DatabaseAccess.GetConnection())
             {
@@ -188,12 +209,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     {
                         lastId,
                         maxProcessableId,
-                        scoresPerQuery
+                        scoresPerQuery,
+                        rulesetId = ruleset.RulesetInfo.OnlineID,
                     });
 
                     if (!highScores.Any())
                     {
-                        if (singleRun)
+                        if (!watchMode)
                         {
                             Console.WriteLine("No scores found, all done!");
                             break;
@@ -246,7 +268,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                             string eta = string.Empty;
 
-                            if (singleRun)
+                            if (!watchMode)
                             {
                                 double secondsLeft = (maxProcessableId - lastId) / processingRate;
 
