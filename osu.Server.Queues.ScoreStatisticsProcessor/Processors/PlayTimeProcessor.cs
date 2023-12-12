@@ -20,6 +20,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     {
         public bool RunOnFailedScores => true;
 
+        public bool RunOnLegacyScores => false;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (previousVersion >= 6)

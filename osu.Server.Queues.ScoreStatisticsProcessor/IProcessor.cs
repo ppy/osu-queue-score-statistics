@@ -23,6 +23,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// </summary>
         bool RunOnFailedScores { get; }
 
+        /// <summary>
+        /// Whether this processor should be run on imported legacy scores.
+        /// </summary>
+        bool RunOnLegacyScores { get; }
+
         void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction);
 
         void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction);
