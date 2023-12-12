@@ -173,7 +173,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 // Assume that `score_process_queue` is processed by a single process sequentially.
                 // We don't want to import until the score has finished processing or we may import incorrect pp data.
                 maxProcessableId = ulong.MaxValue;
-                where = "LEFT JOIN score_process_queue USING (score_id) WHERE score_id >= @lastId AND status > 0 AND mode = @rulesetId";
+                where = "WHERE score_id >= @lastId AND (SELECT score_id FROM score_process_queue WHERE score_id = h.score_id AND status > 0 AND mode = @rulesetId LIMIT 1) IS NOT NULL";
             }
             else
             {
@@ -204,7 +204,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     if (CheckSlaveLatency)
                         checkSlaveLatency(dbMainQuery);
 
-                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} {where}" +
+                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} h {where}" +
                                                                              " ORDER BY score_id LIMIT @scoresPerQuery", new
                     {
                         lastId,
