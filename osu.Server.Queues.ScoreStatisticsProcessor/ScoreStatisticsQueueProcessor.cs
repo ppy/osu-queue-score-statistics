@@ -181,7 +181,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             }
         }
 
-        private IEnumerable<IProcessor> enumerateValidProcessors(SoloScoreInfo score) => score.Passed ? processors : processors.Where(p => p.RunOnFailedScores);
+        private IEnumerable<IProcessor> enumerateValidProcessors(SoloScoreInfo score)
+        {
+            IEnumerable<IProcessor> result = processors;
+
+            if (!score.Passed)
+                result = result.Where(p => p.RunOnFailedScores);
+
+            if (score.IsLegacyScore)
+                result = result.Where(p => p.RunOnLegacyScores);
+
+            return result;
+        }
 
         private static void updateHistoryEntry(ScoreItem item, MySqlConnection db, MySqlTransaction transaction)
         {
