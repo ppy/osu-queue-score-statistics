@@ -49,6 +49,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         /// <summary>
         /// The high score ID to start the import process from. This can be used to perform batch reimporting for special cases.
+        /// When a value is specified, execution will end after all available items are processed.
         /// </summary>
         [Option(CommandOptionType.SingleValue, Template = "--start-id")]
         public ulong? StartId { get; set; }
@@ -78,16 +79,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-indexing")]
         public bool SkipIndexing { get; set; }
 
-        /// <summary>
-        /// Whether to exit when there are no scores left at the tail end of the import. Defaults to <c>false</c>.
-        /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--exit-on-completion")]
-        public bool ExitOnCompletion { get; set; }
-
         private long lastCommitTimestamp;
+        private long startupTimestamp;
         private long lastLatencyCheckTimestamp;
 
-        private ElasticQueueProcessor? elasticQueueProcessor;
+        private ElasticQueuePusher? elasticQueueProcessor;
 
         private static int currentReportInsertCount;
         private static int currentReportUpdateCount;
@@ -141,8 +137,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             ulong lastId;
 
-            if (StartId.HasValue)
-                lastId = StartId.Value;
+            bool singleRun = StartId.HasValue;
+
+            if (singleRun)
+                lastId = StartId!.Value;
             else
             {
                 using (var db = DatabaseAccess.GetConnection())
@@ -153,15 +151,33 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             Console.WriteLine();
             Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
-            Console.WriteLine($"Inserting into solo_scores and processing {(ExitOnCompletion ? "as single run" : "indefinitely")}");
+            Console.WriteLine($"Inserting into solo_scores and processing {(singleRun ? "as single run" : "indefinitely")}");
 
             if (!SkipIndexing)
             {
-                elasticQueueProcessor = new ElasticQueueProcessor();
-                Console.WriteLine($"Indexing to elasticsearch queue {elasticQueueProcessor.QueueName}");
+                elasticQueueProcessor = new ElasticQueuePusher();
+                Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
             }
 
             Thread.Sleep(5000);
+
+            string where;
+            ulong maxProcessableId = ulong.MaxValue;
+
+            if (singleRun)
+            {
+                maxProcessableId = getMaxProcessable(ruleset);
+
+                where = "WHERE score_id >= @lastId AND score_id <= @maxProcessableId";
+            }
+            else
+            {
+                // Assume that `score_process_queue` is processed by a single process sequentially.
+                // We don't want to import until the score has finished processing or we may import incorrect pp data.
+                where =
+                    "JOIN score_process_queue USING (score_id) " +
+                    "WHERE score_id >= @lastId AND status > 0";
+            }
 
             using (var dbMainQuery = DatabaseAccess.GetConnection())
             {
@@ -170,20 +186,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     if (CheckSlaveLatency)
                         checkSlaveLatency(dbMainQuery);
 
-                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} " +
-                                                                             "LEFT JOIN score_process_queue USING (score_id) " +
-                                                                             // Either the score is so old the process queue entry is deleted, or it has finished pp processing.
-                                                                             // Without this we could insert scores before pp processing is completed.
-                                                                             "WHERE score_id >= @lastId AND (status IS NULL OR status > 0) " +
-                                                                             "ORDER BY score_id LIMIT @scoresPerQuery", new
+                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} {where}" +
+                                                                             " ORDER BY score_id LIMIT @scoresPerQuery", new
                     {
                         lastId,
+                        maxProcessableId,
                         scoresPerQuery
                     });
 
                     if (!highScores.Any())
                     {
-                        if (ExitOnCompletion)
+                        if (singleRun)
                         {
                             Console.WriteLine("No scores found, all done!");
                             break;
@@ -220,16 +233,34 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     while (!runningBatches.All(t => t.Task.IsCompleted))
                     {
-                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
-                        if (currentTimestamp - lastCommitTimestamp >= seconds_between_report)
+                        if ((currentTimestamp - lastCommitTimestamp) / 1000 >= seconds_between_report)
                         {
                             int inserted = Interlocked.Exchange(ref currentReportInsertCount, 0);
                             int updated = Interlocked.Exchange(ref currentReportUpdateCount, 0);
 
+                            // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
+                            if (inserted + updated > 0 && startupTimestamp == 0)
+                                startupTimestamp = lastCommitTimestamp;
+
+                            double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
+                            double processingRate = (totalInsertCount + totalUpdateCount) / secondsSinceStart;
+
+                            string eta = string.Empty;
+
+                            if (singleRun)
+                            {
+                                double secondsLeft = (maxProcessableId - lastId) / processingRate;
+
+                                int etaHours = (int)(secondsLeft / 3600);
+                                int etaMins = (int)(secondsLeft - etaHours * 3600) / 60;
+                                eta = $"{etaHours}h{etaMins}m";
+                            }
+
                             Console.WriteLine($"Inserting up to {lastId:N0} "
                                               + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
-                                              + $"{totalInsertCount:N0} inserted {totalUpdateCount:N0} updated {totalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd {(inserted + updated) / seconds_between_report:N0}/s)");
+                                              + $"{totalInsertCount:N0} inserted {totalUpdateCount:N0} updated {totalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd) {processingRate:N0}/s {eta}");
 
                             lastCommitTimestamp = currentTimestamp;
                         }
@@ -258,21 +289,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     if (elasticQueueProcessor != null)
                     {
-                        List<ElasticQueueProcessor.ElasticScoreItem> elasticItems = new List<ElasticQueueProcessor.ElasticScoreItem>();
+                        List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
 
                         foreach (var b in runningBatches)
                         {
-                            elasticItems.AddRange(b.IndexableSoloScoreIDs.Select(id => new ElasticQueueProcessor.ElasticScoreItem
+                            elasticItems.AddRange(b.IndexableSoloScoreIDs.Select(id => new ElasticQueuePusher.ElasticScoreItem
                             {
                                 ScoreId = id,
                             }));
                         }
 
-                        elasticQueueProcessor.PushToQueue(elasticItems);
-                        Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+                        if (elasticItems.Any())
+                        {
+                            elasticQueueProcessor.PushToQueue(elasticItems);
+                            Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+                        }
                     }
 
-                    Console.WriteLine($"Transaction commit at score_id {lastId}");
+                    Console.WriteLine($"Workers processed up to score_id {lastId}");
                     lastId++;
 
                     void queueNextBatch()
@@ -304,6 +338,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine();
             Console.WriteLine();
             return 0;
+        }
+
+        private ulong getMaxProcessable(Ruleset ruleset)
+        {
+            try
+            {
+                // when doing a single run, we need to make sure not to run into scores which are in the process queue (to avoid
+                // touching them while they are still being written).
+                using (var db = DatabaseAccess.GetConnection())
+                    return db.QuerySingle<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deleted = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1 ?? ulong.MaxValue;
+            }
+            catch
+            {
+                using (var db = DatabaseAccess.GetConnection())
+                {
+                    string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
+                    return db.QuerySingle<ulong>($"SELECT MAX(score_id) FROM {highScoreTable}");
+                }
+            }
         }
 
         private void checkSlaveLatency(MySqlConnection db)
