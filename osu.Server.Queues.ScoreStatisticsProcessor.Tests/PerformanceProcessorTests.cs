@@ -38,6 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
                 score.Score.ScoreInfo.MaxCombo = 100;
                 score.Score.ScoreInfo.Accuracy = 1;
+                score.Score.ScoreInfo.BuildID = TestBuildID;
                 score.Score.preserve = true;
             });
 

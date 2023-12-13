@@ -32,6 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         protected const int TEST_BEATMAP_ID = 1;
         protected const int TEST_BEATMAP_SET_ID = 1;
+        protected int TestBuildID;
 
         private readonly CancellationTokenSource cancellationSource;
 
@@ -66,8 +67,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE solo_scores");
                 db.Execute("TRUNCATE TABLE solo_scores_process_history");
                 db.Execute("TRUNCATE TABLE solo_scores_performance");
+                db.Execute("TRUNCATE TABLE osu_builds");
 
                 db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");
+
+                TestBuildID = db.QuerySingle<int>("INSERT INTO osu_builds (version, allow_performance) VALUES ('1.0.0', 1); SELECT LAST_INSERT_ID();");
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
