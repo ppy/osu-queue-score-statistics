@@ -116,9 +116,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, s.ruleset_id))
                     return true;
 
-                // Scores with no build were imported from the legacy high scores tables and are always valid.
-                if (s.ScoreInfo.BuildID == null)
+                // Legacy scores are always valid.
+                if (s.ScoreInfo.IsLegacyScore)
                     return false;
+
+                // This should never be the case, but just in-case let's disallow PP for non-legacy scores with no build.
+                if (s.ScoreInfo.BuildID == null)
+                    return true;
 
                 // Performance needs to be allowed for the build.
                 return buildStore.GetBuild(s.ScoreInfo.BuildID.Value)?.allow_performance != true;

@@ -193,7 +193,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                     case ModClassic:
                         // Classic mod is only allowed if it's attached to legacy scores (null build ID).
-                        return score.BuildID == null;
+                        return score.IsLegacyScore;
 
                     // The mods which are allowed.
                     case ModEasy:
