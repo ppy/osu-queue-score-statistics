@@ -3,6 +3,7 @@
 
 using Dapper;
 using osu.Framework.Extensions.TypeExtensions;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
@@ -98,7 +99,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -130,7 +131,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -158,7 +159,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -186,7 +187,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
+        }
+
+        [Fact]
+        public void ClassicAllowedOnLegacyScores()
+        {
+            Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new Mod[] { new OsuModClassic() }));
+        }
+
+        [Fact]
+        public void ClassicDisallowedOnNonLegacyScores()
+        {
+            Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo { BuildID = 1 }, new Mod[] { new OsuModClassic() }));
         }
 
         [Fact]
