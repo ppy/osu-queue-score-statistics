@@ -170,19 +170,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 // Osu
                 new OsuModMuted(),
-                new OsuModClassic(),
                 new OsuModDaycore(),
                 // Taiko
                 new TaikoModMuted(),
-                new TaikoModClassic(),
                 new TaikoModDaycore(),
                 // Catch
                 new CatchModMuted(),
-                new CatchModClassic(),
                 new CatchModDaycore(),
                 // Mania
                 new ManiaModMuted(),
-                new ManiaModClassic(),
                 new ManiaModDaycore(),
             };
 
@@ -193,13 +189,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void ClassicAllowedOnLegacyScores()
         {
-            Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new Mod[] { new OsuModClassic() }));
+            Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo { LegacyScoreId = 1 }, new Mod[] { new OsuModClassic() }));
         }
 
         [Fact]
         public void ClassicDisallowedOnNonLegacyScores()
         {
-            Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo { BuildID = 1 }, new Mod[] { new OsuModClassic() }));
+            Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new Mod[] { new OsuModClassic() }));
         }
 
         [Fact]
