@@ -84,6 +84,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private long lastLatencyCheckTimestamp;
 
         private ElasticQueuePusher? elasticQueueProcessor;
+        private ScoreStatisticsQueueProcessor? scoreStatisticsQueueProcessor;
 
         private static int currentReportInsertCount;
         private static int currentReportUpdateCount;
@@ -168,12 +169,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 }
             }
 
+            Console.WriteLine();
+            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
+            Console.WriteLine($"Inserting into scores and processing {(watchMode ? "indefinitely" : "as single run")}");
+
             if (watchMode)
             {
-                // Assume that `score_process_queue` is processed by a single process sequentially.
-                // We don't want to import until the score has finished processing or we may import incorrect pp data.
+                scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
+
+                if (SkipIndexing)
+                {
+                    throw new NotSupportedException("Skipping indexing in watch mode is not supported, "
+                                                    + $"as watch mode will push imported scores to the {scoreStatisticsQueueProcessor.QueueName} redis queue in order to process PP, "
+                                                    + "and once that score is processed on the aforementioned queue, it will be pushed for indexing to ES.");
+                }
+
+                Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
+
+                // We are going to enqueue the score for pp processing ourselves, so we don't care about its current processing status on the old queue.
                 maxProcessableId = ulong.MaxValue;
-                where = "WHERE score_id >= @lastId AND (SELECT score_id FROM score_process_queue WHERE score_id = h.score_id AND status > 0 AND mode = @rulesetId LIMIT 1) IS NOT NULL";
+                where = "WHERE score_id >= @lastId";
             }
             else
             {
@@ -183,16 +198,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Console.WriteLine(maxProcessableId != ulong.MaxValue
                     ? $"Will process scores up to ID {maxProcessableId}"
                     : "Will process all scores to end of table (could not determine queue state from `score_process_queue`)");
-            }
 
-            Console.WriteLine();
-            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
-            Console.WriteLine($"Inserting into scores and processing {(watchMode ? "indefinitely" : "as single run")}");
-
-            if (!SkipIndexing)
-            {
-                elasticQueueProcessor = new ElasticQueuePusher();
-                Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
+                if (!SkipIndexing)
+                {
+                    elasticQueueProcessor = new ElasticQueuePusher();
+                    Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
+                }
             }
 
             await Task.Delay(5000, cancellationToken);
@@ -306,22 +317,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         return -1;
                     }
 
+                    if (scoreStatisticsQueueProcessor != null)
+                    {
+                        var scoreStatisticsItems = runningBatches.SelectMany(b => b.ScoreStatisticsItems).ToList();
+
+                        if (scoreStatisticsItems.Any())
+                        {
+                            scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
+                            Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
+                        }
+                    }
+
                     if (elasticQueueProcessor != null)
                     {
-                        List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
-
-                        foreach (var b in runningBatches)
-                        {
-                            elasticItems.AddRange(b.IndexableSoloScoreIDs.Select(id => new ElasticQueuePusher.ElasticScoreItem
-                            {
-                                ScoreId = id,
-                            }));
-                        }
+                        var elasticItems = runningBatches.SelectMany(b => b.ElasticScoreItems).ToList();
 
                         if (elasticItems.Any())
                         {
                             elasticQueueProcessor.PushToQueue(elasticItems);
-                            Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+                            Console.WriteLine($"Queued {elasticItems.Count} item(s) for indexing");
                         }
                     }
 
@@ -333,7 +347,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if (batch.Count == 0)
                             return;
 
-                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), SkipExisting, SkipNew));
+                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: watchMode, SkipExisting, SkipNew));
                         batch.Clear();
                     }
                 }
@@ -429,6 +443,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private class BatchInserter
         {
             private readonly Ruleset ruleset;
+            private readonly bool importLegacyPP;
             private readonly bool skipExisting;
             private readonly bool skipNew;
 
@@ -436,11 +451,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             public Task Task { get; }
 
-            public List<long> IndexableSoloScoreIDs { get; } = new List<long>();
+            public List<ElasticQueuePusher.ElasticScoreItem> ElasticScoreItems { get; } = new List<ElasticQueuePusher.ElasticScoreItem>();
 
-            public BatchInserter(Ruleset ruleset, HighScore[] scores, bool skipExisting, bool skipNew)
+            public List<ScoreItem> ScoreStatisticsItems { get; } = new List<ScoreItem>();
+
+            public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool skipExisting, bool skipNew)
             {
                 this.ruleset = ruleset;
+                this.importLegacyPP = importLegacyPP;
                 this.skipExisting = skipExisting;
                 this.skipNew = skipNew;
 
@@ -466,11 +484,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     insertCommand.CommandText =
                         // main score insert
                         "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, updated_at) "
-                        + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, @has_replay, 1, @date, @date);"
-                        // pp insert
-                        + "INSERT INTO solo_scores_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);"
-                        // mapping insert
-                        + $"INSERT INTO solo_scores_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
+                        + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, @has_replay, 1, @date, @date);";
+
+                    // pp insert
+                    if (importLegacyPP)
+                        insertCommand.CommandText += "INSERT INTO solo_scores_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);";
+
+                    // mapping insert
+                    insertCommand.CommandText += $"INSERT INTO solo_scores_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
 
                     updateCommand.CommandText =
                         "UPDATE solo_scores SET data = @data WHERE id = @id";
@@ -533,7 +554,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
                             // this does not improve throughput.
                             await updateCommand.ExecuteNonQueryAsync();
-                            IndexableSoloScoreIDs.Add((long)existingMapping.score_id);
+                            await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction);
 
                             Interlocked.Increment(ref currentReportUpdateCount);
                             Interlocked.Increment(ref totalUpdateCount);
@@ -555,7 +576,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
                             // this does not improve throughput.
                             await insertCommand.ExecuteNonQueryAsync();
-                            IndexableSoloScoreIDs.Add(insertCommand.LastInsertedId);
+                            await enqueueForFurtherProcessing((ulong)insertCommand.LastInsertedId, db, transaction);
 
                             Interlocked.Increment(ref currentReportInsertCount);
                             Interlocked.Increment(ref totalInsertCount);
@@ -704,6 +725,31 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 public override string ToString()
                 {
                     return $"{{ BeatmapId = {BeatmapId}, RulesetId = {RulesetId}, Mods = {Mods} }}";
+                }
+            }
+
+            private async Task enqueueForFurtherProcessing(ulong scoreId, MySqlConnection connection, MySqlTransaction transaction)
+            {
+                if (importLegacyPP)
+                {
+                    // we can proceed by pushing the score directly to ES for indexing.
+                    ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
+                    {
+                        ScoreId = (long)scoreId
+                    });
+                }
+                else
+                {
+                    // the legacy PP value was not imported.
+                    // push the score to redis for PP processing.
+                    // on completion of PP processing, the score will be pushed to ES for indexing.
+                    // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
+                    // is not constructed anywhere before this...
+                    var score = await connection.QuerySingleAsync<SoloScore>("SELECT * FROM `solo_scores` WHERE `id` = @id",
+                        new { id = scoreId }, transaction);
+                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `solo_scores_process_history` WHERE `score_id` = @id",
+                        new { id = scoreId }, transaction);
+                    ScoreStatisticsItems.Add(new ScoreItem(score, history));
                 }
             }
         }
