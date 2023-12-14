@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
@@ -120,9 +121,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (s.ScoreInfo.IsLegacyScore)
                     return false;
 
-                // This should never be the case, but just in-case let's disallow PP for non-legacy scores with no build.
-                if (s.ScoreInfo.BuildID == null)
-                    return true;
+                Debug.Assert(s.ScoreInfo.BuildID != null);
 
                 // Performance needs to be allowed for the build.
                 return buildStore.GetBuild(s.ScoreInfo.BuildID.Value)?.allow_performance != true;
