@@ -3,6 +3,7 @@
 
 using Dapper;
 using osu.Framework.Extensions.TypeExtensions;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
@@ -37,6 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
                 score.Score.ScoreInfo.MaxCombo = 100;
                 score.Score.ScoreInfo.Accuracy = 1;
+                score.Score.ScoreInfo.BuildID = TestBuildID;
                 score.Score.preserve = true;
             });
 
@@ -98,7 +100,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -130,7 +132,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -158,7 +160,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -169,24 +171,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 // Osu
                 new OsuModMuted(),
-                new OsuModClassic(),
                 new OsuModDaycore(),
                 // Taiko
                 new TaikoModMuted(),
-                new TaikoModClassic(),
                 new TaikoModDaycore(),
                 // Catch
                 new CatchModMuted(),
-                new CatchModClassic(),
                 new CatchModDaycore(),
                 // Mania
                 new ManiaModMuted(),
-                new ManiaModClassic(),
                 new ManiaModDaycore(),
             };
 
             foreach (var mod in mods)
-                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new[] { mod }), mod.GetType().ReadableName());
+                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
+        }
+
+        [Fact]
+        public void ClassicAllowedOnLegacyScores()
+        {
+            Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo { LegacyScoreId = 1 }, new Mod[] { new OsuModClassic() }));
+        }
+
+        [Fact]
+        public void ClassicDisallowedOnNonLegacyScores()
+        {
+            Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new Mod[] { new OsuModClassic() }));
         }
 
         [Fact]

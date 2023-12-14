@@ -98,7 +98,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         protected override void ProcessResult(ScoreItem item)
         {
-            if (item.Score.ScoreInfo.LegacyScoreId != null)
+            if (item.Score.ScoreInfo.IsLegacyScore)
             {
                 item.Tags = new[] { "type:legacy" };
                 return;

@@ -121,7 +121,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.RulesetID);
                 Mod[] mods = score.Mods.Select(m => m.ToMod(ruleset)).ToArray();
 
-                if (!AllModsValidForPerformance(mods))
+                if (!AllModsValidForPerformance(score, mods))
                     return;
 
                 APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
@@ -149,7 +149,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <summary>
         /// Checks whether all mods in a given array are valid to give PP for.
         /// </summary>
-        public static bool AllModsValidForPerformance(Mod[] mods)
+        public static bool AllModsValidForPerformance(SoloScoreInfo score, Mod[] mods)
         {
             foreach (var m in mods)
             {
@@ -191,6 +191,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                         continue;
 
+                    case ModClassic:
+                        // Classic mod is only allowed if it's attached to legacy scores.
+                        return score.IsLegacyScore;
+
                     // The mods which are allowed.
                     case ModEasy:
                     case ModNoFail:
@@ -200,7 +204,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     case ModHidden:
                     case ModFlashlight:
                     case ModMuted:
-                    case ModClassic:
                     // osu!-specific:
                     case OsuModSpunOut:
                     case OsuModTouchDevice:

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
@@ -116,9 +117,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, s.ruleset_id))
                     return true;
 
-                // Scores with no build were imported from the legacy high scores tables and are always valid.
-                if (s.ScoreInfo.BuildID == null)
+                // Legacy scores are always valid.
+                if (s.ScoreInfo.IsLegacyScore)
                     return false;
+
+                Debug.Assert(s.ScoreInfo.BuildID != null);
 
                 // Performance needs to be allowed for the build.
                 return buildStore.GetBuild(s.ScoreInfo.BuildID.Value)?.allow_performance != true;
