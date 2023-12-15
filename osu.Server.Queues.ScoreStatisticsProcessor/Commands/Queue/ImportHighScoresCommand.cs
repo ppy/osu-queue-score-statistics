@@ -145,7 +145,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 using var db = DatabaseAccess.GetConnection();
 
                 ulong? lastImportedLegacyScore = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM score_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
-                ulong? lowestProcessQueueEntry = db.QuerySingle<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deletion = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1 ?? ulong.MaxValue;
+                ulong? lowestProcessQueueEntry = db.QuerySingleOrDefault<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deletion = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1 ?? ulong.MaxValue;
 
                 if (lowestProcessQueueEntry == null)
                 {
