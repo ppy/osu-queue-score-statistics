@@ -324,6 +324,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     if (scoreStatisticsQueueProcessor != null)
                     {
+                        Debug.Assert(!runningBatches.SelectMany(b => b.ElasticScoreItems).Any());
+
                         var scoreStatisticsItems = runningBatches.SelectMany(b => b.ScoreStatisticsItems).ToList();
 
                         if (scoreStatisticsItems.Any())
@@ -332,9 +334,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
                         }
                     }
-
-                    if (elasticQueueProcessor != null)
+                    else if (elasticQueueProcessor != null)
                     {
+                        Debug.Assert(!runningBatches.SelectMany(b => b.ScoreStatisticsItems).Any());
+
                         var elasticItems = runningBatches.SelectMany(b => b.ElasticScoreItems).ToList();
 
                         if (elasticItems.Any())
