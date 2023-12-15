@@ -14,7 +14,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     /// <summary>
-    /// Deletes already-imported high scores from the solo_scores table.
+    /// Deletes already-imported high scores from the scores table.
     /// </summary>
     /// <remarks>
     /// Sometimes we need to delete already imported scores to fix an issue (or remove them for good).
@@ -31,7 +31,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
     /// I'm not sure how important this is in the first place, because they are never going to be perfectly chronological next to
     /// non-imported (lazer-first) scores anyway...
     /// </remarks>
-    [Command("delete-high-scores", Description = "Deletes already-imported high scores from the solo_scores table.")]
+    [Command("delete-high-scores", Description = "Deletes already-imported high scores from the scores table.")]
     public class DeleteImportedHighScoresCommand
     {
         /// <summary>
@@ -48,7 +48,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             int deleted = 0;
 
             Console.WriteLine();
-            Console.WriteLine($"Deleting from solo_scores starting from {lastId}");
+            Console.WriteLine($"Deleting from scores starting from {lastId}");
 
             elasticQueueProcessor = new ElasticQueuePusher();
             Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
@@ -63,7 +63,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     using (var transaction = await conn.BeginTransactionAsync(cancellationToken))
                     {
-                        var highScores = await conn.QueryAsync<SoloScore>("SELECT * FROM solo_scores WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId }, transaction);
+                        var highScores = await conn.QueryAsync<SoloScore>("SELECT * FROM scores WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId }, transaction);
 
                         if (!highScores.Any())
                         {
@@ -79,8 +79,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                                 continue;
 
                             Console.WriteLine($"Deleting {score.id}...");
-                            await conn.ExecuteAsync("DELETE FROM solo_scores_performance WHERE score_id = @id; DELETE FROM solo_scores WHERE id = @id", score, transaction);
-                            await conn.ExecuteAsync("DELETE FROM solo_scores_legacy_id_map WHERE ruleset_id = @ruleset_id AND old_score_id = @legacy_score_id", new
+                            await conn.ExecuteAsync("DELETE FROM score_performance WHERE score_id = @id; DELETE FROM scores WHERE id = @id", score, transaction);
+                            await conn.ExecuteAsync("DELETE FROM score_legacy_id_map WHERE ruleset_id = @ruleset_id AND old_score_id = @legacy_score_id", new
                             {
                                 score.ruleset_id,
                                 legacy_score_id = score.ScoreInfo.LegacyScoreId

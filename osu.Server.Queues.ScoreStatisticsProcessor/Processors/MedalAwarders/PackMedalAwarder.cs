@@ -255,7 +255,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                     "SELECT COUNT(distinct p.beatmapset_id)"
                     + "FROM osu_beatmappacks_items p "
                     + "JOIN osu_beatmaps b USING (beatmapset_id) "
-                    + "JOIN solo_scores s USING (beatmap_id)"
+                    + "JOIN scores s USING (beatmap_id)"
                     + $"WHERE s.user_id = {score.UserID} AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: transaction);
 
                 int countForPack = conn.QuerySingle<int>($"SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = {packId}", transaction: transaction);

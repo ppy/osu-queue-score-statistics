@@ -31,14 +31,14 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
     /// <summary>
-    /// Imports high scores from the osu_scores_high tables into the new solo_scores table.
+    /// Imports high scores from the osu_scores_high tables into the new scores table.
     /// </summary>
     /// <remarks>
     /// This command is written under the assumption that only one importer instance is running concurrently.
     /// This is important to guarantee that scores are inserted in the same sequential order that they originally occured,
     /// which can be used for tie-breaker scenarios.
     /// </remarks>
-    [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new solo_scores table.")]
+    [Command("import-high-scores", Description = "Imports high scores from the osu_scores_high tables into the new scores table.")]
     public class ImportHighScoresCommand
     {
         /// <summary>
@@ -483,7 +483,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 {
                     // check for existing and skip
                     SoloScoreLegacyIDMap[] existingIds = (await db.QueryAsync<SoloScoreLegacyIDMap>(
-                        $"SELECT * FROM solo_scores_legacy_id_map WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds",
+                        $"SELECT * FROM score_legacy_id_map WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds",
                         new
                         {
                             oldScoreIds = scores.Select(s => s.score_id)
@@ -491,18 +491,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     insertCommand.CommandText =
                         // main score insert
-                        "INSERT INTO solo_scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, unix_updated_at) "
+                        "INSERT INTO scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, unix_updated_at) "
                         + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, @has_replay, 1, @date, UNIX_TIMESTAMP(@date));";
 
                     // pp insert
                     if (importLegacyPP)
-                        insertCommand.CommandText += "INSERT INTO solo_scores_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);";
+                        insertCommand.CommandText += "INSERT INTO score_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);";
 
                     // mapping insert
-                    insertCommand.CommandText += $"INSERT INTO solo_scores_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
+                    insertCommand.CommandText += $"INSERT INTO score_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
 
                     updateCommand.CommandText =
-                        "UPDATE solo_scores SET data = @data WHERE id = @id";
+                        "UPDATE scores SET data = @data WHERE id = @id";
 
                     var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
                     var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt64);
@@ -761,9 +761,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     // on completion of PP processing, the score will be pushed to ES for indexing.
                     // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
                     // is not constructed anywhere before this...
-                    var score = await connection.QuerySingleAsync<SoloScore>("SELECT * FROM `solo_scores` WHERE `id` = @id",
+                    var score = await connection.QuerySingleAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id",
                         new { id = scoreId }, transaction);
-                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `solo_scores_process_history` WHERE `score_id` = @id",
+                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id",
                         new { id = scoreId }, transaction);
                     ScoreStatisticsItems.Add(new ScoreItem(score, history));
                 }
