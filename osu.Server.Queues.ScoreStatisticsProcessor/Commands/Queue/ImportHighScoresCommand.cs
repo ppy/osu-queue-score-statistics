@@ -517,6 +517,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     foreach (var highScore in scores)
                     {
+                        // At least one row in the old table have invalid dates.
+                        // MySQL doesn't like empty dates, so let's ensure we have a valid one.
+                        if (highScore.date < DateTimeOffset.UnixEpoch)
+                        {
+                            Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
+                            highScore.date = DateTimeOffset.UnixEpoch;
+                        }
+
                         SoloScoreLegacyIDMap? existingMapping = existingIds.FirstOrDefault(e => e.old_score_id == highScore.score_id);
 
                         if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
