@@ -674,15 +674,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
                 int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
-                BeatmapScoringAttributes scoreAttributes = await connection.QuerySingleAsync<BeatmapScoringAttributes>(
+                BeatmapScoringAttributes? scoreAttributes = await connection.QuerySingleOrDefaultAsync<BeatmapScoringAttributes>(
                     "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
                     {
                         BeatmapId = highScore.beatmap_id,
                         RulesetId = ruleset.RulesetInfo.OnlineID
                     }, transaction);
 
+                if (scoreAttributes == null)
+                {
+                    // TODO: LOG
+                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Scoring attribs entry missing for beatmap {highScore.beatmap_id}.");
+                    return scoreInfo;
+                }
+
 #pragma warning disable CS0618
                 // Pad the maximum combo.
+                // Special case here for osu!mania as it requires per-mod considerations (key mods).
                 if (ruleset.RulesetInfo.OnlineID == 3)
                 {
                     // Using the BeatmapStore class will fail if a particular difficulty attribute value doesn't exist in the database as a result of difficulty calculation not having been run yet.
@@ -698,6 +706,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
                     {
+                        // TODO: LOG
                         await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not determine max combo from the difficulty attributes of beatmap {highScore.beatmap_id}.");
                         return scoreInfo;
                     }
@@ -710,6 +719,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     if (scoreAttributes.max_combo > maxComboFromStatistics)
                         scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = scoreAttributes.max_combo - maxComboFromStatistics;
                 }
+
 #pragma warning restore CS0618
 
                 Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
