@@ -61,7 +61,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 try
                 {
                     // Until osu-web adds the alias views, let's take things into our own hands.
-                    var _ = db.Query<ulong>("SELECT MIN(id) FROM scores");
+                    var _ = db.Query<ulong?>("SELECT MIN(id) FROM scores");
                 }
                 catch
                 {
@@ -78,11 +78,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
                 db.Execute("TRUNCATE TABLE osu_beatmaps");
                 db.Execute("TRUNCATE TABLE osu_beatmapsets");
-                db.Execute("TRUNCATE TABLE scores");
-                db.Execute("TRUNCATE TABLE score_process_history");
-                db.Execute("TRUNCATE TABLE score_performance");
-                db.Execute("TRUNCATE TABLE osu_builds");
 
+                if (db.QuerySingle<string>("SELECT TABLE_TYPE FROM information_schema.tables WHERE table_name = 'scores'") == "VIEW")
+                {
+                    db.Execute("TRUNCATE TABLE solo_scores");
+                    db.Execute("TRUNCATE TABLE solo_scores_process_history");
+                    db.Execute("TRUNCATE TABLE solo_scores_performance");
+                }
+                else
+                {
+                    db.Execute("TRUNCATE TABLE scores");
+                    db.Execute("TRUNCATE TABLE score_process_history");
+                    db.Execute("TRUNCATE TABLE score_performance");
+                }
+
+                db.Execute("TRUNCATE TABLE osu_builds");
                 db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");
 
                 TestBuildID = db.QuerySingle<int>("INSERT INTO osu_builds (version, allow_performance) VALUES ('1.0.0', 1); SELECT LAST_INSERT_ID();");
