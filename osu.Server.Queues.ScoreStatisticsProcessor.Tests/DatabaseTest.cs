@@ -79,18 +79,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_beatmaps");
                 db.Execute("TRUNCATE TABLE osu_beatmapsets");
 
-                if (db.QuerySingle<string>("SELECT TABLE_TYPE FROM information_schema.tables WHERE table_name = 'scores'") == "VIEW")
-                {
-                    db.Execute("TRUNCATE TABLE solo_scores");
-                    db.Execute("TRUNCATE TABLE solo_scores_process_history");
-                    db.Execute("TRUNCATE TABLE solo_scores_performance");
-                }
-                else
-                {
-                    db.Execute("TRUNCATE TABLE scores");
-                    db.Execute("TRUNCATE TABLE score_process_history");
-                    db.Execute("TRUNCATE TABLE score_performance");
-                }
+                db.Execute("DELETE FROM scores");
+                db.Execute("DELETE FROM score_process_history");
+                db.Execute("DELETE FROM score_performance");
 
                 db.Execute("TRUNCATE TABLE osu_builds");
                 db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");
