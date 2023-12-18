@@ -60,7 +60,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Processor.PushToQueue(score);
             WaitForTotalProcessed(1, CancellationToken);
 
-            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+            // partial processing is actually expected to happen here (for pp), but the user's total should still be zero.
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
         }
 
         [Fact]

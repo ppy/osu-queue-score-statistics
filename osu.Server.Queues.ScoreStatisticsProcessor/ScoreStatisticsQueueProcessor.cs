@@ -98,15 +98,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         protected override void ProcessResult(ScoreItem item)
         {
+            var tags = new List<string>();
+
             if (item.Score.ScoreInfo.IsLegacyScore)
-            {
-                item.Tags = new[] { "type:legacy" };
-                return;
-            }
+                tags.Add("type:legacy");
 
             if (item.ProcessHistory?.processed_version == VERSION)
             {
-                item.Tags = new[] { "type:skipped" };
+                item.Tags = tags.Append("type:skipped").ToArray();
                 return;
             }
 
@@ -130,14 +129,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         {
                             // ruleset could be invalid
                             // TODO: add check in client and server to not submit unsupported rulesets
-                            item.Tags = new[] { "type:no-stats" };
+                            item.Tags = tags.Append("type:no-stats").ToArray();
                             return;
                         }
 
                         // if required, we can rollback any previous version of processing then reapply with the latest.
                         if (item.ProcessHistory != null)
                         {
-                            item.Tags = new[] { "type:upgraded" };
+                            item.Tags = tags.Append("type:upgraded").ToArray();
                             byte version = item.ProcessHistory.processed_version;
 
                             foreach (var p in enumerateValidProcessors(score))
@@ -145,7 +144,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         }
                         else
                         {
-                            item.Tags = new[] { "type:new" };
+                            item.Tags = tags.Append("type:new").ToArray();
                         }
 
                         foreach (var p in enumerateValidProcessors(score))
@@ -181,7 +180,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             }
         }
 
-        private IEnumerable<IProcessor> enumerateValidProcessors(SoloScoreInfo score) => score.Passed ? processors : processors.Where(p => p.RunOnFailedScores);
+        private IEnumerable<IProcessor> enumerateValidProcessors(SoloScoreInfo score)
+        {
+            IEnumerable<IProcessor> result = processors;
+
+            if (!score.Passed)
+                result = result.Where(p => p.RunOnFailedScores);
+
+            if (score.IsLegacyScore)
+                result = result.Where(p => p.RunOnLegacyScores);
+
+            return result;
+        }
 
         private static void updateHistoryEntry(ScoreItem item, MySqlConnection db, MySqlTransaction transaction)
         {

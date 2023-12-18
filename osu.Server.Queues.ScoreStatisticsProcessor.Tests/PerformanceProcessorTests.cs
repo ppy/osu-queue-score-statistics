@@ -218,5 +218,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 ScoreId = score.Score.id
             });
         }
+
+        [Fact]
+        public void LegacyScoreDoesProcess()
+        {
+            AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>();
+
+            ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
+                score.Score.ScoreInfo.MaxCombo = 100;
+                score.Score.ScoreInfo.Accuracy = 1;
+                score.Score.ScoreInfo.LegacyScoreId = 1;
+                score.Score.preserve = true;
+            });
+
+            WaitForDatabaseState("SELECT COUNT(*) FROM solo_scores_performance WHERE score_id = @ScoreId", 1, CancellationToken, new
+            {
+                ScoreId = score.Score.id
+            });
+        }
     }
 }

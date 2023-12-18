@@ -17,6 +17,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     {
         public bool RunOnFailedScores => false;
 
+        public bool RunOnLegacyScores => false;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (!score.Passed)
