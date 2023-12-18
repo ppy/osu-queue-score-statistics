@@ -58,6 +58,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 if (db.QueryFirstOrDefault<int?>("SELECT * FROM osu_counts WHERE name = 'is_production'") != null)
                     throw new InvalidOperationException("You are trying to do something very silly.");
 
+                try
+                {
+                    // Until osu-web adds the alias views, let's take things into our own hands.
+                    var _ = db.Query<ulong>("SELECT MIN(id) FROM scores");
+                }
+                catch
+                {
+                    db.Execute("CREATE VIEW scores AS SELECT * FROM solo_scores");
+                    db.Execute("CREATE VIEW score_tokens AS SELECT * FROM solo_score_tokens");
+                    db.Execute("CREATE VIEW score_legacy_id_map AS SELECT * FROM solo_scores_legacy_id_map");
+                    db.Execute("CREATE VIEW score_performance AS SELECT * FROM solo_scores_performance");
+                    db.Execute("CREATE VIEW score_process_history AS SELECT * FROM solo_scores_process_history");
+                }
+
                 db.Execute("TRUNCATE TABLE osu_user_stats");
                 db.Execute("TRUNCATE TABLE osu_user_stats_mania");
                 db.Execute("TRUNCATE TABLE osu_user_beatmap_playcount");
