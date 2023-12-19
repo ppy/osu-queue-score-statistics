@@ -681,27 +681,52 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
                 int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
-                // Using the BeatmapStore class will fail if a particular difficulty attribute value doesn't exist in the database as a result of difficulty calculation not having been run yet.
-                // Additionally, to properly fill out attribute objects, the BeatmapStore class would require a beatmap object resulting in another database query.
-                // To get around both of these issues, we'll directly look up the attribute ourselves.
+                BeatmapScoringAttributes? scoreAttributes = await connection.QuerySingleOrDefaultAsync<BeatmapScoringAttributes>(
+                    "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
+                    {
+                        BeatmapId = highScore.beatmap_id,
+                        RulesetId = ruleset.RulesetInfo.OnlineID
+                    }, transaction);
 
-                // The isConvertedBeatmap parameter only affects whether mania key mods are allowed.
-                // Since we're dealing with high scores, we assume that the database mod values have already been validated for mania-specific beatmaps that don't allow key mods.
-                int difficultyMods = (int)LegacyModsHelper.MaskRelevantMods((LegacyMods)highScore.enabled_mods, true, ruleset.RulesetInfo.OnlineID);
-
-                Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = queryAttributes(
-                    new DifficultyAttributesLookup(highScore.beatmap_id, ruleset.RulesetInfo.OnlineID, difficultyMods), connection, transaction);
-
-                if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
+                if (scoreAttributes == null)
                 {
-                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not determine max combo from the difficulty attributes of beatmap {highScore.beatmap_id}.");
+                    // TODO: LOG
+                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Scoring attribs entry missing for beatmap {highScore.beatmap_id}.");
                     return scoreInfo;
                 }
 
 #pragma warning disable CS0618
                 // Pad the maximum combo.
-                if ((int)maxComboAttribute.value > maxComboFromStatistics)
-                    scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = (int)maxComboAttribute.value - maxComboFromStatistics;
+                // Special case here for osu!mania as it requires per-mod considerations (key mods).
+                if (ruleset.RulesetInfo.OnlineID == 3)
+                {
+                    // Using the BeatmapStore class will fail if a particular difficulty attribute value doesn't exist in the database as a result of difficulty calculation not having been run yet.
+                    // Additionally, to properly fill out attribute objects, the BeatmapStore class would require a beatmap object resulting in another database query.
+                    // To get around both of these issues, we'll directly look up the attribute ourselves.
+
+                    // The isConvertedBeatmap parameter only affects whether mania key mods are allowed.
+                    // Since we're dealing with high scores, we assume that the database mod values have already been validated for mania-specific beatmaps that don't allow key mods.
+                    int difficultyMods = (int)LegacyModsHelper.MaskRelevantMods((LegacyMods)highScore.enabled_mods, true, ruleset.RulesetInfo.OnlineID);
+
+                    Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = queryAttributes(
+                        new DifficultyAttributesLookup(highScore.beatmap_id, ruleset.RulesetInfo.OnlineID, difficultyMods), connection, transaction);
+
+                    if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
+                    {
+                        // TODO: LOG
+                        await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not determine max combo from the difficulty attributes of beatmap {highScore.beatmap_id}.");
+                        return scoreInfo;
+                    }
+
+                    if ((int)maxComboAttribute.value > maxComboFromStatistics)
+                        scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = (int)maxComboAttribute.value - maxComboFromStatistics;
+                }
+                else
+                {
+                    if (scoreAttributes.max_combo > maxComboFromStatistics)
+                        scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = scoreAttributes.max_combo - maxComboFromStatistics;
+                }
+
 #pragma warning restore CS0618
 
                 Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
@@ -710,13 +735,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 }, transaction);
 
                 LegacyBeatmapConversionDifficultyInfo difficulty = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
-
-                BeatmapScoringAttributes scoreAttributes = await connection.QuerySingleAsync<BeatmapScoringAttributes>(
-                    "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
-                    {
-                        BeatmapId = highScore.beatmap_id,
-                        RulesetId = ruleset.RulesetInfo.OnlineID
-                    }, transaction);
 
                 scoreInfo.TotalScore = StandardisedScoreMigrationTools.ConvertFromLegacyTotalScore(scoreInfo, difficulty, scoreAttributes.ToAttributes());
 
