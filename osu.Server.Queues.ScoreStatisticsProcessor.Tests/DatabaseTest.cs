@@ -64,11 +64,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
                 db.Execute("TRUNCATE TABLE osu_beatmaps");
                 db.Execute("TRUNCATE TABLE osu_beatmapsets");
-                db.Execute("TRUNCATE TABLE solo_scores");
-                db.Execute("TRUNCATE TABLE solo_scores_process_history");
-                db.Execute("TRUNCATE TABLE solo_scores_performance");
-                db.Execute("TRUNCATE TABLE osu_builds");
 
+                db.Execute("DELETE FROM scores");
+                db.Execute("DELETE FROM score_process_history");
+                db.Execute("DELETE FROM score_performance");
+
+                db.Execute("TRUNCATE TABLE osu_builds");
                 db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");
 
                 TestBuildID = db.QuerySingle<int>("INSERT INTO osu_builds (version, allow_performance) VALUES ('1.0.0', 1); SELECT LAST_INSERT_ID();");
@@ -104,7 +105,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             Processor.PushToQueue(item);
 
-            WaitForDatabaseState($"SELECT score_id FROM solo_scores_process_history WHERE score_id = {item.Score.id}", item.Score.id, CancellationToken);
+            WaitForDatabaseState($"SELECT score_id FROM score_process_history WHERE score_id = {item.Score.id}", item.Score.id, CancellationToken);
             WaitForTotalProcessed(processedBefore + 1, CancellationToken);
         }
 

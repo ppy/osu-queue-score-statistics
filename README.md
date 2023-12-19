@@ -31,7 +31,7 @@ To reprocess pp of all scores:
 dotnet run -- performance all
 ```
 
-To pump all scores in `solo_scores` back through the queue for reprocessing:
+To pump all scores in `scores` back through the queue for reprocessing:
 
 ```sh
 dotnet run -- queue pump-all

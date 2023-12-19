@@ -7,7 +7,7 @@ using Dapper.Contrib.Extensions;
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    [Table("solo_scores_process_history")]
+    [Table("score_process_history")]
     public class ProcessHistory
     {
         [ExplicitKey]

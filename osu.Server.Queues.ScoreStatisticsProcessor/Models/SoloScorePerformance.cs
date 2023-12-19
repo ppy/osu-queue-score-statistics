@@ -9,7 +9,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
-    [Table("solo_scores_performance")]
+    [Table("score_performance")]
     public class SoloScorePerformance
     {
         [ExplicitKey]
