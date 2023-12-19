@@ -13,7 +13,6 @@ using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
 using Newtonsoft.Json;
-using osu.Framework.Utils;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Database;
 using osu.Game.Online.API;
