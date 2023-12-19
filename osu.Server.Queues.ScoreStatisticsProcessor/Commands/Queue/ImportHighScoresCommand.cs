@@ -13,6 +13,7 @@ using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
 using Newtonsoft.Json;
+using osu.Framework.Utils;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Database;
 using osu.Game.Online.API;
@@ -517,85 +518,92 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     foreach (var highScore in scores)
                     {
-                        // At least one row in the old table have invalid dates.
-                        // MySQL doesn't like empty dates, so let's ensure we have a valid one.
-                        if (highScore.date < DateTimeOffset.UnixEpoch)
+                        try
                         {
-                            Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
-                            highScore.date = DateTimeOffset.UnixEpoch;
+                            // At least one row in the old table have invalid dates.
+                            // MySQL doesn't like empty dates, so let's ensure we have a valid one.
+                            if (highScore.date < DateTimeOffset.UnixEpoch)
+                            {
+                                Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
+                                highScore.date = DateTimeOffset.UnixEpoch;
+                            }
+
+                            SoloScoreLegacyIDMap? existingMapping = existingIds.FirstOrDefault(e => e.old_score_id == highScore.score_id);
+
+                            if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
+                            {
+                                Interlocked.Increment(ref totalSkipCount);
+                                continue;
+                            }
+
+                            ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
+                            string serialisedScore = JsonConvert.SerializeObject(new SoloScoreInfo
+                            {
+                                // id will be written below in the UPDATE call.
+                                UserID = highScore.user_id,
+                                BeatmapID = highScore.beatmap_id,
+                                RulesetID = ruleset.RulesetInfo.OnlineID,
+                                Passed = true,
+                                TotalScore = (int)referenceScore.TotalScore,
+                                Accuracy = referenceScore.Accuracy,
+                                MaxCombo = highScore.maxcombo,
+                                Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
+                                Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
+                                Statistics = referenceScore.Statistics,
+                                MaximumStatistics = referenceScore.MaximumStatistics,
+                                EndedAt = highScore.date,
+                                LegacyTotalScore = highScore.score,
+                                LegacyScoreId = highScore.score_id
+                            }, new JsonSerializerSettings
+                            {
+                                DefaultValueHandling = DefaultValueHandling.Ignore
+                            });
+
+                            if (existingMapping != null)
+                            {
+                                // Note that this only updates the `data` field. We could add others in the future as required.
+                                updateCommand.Transaction = transaction;
+
+                                updateId.Value = existingMapping.score_id;
+                                updateData.Value = serialisedScore;
+
+                                if (!updateCommand.IsPrepared)
+                                    await updateCommand.PrepareAsync();
+
+                                // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
+                                // this does not improve throughput.
+                                await updateCommand.ExecuteNonQueryAsync();
+                                await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction);
+
+                                Interlocked.Increment(ref currentReportUpdateCount);
+                                Interlocked.Increment(ref totalUpdateCount);
+                            }
+                            else
+                            {
+                                pp.Value = highScore.pp;
+                                userId.Value = highScore.user_id;
+                                oldScoreId.Value = highScore.score_id;
+                                beatmapId.Value = highScore.beatmap_id;
+                                date.Value = highScore.date;
+                                hasReplay.Value = highScore.replay;
+                                data.Value = serialisedScore;
+
+                                if (!insertCommand.IsPrepared)
+                                    await insertCommand.PrepareAsync();
+                                insertCommand.Transaction = transaction;
+
+                                // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
+                                // this does not improve throughput.
+                                await insertCommand.ExecuteNonQueryAsync();
+                                await enqueueForFurtherProcessing((ulong)insertCommand.LastInsertedId, db, transaction);
+
+                                Interlocked.Increment(ref currentReportInsertCount);
+                                Interlocked.Increment(ref totalInsertCount);
+                            }
                         }
-
-                        SoloScoreLegacyIDMap? existingMapping = existingIds.FirstOrDefault(e => e.old_score_id == highScore.score_id);
-
-                        if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
+                        catch (Exception e)
                         {
-                            Interlocked.Increment(ref totalSkipCount);
-                            continue;
-                        }
-
-                        ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
-                        string serialisedScore = JsonConvert.SerializeObject(new SoloScoreInfo
-                        {
-                            // id will be written below in the UPDATE call.
-                            UserID = highScore.user_id,
-                            BeatmapID = highScore.beatmap_id,
-                            RulesetID = ruleset.RulesetInfo.OnlineID,
-                            Passed = true,
-                            TotalScore = (int)referenceScore.TotalScore,
-                            Accuracy = referenceScore.Accuracy,
-                            MaxCombo = highScore.maxcombo,
-                            Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
-                            Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
-                            Statistics = referenceScore.Statistics,
-                            MaximumStatistics = referenceScore.MaximumStatistics,
-                            EndedAt = highScore.date,
-                            LegacyTotalScore = highScore.score,
-                            LegacyScoreId = highScore.score_id
-                        }, new JsonSerializerSettings
-                        {
-                            DefaultValueHandling = DefaultValueHandling.Ignore
-                        });
-
-                        if (existingMapping != null)
-                        {
-                            // Note that this only updates the `data` field. We could add others in the future as required.
-                            updateCommand.Transaction = transaction;
-
-                            updateId.Value = existingMapping.score_id;
-                            updateData.Value = serialisedScore;
-
-                            if (!updateCommand.IsPrepared)
-                                await updateCommand.PrepareAsync();
-
-                            // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
-                            // this does not improve throughput.
-                            await updateCommand.ExecuteNonQueryAsync();
-                            await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction);
-
-                            Interlocked.Increment(ref currentReportUpdateCount);
-                            Interlocked.Increment(ref totalUpdateCount);
-                        }
-                        else
-                        {
-                            pp.Value = highScore.pp;
-                            userId.Value = highScore.user_id;
-                            oldScoreId.Value = highScore.score_id;
-                            beatmapId.Value = highScore.beatmap_id;
-                            date.Value = highScore.date;
-                            hasReplay.Value = highScore.replay;
-                            data.Value = serialisedScore;
-
-                            if (!insertCommand.IsPrepared)
-                                await insertCommand.PrepareAsync();
-                            insertCommand.Transaction = transaction;
-
-                            // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
-                            // this does not improve throughput.
-                            await insertCommand.ExecuteNonQueryAsync();
-                            await enqueueForFurtherProcessing((ulong)insertCommand.LastInsertedId, db, transaction);
-
-                            Interlocked.Increment(ref currentReportInsertCount);
-                            Interlocked.Increment(ref totalInsertCount);
+                            throw new AggregateException($"Processing legacy score {highScore.score_id} failed.", e);
                         }
                     }
 
