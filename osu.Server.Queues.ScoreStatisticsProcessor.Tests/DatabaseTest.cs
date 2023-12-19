@@ -58,20 +58,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 if (db.QueryFirstOrDefault<int?>("SELECT * FROM osu_counts WHERE name = 'is_production'") != null)
                     throw new InvalidOperationException("You are trying to do something very silly.");
 
-                try
-                {
-                    // Until osu-web adds the alias views, let's take things into our own hands.
-                    var _ = db.Query<ulong?>("SELECT MIN(id) FROM scores");
-                }
-                catch
-                {
-                    db.Execute("CREATE VIEW scores AS SELECT * FROM solo_scores");
-                    db.Execute("CREATE VIEW score_tokens AS SELECT * FROM solo_score_tokens");
-                    db.Execute("CREATE VIEW score_legacy_id_map AS SELECT * FROM solo_scores_legacy_id_map");
-                    db.Execute("CREATE VIEW score_performance AS SELECT * FROM solo_scores_performance");
-                    db.Execute("CREATE VIEW score_process_history AS SELECT * FROM solo_scores_process_history");
-                }
-
                 db.Execute("TRUNCATE TABLE osu_user_stats");
                 db.Execute("TRUNCATE TABLE osu_user_stats_mania");
                 db.Execute("TRUNCATE TABLE osu_user_beatmap_playcount");
@@ -79,18 +65,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_beatmaps");
                 db.Execute("TRUNCATE TABLE osu_beatmapsets");
 
-                if (db.QuerySingle<string>("SELECT TABLE_TYPE FROM information_schema.tables WHERE table_name = 'scores'") == "VIEW")
-                {
-                    db.Execute("TRUNCATE TABLE solo_scores");
-                    db.Execute("TRUNCATE TABLE solo_scores_process_history");
-                    db.Execute("TRUNCATE TABLE solo_scores_performance");
-                }
-                else
-                {
-                    db.Execute("TRUNCATE TABLE scores");
-                    db.Execute("TRUNCATE TABLE score_process_history");
-                    db.Execute("TRUNCATE TABLE score_performance");
-                }
+                db.Execute("DELETE FROM scores");
+                db.Execute("DELETE FROM score_process_history");
+                db.Execute("DELETE FROM score_performance");
 
                 db.Execute("TRUNCATE TABLE osu_builds");
                 db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");
