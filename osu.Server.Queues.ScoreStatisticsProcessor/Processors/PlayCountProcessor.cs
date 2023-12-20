@@ -24,6 +24,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
+            if (!score.IsValidForPlayTracking(out _) && previousVersion >= 10)
+                return;
+
             if (previousVersion >= 1)
                 userStats.playcount--;
 
@@ -36,6 +39,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
+            if (!score.IsValidForPlayTracking(out _))
+                return;
+
             const int beatmap_count = 12;
             const int over_time = 120;
 
