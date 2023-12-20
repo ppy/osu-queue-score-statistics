@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Rulesets;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
@@ -68,8 +69,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
-
             long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(rulesetId);
 
             if (beatmapStore == null || buildStore == null || currentTimestamp - lastStoreRefresh > 60)
             {
@@ -127,7 +128,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     return true;
 
                 // Performance needs to be allowed for the build.
-                return buildStore.GetBuild(s.ScoreInfo.BuildID.Value)?.allow_performance != true;
+                if (buildStore.GetBuild(s.ScoreInfo.BuildID.Value)?.allow_performance != true)
+                    return true;
+
+                return !ScorePerformanceProcessor.AllModsValidForPerformance(s.ScoreInfo, s.ScoreInfo.Mods.Select(m => m.ToMod(ruleset)).ToArray());
             });
 
             SoloScoreWithPerformance[] groupedItems = scores
