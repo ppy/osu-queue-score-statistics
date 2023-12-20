@@ -23,19 +23,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (previousVersion >= 6)
-                userStats.total_seconds_played -= getPlayLength(score, conn, transaction);
+                userStats.total_seconds_played -= getPlayLength(score);
         }
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            userStats.total_seconds_played += getPlayLength(score, conn, transaction);
+            userStats.total_seconds_played += getPlayLength(score);
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
         }
 
-        private static int getPlayLength(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction transaction)
+        private static int getPlayLength(SoloScoreInfo score)
         {
             // to ensure sanity, first get the maximum time feasible from the beatmap's length
             double totalLengthSeconds = score.Beatmap!.Length;
