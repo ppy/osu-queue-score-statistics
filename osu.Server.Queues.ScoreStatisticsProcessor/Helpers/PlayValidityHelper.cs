@@ -6,11 +6,32 @@ using System.Linq;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Scoring;
+using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
-    public class PlayValidityHelper
+    public static class PlayValidityHelper
     {
+        /// <summary>
+        /// Whether the supplied <paramref name="score"/> is valid for tracking total play time and count.
+        /// </summary>
+        /// <seealso cref="PlayCountProcessor"/>
+        /// <seealso cref="PlayTimeProcessor"/>
+        /// <param name="score">The score to check.</param>
+        /// <param name="lengthInSeconds">The total length of play in seconds in the supplied <paramref name="score"/>.</param>
+        public static bool IsValidForPlayTracking(this SoloScoreInfo score, out int lengthInSeconds)
+        {
+            lengthInSeconds = GetPlayLength(score);
+
+            int totalObjectsJudged = score.Statistics.Where(kv => kv.Key.IsScorable()).Sum(kv => kv.Value);
+            int totalObjects = score.MaximumStatistics.Where(kv => kv.Key.IsScorable()).Sum(kv => kv.Value);
+
+            return lengthInSeconds >= 8
+                   && score.TotalScore >= 5000
+                   && totalObjectsJudged >= Math.Min(0.1f * totalObjects, 20);
+        }
+
         public static int GetPlayLength(SoloScoreInfo score)
         {
             // to ensure sanity, first get the maximum time feasible from the beatmap's length
