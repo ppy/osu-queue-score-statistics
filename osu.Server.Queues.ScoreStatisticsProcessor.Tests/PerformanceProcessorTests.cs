@@ -2,7 +2,11 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using Dapper;
+using Dapper.Contrib.Extensions;
+using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
+using osu.Framework.Localisation;
+using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Mania.Mods;
@@ -44,6 +48,49 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_stats WHERE rank_score_exp > 0 AND user_id = 2", 1, CancellationToken);
             WaitForDatabaseState("SELECT rank_score_index_exp FROM osu_user_stats WHERE user_id = 2", 1, CancellationToken);
+        }
+
+        [Fact]
+        public void PerformanceIndexDoesNotUpdateForNonLegacyScoreWithNoBuildId()
+        {
+            AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>();
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
+                score.Score.ScoreInfo.MaxCombo = 100;
+                score.Score.ScoreInfo.Accuracy = 1;
+                score.Score.preserve = true;
+            });
+
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_stats WHERE rank_score_exp > 0 AND user_id = 2", 0, CancellationToken);
+        }
+
+        [Fact]
+        public void PerformanceIndexDoesNotUpdateForScoresThatHavePpButInvalidMods()
+        {
+            AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>();
+
+            using (MySqlConnection conn = Processor.GetDatabaseConnection())
+            {
+                var score = CreateTestScore(beatmapId: TEST_BEATMAP_ID);
+
+                score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
+                score.Score.ScoreInfo.MaxCombo = 100;
+                score.Score.ScoreInfo.Accuracy = 1;
+                score.Score.ScoreInfo.BuildID = TestBuildID;
+                score.Score.ScoreInfo.Mods = new[] { new APIMod(new InvalidMod()) };
+                score.Score.preserve = true;
+
+                long scoreId = conn.Insert(score.Score);
+                conn.Execute($"INSERT INTO score_performance (score_id, pp) VALUES ({scoreId}, 1)");
+
+                PushToQueueAndWaitForProcess(score);
+            }
+
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_stats WHERE rank_score_exp > 0 AND user_id = 2", 0, CancellationToken);
         }
 
         [Fact]
@@ -238,6 +285,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 ScoreId = score.Score.id
             });
+        }
+
+        private class InvalidMod : Mod
+        {
+            public override string Name => "Invalid";
+            public override LocalisableString Description => "Invalid";
+            public override double ScoreMultiplier => 1;
+            public override string Acronym => "INVALID";
         }
     }
 }
