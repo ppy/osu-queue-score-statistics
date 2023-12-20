@@ -1,18 +1,25 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using osu.Game.Rulesets.Scoring;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
     public class PlayCountProcessorTests : DatabaseTest
     {
+        private const int beatmap_length = 158;
+
+        public PlayCountProcessorTests()
+        {
+            AddBeatmap(b => b.total_length = beatmap_length);
+        }
+
         [Fact]
         public void TestPlaycountIncreaseMania()
         {
-            AddBeatmap();
-
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats_mania WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore(3));
@@ -26,8 +33,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public Task TestGlobalPlaycountsIncrement()
         {
             const int attempt_count = 100;
-
-            AddBeatmap();
 
             var cts = new CancellationTokenSource();
 
@@ -55,8 +60,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestPlaycountIncrease()
         {
-            AddBeatmap();
-
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -67,10 +70,49 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestPlaycountDoesNotIncreaseIfPlayTooShort()
+        {
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var score = CreateTestScore();
+            score.Score.ScoreInfo.EndedAt = score.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(4);
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
+        }
+
+        [Fact]
+        public void TestPlaycountDoesNotIncreaseIfScoreTooLow()
+        {
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var score = CreateTestScore();
+            score.Score.ScoreInfo.TotalScore = 20;
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
+        }
+
+        [Theory]
+        [InlineData(3, 40)]
+        [InlineData(9, 100)]
+        [InlineData(19, 200)]
+        [InlineData(19, 500)]
+        public void TestPlaycountDoesNotIncreaseIfTooFewObjectsHit(int hitCount, int totalCount)
+        {
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var score = CreateTestScore();
+            score.Score.ScoreInfo.Statistics = new Dictionary<HitResult, int> { [HitResult.Great] = hitCount };
+            score.Score.ScoreInfo.MaximumStatistics = new Dictionary<HitResult, int> { [HitResult.Great] = totalCount };
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
+        }
+
+        [Fact]
         public void TestProcessingSameScoreTwiceRaceCondition()
         {
-            AddBeatmap();
-
             IgnoreProcessorExceptions();
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
@@ -94,8 +136,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestPlaycountReprocessDoesntIncrease()
         {
-            AddBeatmap();
-
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
@@ -113,8 +153,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestRapidPlaysHasLimitedIncrease()
         {
-            AddBeatmap();
-
             WaitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {TEST_BEATMAP_ID}", (int?)null, CancellationToken);
 
             for (int i = 0; i < 30; i++)
@@ -127,8 +165,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestUserBeatmapPlaycountIncrease()
         {
-            AddBeatmap();
-
             WaitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {TEST_BEATMAP_ID}", (int?)null, CancellationToken);
 
             SetScoreForBeatmap(TEST_BEATMAP_ID);
@@ -141,8 +177,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestUserBeatmapPlaycountReprocessDoesntIncrease()
         {
-            AddBeatmap();
-
             var score = CreateTestScore();
 
             WaitForDatabaseState($"SELECT playcount FROM osu_user_beatmap_playcount WHERE user_id = 2 and beatmap_id = {TEST_BEATMAP_ID}", (int?)null, CancellationToken);
@@ -160,8 +194,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMonthlyPlaycountIncrease()
         {
-            AddBeatmap();
-
             WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -177,8 +209,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [InlineData(2)]
         public void TestMonthlyPlaycountReprocessOldVersionIncrease(int version)
         {
-            AddBeatmap();
-
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, CancellationToken);
@@ -197,8 +227,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMonthlyPlaycountReprocessDoesntIncrease()
         {
-            AddBeatmap();
-
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, CancellationToken);
