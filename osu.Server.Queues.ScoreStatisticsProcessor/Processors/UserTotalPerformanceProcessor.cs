@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
@@ -123,7 +122,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (s.ScoreInfo.IsLegacyScore)
                     return false;
 
-                Debug.Assert(s.ScoreInfo.BuildID != null);
+                // Some older lazer scores don't have build IDs.
+                if (s.ScoreInfo.BuildID == null)
+                    return true;
 
                 // Performance needs to be allowed for the build.
                 return buildStore.GetBuild(s.ScoreInfo.BuildID.Value)?.allow_performance != true;
