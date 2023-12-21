@@ -70,24 +70,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestPlaycountDoesNotIncreaseIfPlayTooShort()
+        public void TestPlaycountDoesNotIncreaseIfFailedAndPlayTooShort()
         {
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
             score.Score.ScoreInfo.EndedAt = score.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(4);
+            score.Score.ScoreInfo.Passed = false;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
         }
 
         [Fact]
-        public void TestPlaycountDoesNotIncreaseIfScoreTooLow()
+        public void TestPlaycountDoesNotIncreaseIfFailedAndScoreTooLow()
         {
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
             score.Score.ScoreInfo.TotalScore = 20;
+            score.Score.ScoreInfo.Passed = false;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
@@ -98,16 +100,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [InlineData(9, 100)]
         [InlineData(19, 200)]
         [InlineData(19, 500)]
-        public void TestPlaycountDoesNotIncreaseIfTooFewObjectsHit(int hitCount, int totalCount)
+        public void TestPlaycountDoesNotIncreaseIfFailedAndTooFewObjectsHit(int hitCount, int totalCount)
         {
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
             score.Score.ScoreInfo.Statistics = new Dictionary<HitResult, int> { [HitResult.Great] = hitCount };
             score.Score.ScoreInfo.MaximumStatistics = new Dictionary<HitResult, int> { [HitResult.Great] = totalCount };
+            score.Score.ScoreInfo.Passed = false;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
+        }
+
+        [Fact]
+        public void TestPlaycountDoesIncreaseIfPassedAndPlayShort()
+        {
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var score = CreateTestScore();
+            score.Score.ScoreInfo.EndedAt = score.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(4);
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, CancellationToken);
         }
 
         [Fact]
