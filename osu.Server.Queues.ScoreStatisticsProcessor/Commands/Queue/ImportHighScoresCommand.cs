@@ -18,7 +18,6 @@ using osu.Game.Database;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
-using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Scoring.Legacy;
@@ -636,6 +635,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     IsLegacyScore = true
                 };
 
+                var scoreProcessor = ruleset.CreateScoreProcessor();
+
                 // Populate statistics and accuracy.
                 scoreInfo.SetCount50(highScore.count50);
                 scoreInfo.SetCount100(highScore.count100);
@@ -649,7 +650,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 scoreInfo.Statistics = scoreInfo.Statistics.Where(kvp => kvp.Value != 0).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
                 // Populate the maximum statistics.
-                HitResult maxBasicResult = ruleset.GetHitResults().Select(h => h.result).Where(h => h.IsBasic()).MaxBy(Judgement.ToNumericResult);
+                HitResult maxBasicResult = ruleset.GetHitResults().Select(h => h.result).Where(h => h.IsBasic()).MaxBy(scoreProcessor.GetBaseScoreForResult);
 
                 foreach ((HitResult result, int count) in scoreInfo.Statistics)
                 {
@@ -736,12 +737,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 LegacyBeatmapConversionDifficultyInfo difficulty = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
 
-                scoreInfo.TotalScore = StandardisedScoreMigrationTools.ConvertFromLegacyTotalScore(scoreInfo, difficulty, scoreAttributes.ToAttributes());
-
-                int baseScore = scoreInfo.Statistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
-                int maxBaseScore = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * Judgement.ToNumericResult(kvp.Key));
-
-                scoreInfo.Accuracy = maxBaseScore == 0 ? 1 : baseScore / (double)maxBaseScore;
+                StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, difficulty, scoreAttributes.ToAttributes());
 
                 return scoreInfo;
             }
