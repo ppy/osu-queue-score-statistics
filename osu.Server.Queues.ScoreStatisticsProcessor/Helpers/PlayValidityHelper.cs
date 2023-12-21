@@ -28,9 +28,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             int totalObjectsJudged = score.Statistics.Where(kv => kv.Key.IsScorable()).Sum(kv => kv.Value);
             int totalObjects = score.MaximumStatistics.Where(kv => kv.Key.IsScorable()).Sum(kv => kv.Value);
 
-            return lengthInSeconds >= 8
-                   && score.TotalScore >= 5000
-                   && totalObjectsJudged >= Math.Min(0.1f * totalObjects, 20);
+            return score.Passed
+                   || (lengthInSeconds >= 8
+                       && score.TotalScore >= 5000
+                       && totalObjectsJudged >= Math.Min(0.1f * totalObjects, 20));
         }
 
         public static int GetPlayLength(SoloScoreInfo score)
