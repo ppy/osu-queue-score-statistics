@@ -54,9 +54,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         [JsonIgnore]
         public DateTimeOffset created_at { get; set; }
 
-        [JsonIgnore]
-        public DateTimeOffset updated_at { get; set; }
-
         public override string ToString() => $"score_id: {id} user_id: {user_id}";
     }
 }
