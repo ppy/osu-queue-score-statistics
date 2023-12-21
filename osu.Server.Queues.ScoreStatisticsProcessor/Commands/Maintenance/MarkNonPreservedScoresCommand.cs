@@ -85,7 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 Console.WriteLine($"Marking score {score.id} non-preserved...");
 
-                await db.ExecuteAsync("UPDATE scores SET preserve = 0 WHERE id = @scoreId;", new
+                await db.ExecuteAsync("UPDATE scores SET preserve = 0, unix_updated_at = CURRENT_TIMESTAMP WHERE id = @scoreId;", new
                 {
                     scoreId = score.id
                 });

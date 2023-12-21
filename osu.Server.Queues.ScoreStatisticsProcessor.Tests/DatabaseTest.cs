@@ -118,7 +118,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
                 ruleset_id = (ushort)(rulesetId ?? 0),
                 created_at = DateTimeOffset.Now,
-                updated_at = DateTimeOffset.Now,
             };
 
             var startTime = new DateTimeOffset(new DateTime(2020, 02, 05));
