@@ -37,7 +37,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             // ignore time values for now until we can figure how to test without precision issues.
             deserialised.created_at = score.created_at;
-            deserialised.updated_at = score.updated_at;
 
             deserialised.ShouldDeepEqual(score);
         }
@@ -55,7 +54,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 // ignore time values for now until we can figure how to test without precision issues.
                 retrieved.created_at = score.created_at;
-                retrieved.updated_at = score.updated_at;
 
                 retrieved.ShouldDeepEqual(score);
             }
