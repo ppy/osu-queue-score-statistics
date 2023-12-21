@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Diagnostics;
 using System.Linq;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
@@ -44,8 +45,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             foreach (var mod in rateAdjustMods)
                 totalLengthSeconds /= mod.SpeedChange.Value;
 
-            if (score.StartedAt == null)
-                return (int)totalLengthSeconds;
+            Debug.Assert(score.StartedAt != null);
 
             // TODO: better handle failed plays once we have incoming data.
 
