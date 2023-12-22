@@ -2,8 +2,10 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using osu.Game.Online.API;
 using osu.Game.Rulesets.Osu.Mods;
+using osu.Game.Rulesets.Scoring;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
@@ -87,6 +89,62 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             PushToQueueAndWaitForProcess(testScore);
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int)(beatmap_length / custom_rate), CancellationToken);
+        }
+
+        [Fact]
+        public void TestPlayTimeDoesNotIncreaseIfFailedAndPlayTooShort()
+        {
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var score = CreateTestScore();
+            score.Score.ScoreInfo.EndedAt = score.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(4);
+            score.Score.ScoreInfo.Passed = false;
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
+        }
+
+        [Fact]
+        public void TestPlayTimeDoesNotIncreaseIfFailedAndScoreTooLow()
+        {
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var score = CreateTestScore();
+            score.Score.ScoreInfo.TotalScore = 20;
+            score.Score.ScoreInfo.Passed = false;
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
+        }
+
+        [Theory]
+        [InlineData(3, 40)]
+        [InlineData(9, 100)]
+        [InlineData(19, 200)]
+        [InlineData(19, 500)]
+        public void TestPlayTimeDoesNotIncreaseIfFailedAndTooFewObjectsHit(int hitCount, int totalCount)
+        {
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var score = CreateTestScore();
+            score.Score.ScoreInfo.Statistics = new Dictionary<HitResult, int> { [HitResult.Great] = hitCount };
+            score.Score.ScoreInfo.MaximumStatistics = new Dictionary<HitResult, int> { [HitResult.Great] = totalCount };
+            score.Score.ScoreInfo.Passed = false;
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
+        }
+
+        [Fact]
+        public void TestPlayTimeDoesIncreaseIfPassedAndShort()
+        {
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var score = CreateTestScore();
+            score.Score.ScoreInfo.EndedAt = score.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(4);
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 4, CancellationToken);
         }
     }
 }
