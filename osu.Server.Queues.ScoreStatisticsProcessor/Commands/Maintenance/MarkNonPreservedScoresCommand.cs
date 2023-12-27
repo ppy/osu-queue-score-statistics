@@ -23,11 +23,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process.")]
         public int RulesetId { get; set; }
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run", Description = "Don't actually mark, just output.")]
+        public bool DryRun { get; set; }
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 
             Console.WriteLine($"Running for ruleset {RulesetId}");
+            if (DryRun)
+                Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
             using (var db = DatabaseAccess.GetConnection())
             {
@@ -85,15 +90,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 Console.WriteLine($"Marking score {score.id} non-preserved...");
 
-                await db.ExecuteAsync("UPDATE scores SET preserve = 0, unix_updated_at = CURRENT_TIMESTAMP WHERE id = @scoreId;", new
+                if (!DryRun)
                 {
-                    scoreId = score.id
-                });
+                    await db.ExecuteAsync("UPDATE scores SET preserve = 0, unix_updated_at = CURRENT_TIMESTAMP WHERE id = @scoreId;", new
+                    {
+                        scoreId = score.id
+                    });
 
-                elasticQueueProcessor.PushToQueue(new ElasticQueuePusher.ElasticScoreItem
-                {
-                    ScoreId = (long?)score.id
-                });
+                    elasticQueueProcessor.PushToQueue(new ElasticQueuePusher.ElasticScoreItem
+                    {
+                        ScoreId = (long?)score.id
+                    });
+                }
             }
         }
 
