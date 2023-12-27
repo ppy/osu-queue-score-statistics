@@ -78,6 +78,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-indexing")]
         public bool SkipIndexing { get; set; }
 
+        /// <summary>
+        /// When set to <c>true</c> and in watch mode, scores will not be queued to the score statistics processor,
+        /// instead being sent straight to the elasticsearch indexing queue.
+        /// </summary>
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-score-processor")]
+        public bool SkipScoreProcessor { get; set; }
+
         private long lastCommitTimestamp;
         private long startupTimestamp;
         private long lastLatencyCheckTimestamp;
@@ -179,16 +186,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             if (watchMode)
             {
-                scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
-
-                if (SkipIndexing)
+                if (!SkipScoreProcessor)
                 {
-                    throw new NotSupportedException("Skipping indexing in watch mode is not supported, "
-                                                    + $"as watch mode will push imported scores to the {scoreStatisticsQueueProcessor.QueueName} redis queue in order to process PP, "
-                                                    + "and once that score is processed on the aforementioned queue, it will be pushed for indexing to ES.");
-                }
+                    scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
 
-                Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
+                    if (SkipIndexing)
+                    {
+                        throw new NotSupportedException("Skipping indexing in watch mode is not supported, "
+                                                        + $"as watch mode will push imported scores to the {scoreStatisticsQueueProcessor.QueueName} redis queue in order to process PP, "
+                                                        + "and once that score is processed on the aforementioned queue, it will be pushed for indexing to ES.");
+                    }
+
+                    Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
+                }
 
                 // We are going to enqueue the score for pp processing ourselves, so we don't care about its current processing status on the old queue.
                 maxProcessableId = ulong.MaxValue;
@@ -202,12 +212,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Console.WriteLine(maxProcessableId != ulong.MaxValue
                     ? $"Will process scores up to ID {maxProcessableId}"
                     : "Will process all scores to end of table (could not determine queue state from `score_process_queue`)");
+            }
 
-                if (!SkipIndexing)
-                {
-                    elasticQueueProcessor = new ElasticQueuePusher();
-                    Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
-                }
+            if (!SkipIndexing && scoreStatisticsQueueProcessor == null)
+            {
+                elasticQueueProcessor = new ElasticQueuePusher();
+                Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
             }
 
             await Task.Delay(5000, cancellationToken);
