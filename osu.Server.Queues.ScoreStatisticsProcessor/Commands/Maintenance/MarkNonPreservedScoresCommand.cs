@@ -26,6 +26,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run", Description = "Don't actually mark, just output.")]
         public bool DryRun { get; set; }
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
+        public bool Verbose { get; set; }
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
@@ -71,20 +74,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 if (pins.Contains(score.id))
                 {
-                    Console.WriteLine($"Maintaining preservation for {score.id} (is pinned)");
+                    if (Verbose)
+                        Console.WriteLine($"Maintaining preservation for {score.id} (is pinned)");
                     continue;
                 }
 
                 if (checkIsMultiplayerScore(db, score))
                 {
-                    Console.WriteLine($"Maintaining preservation for {score.id} (is multiplayer)");
+                    if (Verbose)
+                        Console.WriteLine($"Maintaining preservation for {score.id} (is multiplayer)");
                     continue;
                 }
 
                 // check whether this score is a user high (either total_score or pp)
                 if (checkIsUserHigh(scores, score))
                 {
-                    Console.WriteLine($"Maintaining preservation for {score.id} (is user high)");
+                    if (Verbose)
+                        Console.WriteLine($"Maintaining preservation for {score.id} (is user high)");
                     continue;
                 }
 
