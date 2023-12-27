@@ -159,7 +159,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     lastId = 0;
                     watchMode = false;
                 }
-                else if (lastImportedLegacyScore > lowestProcessQueueEntry)
+                else if (lastImportedLegacyScore >= lowestProcessQueueEntry)
                 {
                     lastId = lastImportedLegacyScore.Value + 1;
                     Console.WriteLine($"Continuing watch mode from last processed legacy score ({lastId})");
@@ -387,7 +387,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 // when doing a single run, we need to make sure not to run into scores which are in the process queue (to avoid
                 // touching them while they are still being written).
                 using (var db = DatabaseAccess.GetConnection())
-                    return db.QuerySingle<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deletion = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1 ?? ulong.MaxValue;
+                    return db.QuerySingle<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deletion = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") ?? ulong.MaxValue;
             }
             catch
             {
