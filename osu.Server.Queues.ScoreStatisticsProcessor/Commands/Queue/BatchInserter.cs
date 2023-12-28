@@ -40,8 +40,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
     {
         public static int CurrentReportInsertCount;
         public static int CurrentReportUpdateCount;
+        public static int CurrentReportDeleteCount;
         public static int TotalInsertCount;
         public static int TotalUpdateCount;
+        public static int TotalDeleteCount;
 
         public static int TotalSkipCount;
 
@@ -155,22 +157,31 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         if (existingMapping != null)
                         {
-                            // Note that this only updates the `data` field. We could add others in the future as required.
-                            updateCommand.Transaction = transaction;
+                            if (highScore.is_deletion)
+                            {
+                                // TODO: delete
+                                Interlocked.Increment(ref CurrentReportDeleteCount);
+                                Interlocked.Increment(ref TotalDeleteCount);
+                            }
+                            else
+                            {
+                                // Note that this only updates the `data` field. We could add others in the future as required.
+                                updateCommand.Transaction = transaction;
 
-                            updateId.Value = existingMapping.score_id;
-                            updateData.Value = serialisedScore;
+                                updateId.Value = existingMapping.score_id;
+                                updateData.Value = serialisedScore;
 
-                            if (!updateCommand.IsPrepared)
-                                await updateCommand.PrepareAsync();
+                                if (!updateCommand.IsPrepared)
+                                    await updateCommand.PrepareAsync();
 
-                            // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
-                            // this does not improve throughput.
-                            await updateCommand.ExecuteNonQueryAsync();
-                            await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction);
+                                // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
+                                // this does not improve throughput.
+                                await updateCommand.ExecuteNonQueryAsync();
+                                await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction);
 
-                            Interlocked.Increment(ref CurrentReportUpdateCount);
-                            Interlocked.Increment(ref TotalUpdateCount);
+                                Interlocked.Increment(ref CurrentReportUpdateCount);
+                                Interlocked.Increment(ref TotalUpdateCount);
+                            }
                         }
                         else
                         {

@@ -49,7 +49,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// </summary>
         private const double seconds_between_report = 2;
 
-        private ulong lastId;
+        private ulong lastQueueId;
 
         private readonly DateTimeOffset startedAt = DateTimeOffset.Now;
 
@@ -65,24 +65,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             //   to catch up.
             using var db = DatabaseAccess.GetConnection();
 
-            ulong? lastImportedLegacyScore = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM score_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
-            ulong? lowestProcessQueueEntry = db.QuerySingleOrDefault<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deletion = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1;
+            ulong? lastImportedLegacyScoreId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM score_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
 
-            if (lowestProcessQueueEntry == null)
+            var firstEntry = db.QuerySingleOrDefault<ScoreProcessQueue>($"SELECT * FROM score_process_queue WHERE mode = {RulesetId} ORDER BY queue_id LIMIT 1");
+
+            if (firstEntry == null)
             {
                 Console.WriteLine("Couldn't find any scores to process");
                 return -1;
             }
 
-            if (lastImportedLegacyScore >= lowestProcessQueueEntry)
+            if (lastImportedLegacyScoreId >= firstEntry.score_id)
             {
-                lastId = lastImportedLegacyScore.Value + 1;
-                Console.WriteLine($"Continuing watch mode from last processed legacy score ({lastId})");
+                var entry = db.QuerySingle<ScoreProcessQueue>($"SELECT * FROM score_process_queue WHERE mode = {RulesetId} AND score_id = {lastImportedLegacyScoreId}");
+
+                lastQueueId = entry.queue_id;
+                Console.WriteLine($"Continuing watch mode from last processed legacy score (score_id: {entry.score_id} queue_id: {entry.queue_id})");
             }
             else
             {
-                lastId = lowestProcessQueueEntry.Value;
-                Console.WriteLine($"WARNING: Continuing watch mode from start of score_process_queue ({lastId})");
+                lastQueueId = firstEntry.queue_id;
+                Console.WriteLine($"WARNING: Continuing watch mode from start of the processing queue (score_id: {firstEntry.score_id} queue_id: {firstEntry.queue_id})");
                 Console.WriteLine("This implies that a full import hasn't been run yet, you might want to run another import first to catch up.");
                 Console.WriteLine();
                 Console.WriteLine("You have 10 seconds to decide if you really want to do this..");
@@ -90,7 +93,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             }
 
             Console.WriteLine();
-            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
+            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastQueueId}");
 
             if (SkipScoreProcessor)
             {
@@ -111,10 +114,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    HighScore[] highScores = (await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} h WHERE score_id >= @lastId ORDER BY score_id LIMIT 1000", new
+                    HighScore[] highScores = (await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM osu.score_process_queue LEFT JOIN {highScoreTable} h USING (score_id) WHERE queue_id >= @lastQueueId AND mode = {RulesetId} ORDER BY queue_id LIMIT 1000", new
                     {
-                        lastId,
-                        rulesetId = ruleset.RulesetInfo.OnlineID,
+                        lastQueueId,
+                        RulesetId,
                     })).ToArray();
 
                     if (highScores.Length == 0)
@@ -123,7 +126,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         continue;
                     }
 
-                    var inserter = new BatchInserter(ruleset, highScores.ToArray(), importLegacyPP: !SkipScoreProcessor, true, false);
+                    var inserter = new BatchInserter(ruleset, highScores, importLegacyPP: !SkipScoreProcessor, true, false);
 
                     while (!inserter.Task.IsCompleted)
                     {
@@ -134,7 +137,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     if (inserter.Task.IsFaulted)
                     {
                         Console.WriteLine("ERROR: Inserter failed. Aborting for safety.");
-                        Console.WriteLine($"Running batches were processing up to {lastId}.");
+                        Console.WriteLine($"Running batches were processing up to {lastQueueId}.");
                         Console.WriteLine();
 
                         string status = inserter.Task.IsFaulted ? $"FAILED ({inserter.Task.Exception?.Message})" : "success";
@@ -144,9 +147,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     pushCompletedScoreToQueue(inserter);
 
-                    lastId = highScores.Last().score_id;
-                    Console.WriteLine($"Workers processed up to score_id {lastId}");
-                    lastId++;
+                    var lastScore = highScores.Last();
+
+                    lastQueueId = lastScore.queue_id;
+                    Console.WriteLine($"Workers processed up to (score_id: {lastScore.score_id} queue_id: {lastQueueId})");
+                    lastQueueId++;
                 }
             }
 
@@ -190,6 +195,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 int inserted = Interlocked.Exchange(ref BatchInserter.CurrentReportInsertCount, 0);
                 int updated = Interlocked.Exchange(ref BatchInserter.CurrentReportUpdateCount, 0);
+                int deleted = Interlocked.Exchange(ref BatchInserter.CurrentReportDeleteCount, 0);
 
                 // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
                 if (inserted + updated > 0 && startupTimestamp == 0)
@@ -198,8 +204,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
                 double processingRate = (BatchInserter.TotalInsertCount + BatchInserter.TotalUpdateCount) / secondsSinceStart;
 
-                Console.WriteLine($"Inserting up to {lastId:N0} "
-                                  + $"{BatchInserter.TotalInsertCount:N0} inserted {BatchInserter.TotalUpdateCount:N0} updated {BatchInserter.TotalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd) {processingRate:N0}/s");
+                Console.WriteLine($"Inserting up to {lastQueueId:N0} "
+                                  + $"{BatchInserter.TotalInsertCount:N0} ins {BatchInserter.TotalUpdateCount:N0} upd {BatchInserter.TotalDeleteCount:N0} del {BatchInserter.TotalSkipCount:N0} skip (+{inserted:N0} new +{updated:N0} upd +{deleted:N0} del) {processingRate:N0}/s");
 
                 lastCommitTimestamp = currentTimestamp;
             }
@@ -211,7 +217,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine();
             Console.WriteLine($"Cancelled after {(DateTimeOffset.Now - startedAt).TotalSeconds} seconds.");
             Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted, {BatchInserter.TotalSkipCount} skipped");
-            Console.WriteLine($"Resume from start id {lastId}");
+            Console.WriteLine($"Resume from start id {lastQueueId}");
             Console.WriteLine();
             Console.WriteLine();
         }
