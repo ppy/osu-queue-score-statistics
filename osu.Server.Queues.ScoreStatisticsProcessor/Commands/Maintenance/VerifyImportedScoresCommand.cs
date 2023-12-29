@@ -98,11 +98,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (!check(importedScore.id, "performance", importedScore.pp, importedScore.HighScore.pp))
                     {
-                        await conn.ExecuteAsync($"UPDATE score_performance SET pp = @pp WHERE score_id = @id", new
+                        if (importedScore.HighScore.pp == null)
                         {
-                            pp = importedScore.HighScore.pp,
-                            id = importedScore.id,
-                        });
+                            await conn.ExecuteAsync("DELETE FROM score_performance WHERE score_id = @id", new
+                            {
+                                id = importedScore.id,
+                            });
+                        }
+                        else
+                        {
+                            await conn.ExecuteAsync("UPDATE score_performance SET pp = @pp WHERE score_id = @id", new
+                            {
+                                pp = importedScore.HighScore.pp,
+                                id = importedScore.id,
+                            });
+                        }
+
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         Interlocked.Increment(ref fail);
                     }
