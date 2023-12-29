@@ -207,7 +207,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
                 double processingRate = (BatchInserter.TotalInsertCount + BatchInserter.TotalUpdateCount) / secondsSinceStart;
 
-                Console.WriteLine($"Inserting up to {lastQueueId:N0} "
+                Console.WriteLine($"Inserting up to {lastQueueId:N0}: "
                                   + $"{BatchInserter.TotalInsertCount:N0} ins {BatchInserter.TotalUpdateCount:N0} upd {BatchInserter.TotalDeleteCount:N0} del {BatchInserter.TotalSkipCount:N0} skip (+{inserted:N0} new +{updated:N0} upd +{deleted:N0} del) {processingRate:N0}/s");
 
                 lastCommitTimestamp = currentTimestamp;
