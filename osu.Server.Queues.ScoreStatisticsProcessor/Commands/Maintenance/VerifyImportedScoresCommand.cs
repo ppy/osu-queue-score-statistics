@@ -12,7 +12,6 @@ using osu.Game.Rulesets;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
-using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -45,7 +44,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 {
                     List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
 
-                    var importedScores = await conn.QueryAsync<SoloScore>("SELECT * FROM scores WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId });
+                    IEnumerable<dynamic> importedScores = await conn.QueryAsync("SELECT id, "
+                                                                                + "ruleset_id, "
+                                                                                + "data->'$.legacy_score_id' as legacy_score_id, "
+                                                                                + "data->'$.legacy_total_score' as legacy_total_score, "
+                                                                                + "data->'$.total_score' as total_score, "
+                                                                                + "pp "
+                                                                                + "FROM scores "
+                                                                                + "LEFT JOIN score_performance ON scores.id = score_performance.score_id "
+                                                                                + "WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId });
 
                     if (!importedScores.Any())
                     {
@@ -57,13 +64,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     foreach (var importedScore in importedScores)
                     {
-                        if (!importedScore.ScoreInfo.IsLegacyScore)
+                        if (importedScore.legacy_score_id == null)
                             continue;
 
                         var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(importedScore.ruleset_id);
                         Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(importedScore.ruleset_id);
 
-                        var highScore = conn.QuerySingleOrDefault<HighScore>($"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = {importedScore.ScoreInfo.LegacyScoreId}");
+                        var highScore = conn.QuerySingleOrDefault<HighScore>($"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = {importedScore.legacy_score_id}");
 
                         if (highScore == null)
                         {
@@ -74,23 +81,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             continue;
                         }
 
-                        dynamic? importedPerformance = await conn.QuerySingleOrDefaultAsync("SELECT pp FROM score_performance WHERE score_id = @id", importedScore);
-
                         // check data
                         var referenceScore = await BatchInserter.CreateReferenceScore(ruleset, highScore, conn, null);
 
-                        if (importedPerformance == null)
+                        if (importedScore.pp == null)
                         {
                             Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
                             fail++;
                             continue;
                         }
 
-                        if (!check(importedScore.id, "total score", importedScore.ScoreInfo.TotalScore, referenceScore.TotalScore))
+                        Console.WriteLine(importedScore);
+
+                        if (!check(importedScore.id, "total score", (long)importedScore.total_score, referenceScore.TotalScore))
                             fail++;
-                        if (!check(importedScore.id, "legacy total score", importedScore.ScoreInfo.LegacyTotalScore, referenceScore.LegacyTotalScore))
+                        if (!check(importedScore.id, "legacy total score", (long)importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
                             fail++;
-                        if (!check(importedScore.id, "performance", importedPerformance.pp, highScore.pp))
+                        if (!check(importedScore.id, "performance", (float)importedScore.pp, highScore.pp))
                             fail++;
 
                         // await conn.ExecuteAsync("DELETE FROM score_performance WHERE score_id = @id; DELETE FROM scores WHERE id = @id", score, transaction);
