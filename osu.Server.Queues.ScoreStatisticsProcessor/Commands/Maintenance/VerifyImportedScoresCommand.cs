@@ -31,6 +31,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             ulong lastId = StartId;
             int deleted = 0;
+            int fail = 0;
 
             Console.WriteLine();
             Console.WriteLine($"Verifying scores starting from {lastId}");
@@ -81,12 +82,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         if (importedPerformance == null)
                         {
                             Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
+                            fail++;
                             continue;
                         }
 
-                        check(importedScore.id, "total score", importedScore.ScoreInfo.TotalScore, referenceScore.TotalScore);
-                        check(importedScore.id, "legacy total score", importedScore.ScoreInfo.LegacyTotalScore, referenceScore.LegacyTotalScore);
-                        check(importedScore.id, "performance", importedPerformance.pp, highScore.pp);
+                        if (!check(importedScore.id, "total score", importedScore.ScoreInfo.TotalScore, referenceScore.TotalScore))
+                            fail++;
+                        if (!check(importedScore.id, "legacy total score", importedScore.ScoreInfo.LegacyTotalScore, referenceScore.LegacyTotalScore))
+                            fail++;
+                        if (!check(importedScore.id, "performance", importedPerformance.pp, highScore.pp))
+                            fail++;
 
                         // await conn.ExecuteAsync("DELETE FROM score_performance WHERE score_id = @id; DELETE FROM scores WHERE id = @id", score, transaction);
                         // await conn.ExecuteAsync("DELETE FROM score_legacy_id_map WHERE ruleset_id = @ruleset_id AND old_score_id = @legacy_score_id", new
@@ -106,19 +111,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     }
 
                     lastId = importedScores.Max(s => s.id);
-                    Console.WriteLine($"Processed up to {lastId} ({deleted} deleted)");
+                    Console.WriteLine($"Processed up to {lastId} ({deleted} deleted {fail} failed)");
                 }
             }
 
             return 0;
         }
 
-        private void check<T>(ulong scoreId, string name, T imported, T original)
+        private bool check<T>(ulong scoreId, string name, T imported, T original)
         {
             if (imported?.Equals(original) != true)
             {
                 Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
+                return false;
             }
+
+            return true;
         }
     }
 }
