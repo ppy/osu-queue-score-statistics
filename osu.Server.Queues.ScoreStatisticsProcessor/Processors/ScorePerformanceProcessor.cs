@@ -165,38 +165,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     case ManiaModKey10:
                         return false;
 
-                    case ModNightcore nc:
-                        // Disallow non-default rate adjustments for now.
-                        if (!nc.SpeedChange.IsDefault)
-                            return false;
-
-                        continue;
-
-                    case ModDoubleTime dt:
-                        // Disallow non-default rate adjustments for now.
-                        if (!dt.SpeedChange.IsDefault)
-                            return false;
-
-                        continue;
-
-                    case ModDaycore dc:
-                        // Disallow non-default rate adjustments for now.
-                        if (!dc.SpeedChange.IsDefault)
-                            return false;
-
-                        continue;
-
-                    case ModHalfTime ht:
-                        // Disallow non-default rate adjustments for now.
-                        if (!ht.SpeedChange.IsDefault)
-                            return false;
-
-                        continue;
-
-                    case ModClassic:
-                        // Classic mod is only allowed if it's attached to legacy scores.
-                        return score.IsLegacyScore;
-
                     // The mods which are allowed.
                     case ModEasy:
                     case ModNoFail:
@@ -206,18 +174,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     case ModHidden:
                     case ModFlashlight:
                     case ModMuted:
+                    case ModNightcore:
+                    case ModDoubleTime:
+                    case ModDaycore:
+                    case ModHalfTime:
                     // osu!-specific:
                     case OsuModSpunOut:
                     case OsuModTouchDevice:
                     // mania-specific:
                     case ManiaKeyMod:
                     case ManiaModMirror:
-                        continue;
+                        break;
+
+                    // Classic mod is only allowed on legacy scores.
+                    case ModClassic:
+                        return score.IsLegacyScore;
 
                     // Any other mods not in the above list aren't allowed.
                     default:
                         return false;
                 }
+
+                if (!m.UsesDefaultConfiguration)
+                    return false;
             }
 
             return true;
