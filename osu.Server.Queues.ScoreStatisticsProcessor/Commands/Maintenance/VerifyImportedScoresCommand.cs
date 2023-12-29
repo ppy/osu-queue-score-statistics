@@ -86,7 +86,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         continue;
                     }
 
-                    if (importedScore.pp == null)
+                    if (importedScore.pp == null && importedScore.HighScore.pp != null)
                     {
                         Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
                         Interlocked.Increment(ref fail);
@@ -98,7 +98,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (!check(importedScore.id, "performance", importedScore.pp, importedScore.HighScore.pp))
                     {
-                        await conn.ExecuteAsync($"UPDATE score_performance SET pp = {importedScore.HighScore.pp} WHERE score_id = {importedScore.id}");
+                        await conn.ExecuteAsync($"UPDATE score_performance SET pp = @pp WHERE score_id = @id", new
+                        {
+                            pp = importedScore.HighScore.pp,
+                            id = importedScore.id,
+                        });
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         Interlocked.Increment(ref fail);
                     }
@@ -137,6 +141,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private bool check<T>(ulong scoreId, string name, T imported, T original)
         {
+            if (imported == null && original == null)
+                return true;
+
             if (imported?.Equals(original) != true)
             {
                 Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
