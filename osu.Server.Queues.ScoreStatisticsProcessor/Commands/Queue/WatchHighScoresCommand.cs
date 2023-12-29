@@ -80,7 +80,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             if (lastImportedLegacyScoreId >= firstEntry.score_id)
             {
-                var entry = db.QuerySingle<ScoreProcessQueue>($"SELECT * FROM score_process_queue WHERE mode = {RulesetId} AND score_id = {lastImportedLegacyScoreId}");
+                var entry = db.QuerySingle<ScoreProcessQueue>($"SELECT * FROM score_process_queue WHERE mode = {RulesetId} AND score_id = {lastImportedLegacyScoreId + 1}");
 
                 lastQueueId = entry.queue_id;
                 Console.WriteLine($"Continuing watch mode from last processed legacy score (score_id: {entry.score_id} queue_id: {entry.queue_id})");
@@ -94,9 +94,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Console.WriteLine("You have 10 seconds to decide if you really want to do this..");
                 await Task.Delay(10000, cancellationToken);
             }
-
-            Console.WriteLine();
-            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastQueueId}");
 
             if (SkipScoreProcessor)
             {
