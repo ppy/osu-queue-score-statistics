@@ -81,8 +81,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (importedScore.HighScore == null)
                     {
-                        Console.WriteLine($"{importedScore.id}: Original score was deleted!!");
-
                         // TODO: delete imported score
                         Interlocked.Increment(ref deleted);
                         continue;
@@ -94,12 +92,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         Interlocked.Increment(ref fail);
 
                         await conn.ExecuteAsync($"INSERT INTO score_performance VALUES ({importedScore.id}, {importedScore.HighScore.pp})");
+                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         continue;
                     }
 
                     if (!check(importedScore.id, "performance", importedScore.pp, importedScore.HighScore.pp))
                     {
                         await conn.ExecuteAsync($"UPDATE score_performance SET pp = {importedScore.HighScore.pp} WHERE score_id = {importedScore.id}");
+                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         Interlocked.Increment(ref fail);
                     }
 
