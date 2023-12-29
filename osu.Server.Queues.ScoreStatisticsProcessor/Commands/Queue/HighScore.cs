@@ -32,6 +32,5 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         // This comes from score_process_queue. Used in join context.
         public uint queue_id { get; set; }
-        public bool is_deletion { get; set; }
     }
 }

@@ -125,6 +125,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 {
                     try
                     {
+                        bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
+
                         if (highScore.score_id == 0)
                         {
                             // Something really bad probably happened, abort for safety.
@@ -141,7 +143,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         string serialisedScore = string.Empty;
 
-                        if (!highScore.is_deletion)
+                        if (!isDeletion)
                         {
                             // At least one row in the old table have invalid dates.
                             // MySQL doesn't like empty dates, so let's ensure we have a valid one.
@@ -177,7 +179,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         if (existingMapping != null)
                         {
-                            if (highScore.is_deletion)
+                            if (isDeletion)
                             {
                                 deleteCommand.Transaction = transaction;
 
