@@ -407,7 +407,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private async Task runCommand(MySqlCommand command)
         {
             if (dryRun)
+            {
+                Console.WriteLine($"Running: {command.CommandText}");
+                Console.WriteLine();
+
+                string paramString = string.Join(", ", command.Parameters.Select(p => $"{p.ParameterName}:{p.Value}"));
+                Console.WriteLine($"Params: {paramString}");
                 return;
+            }
 
             await command.ExecuteNonQueryAsync();
         }
