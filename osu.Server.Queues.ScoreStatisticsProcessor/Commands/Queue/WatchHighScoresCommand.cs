@@ -143,9 +143,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         Console.WriteLine($"Running batches were processing up to {lastQueueId}.");
                         Console.WriteLine();
 
-                        string status = inserter.Task.IsFaulted ? $"FAILED ({inserter.Task.Exception?.Message})" : "success";
-                        Console.WriteLine($"{inserter.Scores.First().score_id} - {inserter.Scores.Last().score_id}: {status}");
-                        return -1;
+                        throw inserter.Task.Exception!;
                     }
 
                     pushCompletedScoreToQueue(inserter);
