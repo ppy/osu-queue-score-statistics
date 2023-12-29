@@ -125,8 +125,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 {
                     try
                     {
-                        bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
-
                         if (highScore.score_id == 0)
                         {
                             // Something really bad probably happened, abort for safety.
@@ -135,85 +133,87 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         SoloScoreLegacyIDMap? existingMapping = existingIds.FirstOrDefault(e => e.old_score_id == highScore.score_id);
 
-                        if (!isDeletion && ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew)))
+                        // Yes this is a weird way of determining whether it's a deletion.
+                        // Look away please.
+                        bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
+
+                        if (isDeletion)
+                        {
+                            // Deletion for a row which wasn't inserted into the new table, can safely ignore.
+                            if (existingMapping == null)
+                                continue;
+
+                            deleteCommand.Transaction = transaction;
+
+                            deleteOldId.Value = existingMapping.old_score_id;
+                            deleteNewId.Value = existingMapping.score_id;
+
+                            if (!deleteCommand.IsPrepared)
+                                await deleteCommand.PrepareAsync();
+
+                            await runCommand(deleteCommand);
+                            await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction, true);
+
+                            Interlocked.Increment(ref CurrentReportDeleteCount);
+                            Interlocked.Increment(ref TotalDeleteCount);
+                            continue;
+                        }
+
+                        if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
                         {
                             Interlocked.Increment(ref TotalSkipCount);
                             continue;
                         }
 
-                        string serialisedScore = string.Empty;
-
-                        if (!isDeletion)
+                        // At least one row in the old table have invalid dates.
+                        // MySQL doesn't like empty dates, so let's ensure we have a valid one.
+                        if (highScore.date < DateTimeOffset.UnixEpoch)
                         {
-                            // At least one row in the old table have invalid dates.
-                            // MySQL doesn't like empty dates, so let's ensure we have a valid one.
-                            if (highScore.date < DateTimeOffset.UnixEpoch)
-                            {
-                                Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
-                                highScore.date = DateTimeOffset.UnixEpoch;
-                            }
-
-                            ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
-                            serialisedScore = JsonConvert.SerializeObject(new SoloScoreInfo
-                            {
-                                // id will be written below in the UPDATE call.
-                                UserID = highScore.user_id,
-                                BeatmapID = highScore.beatmap_id,
-                                RulesetID = ruleset.RulesetInfo.OnlineID,
-                                Passed = true,
-                                TotalScore = (int)referenceScore.TotalScore,
-                                Accuracy = referenceScore.Accuracy,
-                                MaxCombo = highScore.maxcombo,
-                                Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
-                                Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
-                                Statistics = referenceScore.Statistics,
-                                MaximumStatistics = referenceScore.MaximumStatistics,
-                                EndedAt = highScore.date,
-                                LegacyTotalScore = highScore.score,
-                                LegacyScoreId = highScore.score_id
-                            }, new JsonSerializerSettings
-                            {
-                                DefaultValueHandling = DefaultValueHandling.Ignore
-                            });
+                            Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
+                            highScore.date = DateTimeOffset.UnixEpoch;
                         }
+
+                        ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
+                        var serialisedScore = JsonConvert.SerializeObject(new SoloScoreInfo
+                        {
+                            // id will be written below in the UPDATE call.
+                            UserID = highScore.user_id,
+                            BeatmapID = highScore.beatmap_id,
+                            RulesetID = ruleset.RulesetInfo.OnlineID,
+                            Passed = true,
+                            TotalScore = (int)referenceScore.TotalScore,
+                            Accuracy = referenceScore.Accuracy,
+                            MaxCombo = highScore.maxcombo,
+                            Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
+                            Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
+                            Statistics = referenceScore.Statistics,
+                            MaximumStatistics = referenceScore.MaximumStatistics,
+                            EndedAt = highScore.date,
+                            LegacyTotalScore = highScore.score,
+                            LegacyScoreId = highScore.score_id
+                        }, new JsonSerializerSettings
+                        {
+                            DefaultValueHandling = DefaultValueHandling.Ignore
+                        });
 
                         if (existingMapping != null)
                         {
-                            if (isDeletion)
-                            {
-                                deleteCommand.Transaction = transaction;
+                            // Note that this only updates the `data` field. We could add others in the future as required.
+                            updateCommand.Transaction = transaction;
 
-                                deleteOldId.Value = existingMapping.old_score_id;
-                                deleteNewId.Value = existingMapping.score_id;
+                            updateId.Value = existingMapping.score_id;
+                            updateData.Value = serialisedScore;
 
-                                if (!deleteCommand.IsPrepared)
-                                    await deleteCommand.PrepareAsync();
+                            if (!updateCommand.IsPrepared)
+                                await updateCommand.PrepareAsync();
 
-                                await runCommand(deleteCommand);
-                                await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction, true);
+                            // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
+                            // this does not improve throughput.
+                            await runCommand(updateCommand);
+                            await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction);
 
-                                Interlocked.Increment(ref CurrentReportDeleteCount);
-                                Interlocked.Increment(ref TotalDeleteCount);
-                            }
-                            else
-                            {
-                                // Note that this only updates the `data` field. We could add others in the future as required.
-                                updateCommand.Transaction = transaction;
-
-                                updateId.Value = existingMapping.score_id;
-                                updateData.Value = serialisedScore;
-
-                                if (!updateCommand.IsPrepared)
-                                    await updateCommand.PrepareAsync();
-
-                                // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
-                                // this does not improve throughput.
-                                await runCommand(updateCommand);
-                                await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction);
-
-                                Interlocked.Increment(ref CurrentReportUpdateCount);
-                                Interlocked.Increment(ref TotalUpdateCount);
-                            }
+                            Interlocked.Increment(ref CurrentReportUpdateCount);
+                            Interlocked.Increment(ref TotalUpdateCount);
                         }
                         else
                         {
