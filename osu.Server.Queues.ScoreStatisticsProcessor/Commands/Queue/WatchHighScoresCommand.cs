@@ -129,7 +129,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         continue;
                     }
 
-                    var inserter = new BatchInserter(ruleset, highScores, importLegacyPP: !SkipScoreProcessor, skipExisting: true, skipNew: false, dryRun: DryRun);
+                    var inserter = new BatchInserter(ruleset, highScores, importLegacyPP: SkipScoreProcessor, skipExisting: true, skipNew: false, dryRun: DryRun);
 
                     while (!inserter.Task.IsCompleted)
                     {
