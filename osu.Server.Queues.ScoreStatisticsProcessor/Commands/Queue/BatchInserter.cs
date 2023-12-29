@@ -173,28 +173,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             highScore.date = DateTimeOffset.UnixEpoch;
                         }
 
-                        ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
-                        var serialisedScore = JsonConvert.SerializeObject(new SoloScoreInfo
-                        {
-                            // id will be written below in the UPDATE call.
-                            UserID = highScore.user_id,
-                            BeatmapID = highScore.beatmap_id,
-                            RulesetID = ruleset.RulesetInfo.OnlineID,
-                            Passed = true,
-                            TotalScore = (int)referenceScore.TotalScore,
-                            Accuracy = referenceScore.Accuracy,
-                            MaxCombo = highScore.maxcombo,
-                            Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
-                            Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
-                            Statistics = referenceScore.Statistics,
-                            MaximumStatistics = referenceScore.MaximumStatistics,
-                            EndedAt = highScore.date,
-                            LegacyTotalScore = highScore.score,
-                            LegacyScoreId = highScore.score_id
-                        }, new JsonSerializerSettings
-                        {
-                            DefaultValueHandling = DefaultValueHandling.Ignore
-                        });
+                        ScoreInfo referenceScore = await CreateReferenceScore(ruleset, highScore, db, transaction);
+                        var serialisedScore = SerialiseScore(ruleset, highScore, referenceScore);
 
                         if (existingMapping != null)
                         {
@@ -248,6 +228,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             }
         }
 
+        public static string SerialiseScore(Ruleset ruleset, HighScore highScore, ScoreInfo referenceScore)
+        {
+            var serialisedScore = JsonConvert.SerializeObject(new SoloScoreInfo
+            {
+                // id will be written below in the UPDATE call.
+                UserID = highScore.user_id,
+                BeatmapID = highScore.beatmap_id,
+                RulesetID = ruleset.RulesetInfo.OnlineID,
+                Passed = true,
+                TotalScore = (int)referenceScore.TotalScore,
+                Accuracy = referenceScore.Accuracy,
+                MaxCombo = highScore.maxcombo,
+                Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
+                Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
+                Statistics = referenceScore.Statistics,
+                MaximumStatistics = referenceScore.MaximumStatistics,
+                EndedAt = highScore.date,
+                LegacyTotalScore = highScore.score,
+                LegacyScoreId = highScore.score_id
+            }, new JsonSerializerSettings
+            {
+                DefaultValueHandling = DefaultValueHandling.Ignore
+            });
+            return serialisedScore;
+        }
+
         /// <summary>
         /// Creates a partially-populated "reference" score that provides:
         /// <list type="bullet">
@@ -258,7 +264,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// <item><term><see cref="ScoreInfo.MaximumStatistics"/></term></item>
         /// </list>
         /// </summary>
-        private async Task<ScoreInfo> createReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection, MySqlTransaction transaction)
+        public static async Task<ScoreInfo> CreateReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection, MySqlTransaction? transaction)
         {
             Mod? classicMod = ruleset.CreateMod<ModClassic>();
             Debug.Assert(classicMod != null);
@@ -384,7 +390,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private static readonly ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>> attributes_cache =
             new ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>>();
 
-        private static Dictionary<int, BeatmapDifficultyAttribute> queryAttributes(DifficultyAttributesLookup lookup, MySqlConnection connection, MySqlTransaction transaction)
+        private static Dictionary<int, BeatmapDifficultyAttribute> queryAttributes(DifficultyAttributesLookup lookup, MySqlConnection connection, MySqlTransaction? transaction)
         {
             if (attributes_cache.TryGetValue(lookup, out Dictionary<int, BeatmapDifficultyAttribute>? existing))
                 return existing;
