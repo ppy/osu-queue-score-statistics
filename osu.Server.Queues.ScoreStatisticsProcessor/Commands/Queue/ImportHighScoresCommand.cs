@@ -2,30 +2,17 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
-using Newtonsoft.Json;
-using osu.Game.Beatmaps.Legacy;
-using osu.Game.Database;
-using osu.Game.Online.API;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
-using osu.Game.Rulesets.Mods;
-using osu.Game.Rulesets.Scoring;
-using osu.Game.Rulesets.Scoring.Legacy;
-using osu.Game.Scoring;
-using osu.Game.Scoring.Legacy;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
-using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
@@ -91,13 +78,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         private ElasticQueuePusher? elasticQueueProcessor;
         private ScoreStatisticsQueueProcessor? scoreStatisticsQueueProcessor;
-
-        private static int currentReportInsertCount;
-        private static int currentReportUpdateCount;
-        private static int totalInsertCount;
-        private static int totalUpdateCount;
-
-        private static int totalSkipCount;
 
         /// <summary>
         /// The number of scores done in a single processing query. These scores are read in one go, then distributed to parallel insertion workers.
@@ -281,15 +261,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         if ((currentTimestamp - lastCommitTimestamp) / 1000f >= seconds_between_report)
                         {
-                            int inserted = Interlocked.Exchange(ref currentReportInsertCount, 0);
-                            int updated = Interlocked.Exchange(ref currentReportUpdateCount, 0);
+                            int inserted = Interlocked.Exchange(ref BatchInserter.CurrentReportInsertCount, 0);
+                            int updated = Interlocked.Exchange(ref BatchInserter.CurrentReportUpdateCount, 0);
 
                             // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
                             if (inserted + updated > 0 && startupTimestamp == 0)
                                 startupTimestamp = lastCommitTimestamp;
 
                             double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
-                            double processingRate = (totalInsertCount + totalUpdateCount) / secondsSinceStart;
+                            double processingRate = (BatchInserter.TotalInsertCount + BatchInserter.TotalUpdateCount) / secondsSinceStart;
 
                             string eta = string.Empty;
 
@@ -304,7 +284,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                             Console.WriteLine($"Inserting up to {lastId:N0} "
                                               + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
-                                              + $"{totalInsertCount:N0} inserted {totalUpdateCount:N0} updated {totalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd) {processingRate:N0}/s {eta}");
+                                              + $"{BatchInserter.TotalInsertCount:N0} inserted {BatchInserter.TotalUpdateCount:N0} updated {BatchInserter.TotalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd) {processingRate:N0}/s {eta}");
 
                             lastCommitTimestamp = currentTimestamp;
                         }
@@ -364,7 +344,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if (batch.Count == 0)
                             return;
 
-                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: !watchMode || SkipScoreProcessor, SkipExisting, SkipNew));
+                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: !watchMode || SkipScoreProcessor, skipExisting: SkipExisting, skipNew: SkipNew));
                         batch.Clear();
                     }
                 }
@@ -376,13 +356,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             if (cancellationToken.IsCancellationRequested)
             {
                 Console.WriteLine($"Cancelled after {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
-                Console.WriteLine($"Final stats: {totalInsertCount} inserted, {totalSkipCount} skipped");
+                Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted, {BatchInserter.TotalSkipCount} skipped");
                 Console.WriteLine($"Resume from start id {lastId}");
             }
             else
             {
                 Console.WriteLine($"Finished in {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
-                Console.WriteLine($"Final stats: {totalInsertCount} inserted, {totalSkipCount} skipped");
+                Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted, {BatchInserter.TotalSkipCount} skipped");
             }
 
             Console.WriteLine();
@@ -446,384 +426,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 scoresPerQuery = Math.Min(maximum_scores_per_query, scoresPerQuery + 100);
                 Console.WriteLine($"Increasing processing rate to {scoresPerQuery} due to latency of {latency}");
             }
-        }
-
-        /// <summary>
-        /// Handles one batch insertion of <see cref="HighScore"/>s. Can be used to parallelize work.
-        /// </summary>
-        /// <remarks>
-        /// Importantly, on a process-wide basis (with the requirement that only one import is happening at once from the same source),
-        /// scores for the same beatmap should always be inserted using the same <see cref="BatchInserter"/>. This is to ensure that the new
-        /// IDs given to inserted scores are still chronologically correct (we fallback to using IDs for tiebreaker cases where the stored timestamps
-        /// are equal to the max precision of mysql TIMESTAMP).
-        /// </remarks>
-        private class BatchInserter
-        {
-            private readonly Ruleset ruleset;
-            private readonly bool importLegacyPP;
-            private readonly bool skipExisting;
-            private readonly bool skipNew;
-
-            public HighScore[] Scores { get; }
-
-            public Task Task { get; }
-
-            public List<ElasticQueuePusher.ElasticScoreItem> ElasticScoreItems { get; } = new List<ElasticQueuePusher.ElasticScoreItem>();
-
-            public List<ScoreItem> ScoreStatisticsItems { get; } = new List<ScoreItem>();
-
-            public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool skipExisting, bool skipNew)
-            {
-                this.ruleset = ruleset;
-                this.importLegacyPP = importLegacyPP;
-                this.skipExisting = skipExisting;
-                this.skipNew = skipNew;
-
-                Scores = scores;
-                Task = run(scores);
-            }
-
-            private async Task run(HighScore[] scores)
-            {
-                using (var db = DatabaseAccess.GetConnection())
-                using (var transaction = await db.BeginTransactionAsync())
-                using (var insertCommand = db.CreateCommand())
-                using (var updateCommand = db.CreateCommand())
-                {
-                    // check for existing and skip
-                    SoloScoreLegacyIDMap[] existingIds = (await db.QueryAsync<SoloScoreLegacyIDMap>(
-                        $"SELECT * FROM score_legacy_id_map WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds",
-                        new
-                        {
-                            oldScoreIds = scores.Select(s => s.score_id)
-                        }, transaction)).ToArray();
-
-                    insertCommand.CommandText =
-                        // main score insert
-                        "INSERT INTO scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, unix_updated_at) "
-                        + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, @has_replay, 1, @date, UNIX_TIMESTAMP(@date));";
-
-                    // pp insert
-                    if (importLegacyPP)
-                        insertCommand.CommandText += "INSERT INTO score_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);";
-
-                    // mapping insert
-                    insertCommand.CommandText += $"INSERT INTO score_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
-
-                    updateCommand.CommandText =
-                        "UPDATE scores SET data = @data WHERE id = @id";
-
-                    var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
-                    var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt64);
-                    var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
-                    var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
-                    var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
-                    var hasReplay = insertCommand.Parameters.Add("has_replay", MySqlDbType.Bool);
-                    var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
-
-                    var updateData = updateCommand.Parameters.Add("data", MySqlDbType.JSON);
-                    var updateId = updateCommand.Parameters.Add("id", MySqlDbType.UInt64);
-
-                    foreach (var highScore in scores)
-                    {
-                        try
-                        {
-                            // At least one row in the old table have invalid dates.
-                            // MySQL doesn't like empty dates, so let's ensure we have a valid one.
-                            if (highScore.date < DateTimeOffset.UnixEpoch)
-                            {
-                                Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
-                                highScore.date = DateTimeOffset.UnixEpoch;
-                            }
-
-                            SoloScoreLegacyIDMap? existingMapping = existingIds.FirstOrDefault(e => e.old_score_id == highScore.score_id);
-
-                            if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
-                            {
-                                Interlocked.Increment(ref totalSkipCount);
-                                continue;
-                            }
-
-                            ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
-                            string serialisedScore = JsonConvert.SerializeObject(new SoloScoreInfo
-                            {
-                                // id will be written below in the UPDATE call.
-                                UserID = highScore.user_id,
-                                BeatmapID = highScore.beatmap_id,
-                                RulesetID = ruleset.RulesetInfo.OnlineID,
-                                Passed = true,
-                                TotalScore = (int)referenceScore.TotalScore,
-                                Accuracy = referenceScore.Accuracy,
-                                MaxCombo = highScore.maxcombo,
-                                Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
-                                Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
-                                Statistics = referenceScore.Statistics,
-                                MaximumStatistics = referenceScore.MaximumStatistics,
-                                EndedAt = highScore.date,
-                                LegacyTotalScore = highScore.score,
-                                LegacyScoreId = highScore.score_id
-                            }, new JsonSerializerSettings
-                            {
-                                DefaultValueHandling = DefaultValueHandling.Ignore
-                            });
-
-                            if (existingMapping != null)
-                            {
-                                // Note that this only updates the `data` field. We could add others in the future as required.
-                                updateCommand.Transaction = transaction;
-
-                                updateId.Value = existingMapping.score_id;
-                                updateData.Value = serialisedScore;
-
-                                if (!updateCommand.IsPrepared)
-                                    await updateCommand.PrepareAsync();
-
-                                // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
-                                // this does not improve throughput.
-                                await updateCommand.ExecuteNonQueryAsync();
-                                await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction);
-
-                                Interlocked.Increment(ref currentReportUpdateCount);
-                                Interlocked.Increment(ref totalUpdateCount);
-                            }
-                            else
-                            {
-                                pp.Value = highScore.pp;
-                                userId.Value = highScore.user_id;
-                                oldScoreId.Value = highScore.score_id;
-                                beatmapId.Value = highScore.beatmap_id;
-                                date.Value = highScore.date;
-                                hasReplay.Value = highScore.replay;
-                                data.Value = serialisedScore;
-
-                                if (!insertCommand.IsPrepared)
-                                    await insertCommand.PrepareAsync();
-                                insertCommand.Transaction = transaction;
-
-                                // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
-                                // this does not improve throughput.
-                                await insertCommand.ExecuteNonQueryAsync();
-                                await enqueueForFurtherProcessing((ulong)insertCommand.LastInsertedId, db, transaction);
-
-                                Interlocked.Increment(ref currentReportInsertCount);
-                                Interlocked.Increment(ref totalInsertCount);
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            throw new AggregateException($"Processing legacy score {highScore.score_id} failed.", e);
-                        }
-                    }
-
-                    await transaction.CommitAsync();
-                }
-            }
-
-            /// <summary>
-            /// Creates a partially-populated "reference" score that provides:
-            /// <list type="bullet">
-            /// <item><term><see cref="ScoreInfo.Ruleset"/></term></item>
-            /// <item><term><see cref="ScoreInfo.Accuracy"/></term></item>
-            /// <item><term><see cref="ScoreInfo.Mods"/></term></item>
-            /// <item><term><see cref="ScoreInfo.Statistics"/></term></item>
-            /// <item><term><see cref="ScoreInfo.MaximumStatistics"/></term></item>
-            /// </list>
-            /// </summary>
-            private async Task<ScoreInfo> createReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection, MySqlTransaction transaction)
-            {
-                Mod? classicMod = ruleset.CreateMod<ModClassic>();
-                Debug.Assert(classicMod != null);
-
-                var scoreInfo = new ScoreInfo
-                {
-                    Ruleset = ruleset.RulesetInfo,
-                    Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Append(classicMod).ToArray(),
-                    Statistics = new Dictionary<HitResult, int>(),
-                    MaximumStatistics = new Dictionary<HitResult, int>(),
-                    MaxCombo = highScore.maxcombo,
-                    LegacyTotalScore = highScore.score,
-                    IsLegacyScore = true
-                };
-
-                var scoreProcessor = ruleset.CreateScoreProcessor();
-
-                // Populate statistics and accuracy.
-                scoreInfo.SetCount50(highScore.count50);
-                scoreInfo.SetCount100(highScore.count100);
-                scoreInfo.SetCount300(highScore.count300);
-                scoreInfo.SetCountMiss(highScore.countmiss);
-                scoreInfo.SetCountGeki(highScore.countgeki);
-                scoreInfo.SetCountKatu(highScore.countkatu);
-                LegacyScoreDecoder.PopulateAccuracy(scoreInfo);
-
-                // Trim zero values from statistics.
-                scoreInfo.Statistics = scoreInfo.Statistics.Where(kvp => kvp.Value != 0).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-
-                // Populate the maximum statistics.
-                HitResult maxBasicResult = ruleset.GetHitResults().Select(h => h.result).Where(h => h.IsBasic()).MaxBy(scoreProcessor.GetBaseScoreForResult);
-
-                foreach ((HitResult result, int count) in scoreInfo.Statistics)
-                {
-                    switch (result)
-                    {
-                        case HitResult.LargeTickHit:
-                        case HitResult.LargeTickMiss:
-                            scoreInfo.MaximumStatistics[HitResult.LargeTickHit] = scoreInfo.MaximumStatistics.GetValueOrDefault(HitResult.LargeTickHit) + count;
-                            break;
-
-                        case HitResult.SmallTickHit:
-                        case HitResult.SmallTickMiss:
-                            scoreInfo.MaximumStatistics[HitResult.SmallTickHit] = scoreInfo.MaximumStatistics.GetValueOrDefault(HitResult.SmallTickHit) + count;
-                            break;
-
-                        case HitResult.IgnoreHit:
-                        case HitResult.IgnoreMiss:
-                        case HitResult.SmallBonus:
-                        case HitResult.LargeBonus:
-                            break;
-
-                        default:
-                            scoreInfo.MaximumStatistics[maxBasicResult] = scoreInfo.MaximumStatistics.GetValueOrDefault(maxBasicResult) + count;
-                            break;
-                    }
-                }
-
-                // In osu! and osu!mania, some judgements affect combo but aren't stored to scores.
-                // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
-                int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
-
-                BeatmapScoringAttributes? scoreAttributes = await connection.QuerySingleOrDefaultAsync<BeatmapScoringAttributes>(
-                    "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
-                    {
-                        BeatmapId = highScore.beatmap_id,
-                        RulesetId = ruleset.RulesetInfo.OnlineID
-                    }, transaction);
-
-                if (scoreAttributes == null)
-                {
-                    // TODO: LOG
-                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Scoring attribs entry missing for beatmap {highScore.beatmap_id}.");
-                    return scoreInfo;
-                }
-
-#pragma warning disable CS0618
-                // Pad the maximum combo.
-                // Special case here for osu!mania as it requires per-mod considerations (key mods).
-                if (ruleset.RulesetInfo.OnlineID == 3)
-                {
-                    // Using the BeatmapStore class will fail if a particular difficulty attribute value doesn't exist in the database as a result of difficulty calculation not having been run yet.
-                    // Additionally, to properly fill out attribute objects, the BeatmapStore class would require a beatmap object resulting in another database query.
-                    // To get around both of these issues, we'll directly look up the attribute ourselves.
-
-                    // The isConvertedBeatmap parameter only affects whether mania key mods are allowed.
-                    // Since we're dealing with high scores, we assume that the database mod values have already been validated for mania-specific beatmaps that don't allow key mods.
-                    int difficultyMods = (int)LegacyModsHelper.MaskRelevantMods((LegacyMods)highScore.enabled_mods, true, ruleset.RulesetInfo.OnlineID);
-
-                    Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = queryAttributes(
-                        new DifficultyAttributesLookup(highScore.beatmap_id, ruleset.RulesetInfo.OnlineID, difficultyMods), connection, transaction);
-
-                    if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
-                    {
-                        // TODO: LOG
-                        await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not determine max combo from the difficulty attributes of beatmap {highScore.beatmap_id}.");
-                        return scoreInfo;
-                    }
-
-                    if ((int)maxComboAttribute.value > maxComboFromStatistics)
-                        scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = (int)maxComboAttribute.value - maxComboFromStatistics;
-                }
-                else
-                {
-                    if (scoreAttributes.max_combo > maxComboFromStatistics)
-                        scoreInfo.MaximumStatistics[HitResult.LegacyComboIncrease] = scoreAttributes.max_combo - maxComboFromStatistics;
-                }
-
-#pragma warning restore CS0618
-
-                Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
-                {
-                    BeatmapId = highScore.beatmap_id
-                }, transaction);
-
-                LegacyBeatmapConversionDifficultyInfo difficulty = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
-
-                StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, difficulty, scoreAttributes.ToAttributes());
-
-                return scoreInfo;
-            }
-
-            private static readonly ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>> attributes_cache =
-                new ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>>();
-
-            private static Dictionary<int, BeatmapDifficultyAttribute> queryAttributes(DifficultyAttributesLookup lookup, MySqlConnection connection, MySqlTransaction transaction)
-            {
-                if (attributes_cache.TryGetValue(lookup, out Dictionary<int, BeatmapDifficultyAttribute>? existing))
-                    return existing;
-
-                IEnumerable<BeatmapDifficultyAttribute> dbAttributes =
-                    connection.Query<BeatmapDifficultyAttribute>(
-                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup, transaction);
-
-                return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
-            }
-
-            private record DifficultyAttributesLookup(int BeatmapId, int RulesetId, int Mods)
-            {
-                public override string ToString()
-                {
-                    return $"{{ BeatmapId = {BeatmapId}, RulesetId = {RulesetId}, Mods = {Mods} }}";
-                }
-            }
-
-            private async Task enqueueForFurtherProcessing(ulong scoreId, MySqlConnection connection, MySqlTransaction transaction)
-            {
-                if (importLegacyPP)
-                {
-                    // we can proceed by pushing the score directly to ES for indexing.
-                    ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
-                    {
-                        ScoreId = (long)scoreId
-                    });
-                }
-                else
-                {
-                    // the legacy PP value was not imported.
-                    // push the score to redis for PP processing.
-                    // on completion of PP processing, the score will be pushed to ES for indexing.
-                    // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
-                    // is not constructed anywhere before this...
-                    var score = await connection.QuerySingleAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id",
-                        new { id = scoreId }, transaction);
-                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id",
-                        new { id = scoreId }, transaction);
-                    ScoreStatisticsItems.Add(new ScoreItem(score, history));
-                }
-            }
-        }
-
-        [SuppressMessage("ReSharper", "InconsistentNaming")]
-        [Serializable]
-        private class HighScore
-        {
-            public ulong score_id { get; set; }
-            public int beatmap_id { get; set; }
-            public int user_id { get; set; }
-            public int score { get; set; }
-            public ushort maxcombo { get; set; }
-            public string rank { get; set; } = null!; // Actually a ScoreRank, but reading as a string for manual parsing.
-            public ushort count50 { get; set; }
-            public ushort count100 { get; set; }
-            public ushort count300 { get; set; }
-            public ushort countmiss { get; set; }
-            public ushort countgeki { get; set; }
-            public ushort countkatu { get; set; }
-            public bool perfect { get; set; }
-            public int enabled_mods { get; set; }
-            public DateTimeOffset date { get; set; }
-            public float pp { get; set; }
-            public bool replay { get; set; }
-            public bool hidden { get; set; }
-            public string country_acronym { get; set; } = null!;
         }
     }
 }
