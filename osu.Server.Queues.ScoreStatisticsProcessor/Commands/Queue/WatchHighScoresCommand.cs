@@ -145,7 +145,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     var lastScore = highScores.Last();
 
-                    lastQueueId = lastScore.queue_id;
+                    lastQueueId = lastScore.queue_id!.Value;
                     Console.WriteLine($"Workers processed up to (score_id: {lastScore.score_id} queue_id: {lastQueueId})");
                     lastQueueId++;
                 }
