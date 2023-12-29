@@ -61,11 +61,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
             string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
 
-            // When running in watch mode, we need to ascertain a few things:
-            // - There is active ongoing processing in `score_process_queue` – if not, there will be nothing to watch and we will switch to full run mode.
-            // - Check whether the full run (non-watch) has caught up to recent scores (ie. processed up to a `score_id` contained in `score_process_queue`,
-            //   which generally keeps ~3 days of scores). If not, we should warn that there is a gap in processing, and an extra full run should be performed
-            //   to catch up.
             using var db = DatabaseAccess.GetConnection();
 
             ulong? lastImportedLegacyScoreId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM score_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
