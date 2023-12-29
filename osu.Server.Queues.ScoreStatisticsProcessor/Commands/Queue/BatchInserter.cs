@@ -131,14 +131,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             throw new InvalidOperationException("Score arrived with no ID");
                         }
 
-                        // At least one row in the old table have invalid dates.
-                        // MySQL doesn't like empty dates, so let's ensure we have a valid one.
-                        if (highScore.date < DateTimeOffset.UnixEpoch)
-                        {
-                            Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
-                            highScore.date = DateTimeOffset.UnixEpoch;
-                        }
-
                         SoloScoreLegacyIDMap? existingMapping = existingIds.FirstOrDefault(e => e.old_score_id == highScore.score_id);
 
                         if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
@@ -147,28 +139,41 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             continue;
                         }
 
-                        ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
-                        string serialisedScore = JsonConvert.SerializeObject(new SoloScoreInfo
+                        string serialisedScore = string.Empty;
+
+                        if (!highScore.is_deletion)
                         {
-                            // id will be written below in the UPDATE call.
-                            UserID = highScore.user_id,
-                            BeatmapID = highScore.beatmap_id,
-                            RulesetID = ruleset.RulesetInfo.OnlineID,
-                            Passed = true,
-                            TotalScore = (int)referenceScore.TotalScore,
-                            Accuracy = referenceScore.Accuracy,
-                            MaxCombo = highScore.maxcombo,
-                            Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
-                            Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
-                            Statistics = referenceScore.Statistics,
-                            MaximumStatistics = referenceScore.MaximumStatistics,
-                            EndedAt = highScore.date,
-                            LegacyTotalScore = highScore.score,
-                            LegacyScoreId = highScore.score_id
-                        }, new JsonSerializerSettings
-                        {
-                            DefaultValueHandling = DefaultValueHandling.Ignore
-                        });
+                            // At least one row in the old table have invalid dates.
+                            // MySQL doesn't like empty dates, so let's ensure we have a valid one.
+                            if (highScore.date < DateTimeOffset.UnixEpoch)
+                            {
+                                Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
+                                highScore.date = DateTimeOffset.UnixEpoch;
+                            }
+
+                            ScoreInfo referenceScore = await createReferenceScore(ruleset, highScore, db, transaction);
+                            serialisedScore = JsonConvert.SerializeObject(new SoloScoreInfo
+                            {
+                                // id will be written below in the UPDATE call.
+                                UserID = highScore.user_id,
+                                BeatmapID = highScore.beatmap_id,
+                                RulesetID = ruleset.RulesetInfo.OnlineID,
+                                Passed = true,
+                                TotalScore = (int)referenceScore.TotalScore,
+                                Accuracy = referenceScore.Accuracy,
+                                MaxCombo = highScore.maxcombo,
+                                Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
+                                Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
+                                Statistics = referenceScore.Statistics,
+                                MaximumStatistics = referenceScore.MaximumStatistics,
+                                EndedAt = highScore.date,
+                                LegacyTotalScore = highScore.score,
+                                LegacyScoreId = highScore.score_id
+                            }, new JsonSerializerSettings
+                            {
+                                DefaultValueHandling = DefaultValueHandling.Ignore
+                            });
+                        }
 
                         if (existingMapping != null)
                         {
