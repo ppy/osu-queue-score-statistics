@@ -38,17 +38,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             elasticQueueProcessor = new ElasticQueuePusher();
             Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
 
-            Thread.Sleep(5000);
-
             using (var conn = DatabaseAccess.GetConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
 
-                    var highScores = await conn.QueryAsync<SoloScore>("SELECT * FROM scores WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId });
+                    var importedScores = await conn.QueryAsync<SoloScore>("SELECT * FROM scores WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId });
 
-                    if (!highScores.Any())
+                    if (!importedScores.Any())
                     {
                         Console.WriteLine("All done!");
                         break;
@@ -56,48 +54,39 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     elasticItems.Clear();
 
-                    foreach (var score in highScores)
+                    foreach (var importedScore in importedScores)
                     {
-                        if (!score.ScoreInfo.IsLegacyScore)
+                        if (!importedScore.ScoreInfo.IsLegacyScore)
                             continue;
 
-                        var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
-                        Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
+                        var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(importedScore.ruleset_id);
+                        Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(importedScore.ruleset_id);
 
-                        var highScore = conn.QuerySingleOrDefault<HighScore>($"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = {score.ScoreInfo.LegacyScoreId}");
+                        var highScore = conn.QuerySingleOrDefault<HighScore>($"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = {importedScore.ScoreInfo.LegacyScoreId}");
 
                         if (highScore == null)
                         {
-                            Console.WriteLine($"{score.id}: Original score was deleted!!");
+                            Console.WriteLine($"{importedScore.id}: Original score was deleted!!");
 
                             // TODO: delete imported score
                             deleted++;
                             continue;
                         }
 
+                        dynamic? importedPerformance = await conn.QuerySingleOrDefaultAsync("SELECT pp FROM score_performance WHERE score_id = @id", importedScore);
+
                         // check data
                         var referenceScore = await BatchInserter.CreateReferenceScore(ruleset, highScore, conn, null);
-                        string referenceSerialised = BatchInserter.SerialiseScore(ruleset, highScore, referenceScore);
 
-                        if (score.data != referenceSerialised)
+                        if (importedPerformance == null)
                         {
-                            Console.WriteLine($"{score.id}: Data content did not match!!");
+                            Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
                             continue;
                         }
 
-                        dynamic? performance = await conn.QuerySingleOrDefaultAsync("SELECT pp FROM score_performance WHERE score_id = @id", score);
-
-                        if (performance == null)
-                        {
-                            Console.WriteLine($"{score.id}: Performance entry missing!!");
-                            continue;
-                        }
-
-                        if (performance.pp != highScore.pp)
-                        {
-                            Console.WriteLine($"{score.id}: Performance value doesn't match!!");
-                            continue;
-                        }
+                        check(importedScore.id, "total score", importedScore.ScoreInfo.TotalScore, referenceScore.TotalScore);
+                        check(importedScore.id, "legacy total score", importedScore.ScoreInfo.LegacyTotalScore, referenceScore.LegacyTotalScore);
+                        check(importedScore.id, "performance", importedPerformance.pp, highScore.pp);
 
                         // await conn.ExecuteAsync("DELETE FROM score_performance WHERE score_id = @id; DELETE FROM scores WHERE id = @id", score, transaction);
                         // await conn.ExecuteAsync("DELETE FROM score_legacy_id_map WHERE ruleset_id = @ruleset_id AND old_score_id = @legacy_score_id", new
@@ -116,12 +105,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                     }
 
-                    lastId = highScores.Max(s => s.id);
+                    lastId = importedScores.Max(s => s.id);
                     Console.WriteLine($"Processed up to {lastId} ({deleted} deleted)");
                 }
             }
 
             return 0;
+        }
+
+        private void check<T>(ulong scoreId, string name, T imported, T original)
+        {
+            if (imported?.Equals(original) != true)
+            {
+                Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
+            }
         }
     }
 }
