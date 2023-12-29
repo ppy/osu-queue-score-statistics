@@ -15,6 +15,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(WatchQueueCommand))]
     [Subcommand(typeof(ImportHighScoresCommand))]
     [Subcommand(typeof(WatchHighScoresCommand))]
+    [Subcommand(typeof(VerifyImportedScoresCommand))]
     [Subcommand(typeof(DeleteImportedHighScoresCommand))]
     public sealed class QueueCommands
     {
