@@ -118,7 +118,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     //
                     // elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
                     // Interlocked.Increment(ref deleted);
-                };
+                }
 
                 if (elasticItems.Count > 0)
                 {
@@ -127,7 +127,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 }
 
                 lastId = importedScores.Max(s => s.id);
-                Console.WriteLine($"Processed up to {lastId} ({deleted} deleted {fail} failed)");
+
+                Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
+                Console.Write($"Processed up to {lastId} ({deleted} deleted {fail} failed)");
             }
 
             return 0;
