@@ -22,7 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
     /// This is important to guarantee that scores are inserted in the same sequential order that they originally occured,
     /// which can be used for tie-breaker scenarios.
     /// </remarks>
-    [Command("watch-high-scores", Description = "Imports high scores from the osu_scores_*_high tables into the new scores table.")]
+    [Command("watch-high-scores", Description = "Watches for new high scores from the osu_scores_high tables and imports into the new scores table.")]
     public class WatchHighScoresCommand
     {
         /// <summary>
@@ -32,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public int RulesetId { get; set; }
 
         /// <summary>
-        /// When set to <c>true</c> and in watch mode, scores will not be queued to the score statistics processor,
+        /// When set to <c>true</c>, scores will not be queued to the score statistics processor,
         /// instead being sent straight to the elasticsearch indexing queue.
         /// </summary>
         [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-score-processor")]
