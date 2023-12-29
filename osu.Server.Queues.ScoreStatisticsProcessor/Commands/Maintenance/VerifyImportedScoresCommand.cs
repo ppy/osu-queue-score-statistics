@@ -1,4 +1,5 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -91,10 +92,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     {
                         Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
                         Interlocked.Increment(ref fail);
+
+                        await conn.ExecuteAsync($"INSERT INTO score_performance VALUES ({importedScore.id}, {importedScore.HighScore.pp})");
                         continue;
                     }
 
-                    if (!check(importedScore.id, "performance", importedScore.pp, importedScore.HighScore.pp)) Interlocked.Increment(ref fail);
+                    if (!check(importedScore.id, "performance", importedScore.pp, importedScore.HighScore.pp))
+                    {
+                        await conn.ExecuteAsync($"UPDATE score_performance SET pp = {importedScore.HighScore.pp} WHERE score_id = {importedScore.id}");
+                        Interlocked.Increment(ref fail);
+                    }
 
                     // TODO: check data. will be slow unless we cache beatmap attribs lookups
                     // Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(importedScore.ruleset_id);
