@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -44,15 +45,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 {
                     List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
 
-                    IEnumerable<dynamic> importedScores = await conn.QueryAsync("SELECT id, "
-                                                                                + "ruleset_id, "
-                                                                                + "data->'$.legacy_score_id' as legacy_score_id, "
-                                                                                + "data->'$.legacy_total_score' as legacy_total_score, "
-                                                                                + "data->'$.total_score' as total_score, "
-                                                                                + "pp "
-                                                                                + "FROM scores "
-                                                                                + "LEFT JOIN score_performance ON scores.id = score_performance.score_id "
-                                                                                + "WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId });
+                    IEnumerable<ComparableScore> importedScores = await conn.QueryAsync<ComparableScore>(
+                        "SELECT id, "
+                        + "ruleset_id, "
+                        + "data->'$.legacy_score_id' as legacy_score_id, "
+                        + "data->'$.legacy_total_score' as legacy_total_score, "
+                        + "data->'$.total_score' as total_score, "
+                        + "pp "
+                        + "FROM scores "
+                        + "LEFT JOIN score_performance ON scores.id = score_performance.score_id "
+                        + "WHERE id >= @lastId ORDER BY id LIMIT 500", new { lastId });
 
                     if (!importedScores.Any())
                     {
@@ -91,13 +93,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             continue;
                         }
 
-                        Console.WriteLine(importedScore);
-
-                        if (!check(importedScore.id, "total score", (long)importedScore.total_score, referenceScore.TotalScore))
+                        if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore))
                             fail++;
-                        if (!check(importedScore.id, "legacy total score", (long)importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
+                        if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
                             fail++;
-                        if (!check(importedScore.id, "performance", (float)importedScore.pp, highScore.pp))
+                        if (!check(importedScore.id, "performance", importedScore.pp, highScore.pp))
                             fail++;
 
                         // await conn.ExecuteAsync("DELETE FROM score_performance WHERE score_id = @id; DELETE FROM scores WHERE id = @id", score, transaction);
@@ -134,6 +134,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             }
 
             return true;
+        }
+
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
+        private class ComparableScore
+        {
+            public ulong id;
+            public int ruleset_id;
+            public long? legacy_score_id;
+            public long? legacy_total_score;
+            public long? total_score;
+            public float? pp;
         }
     }
 }
