@@ -188,7 +188,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                     // Classic mod is only allowed on legacy scores.
                     case ModClassic:
-                        return score.IsLegacyScore;
+                        if (!score.IsLegacyScore)
+                            return false;
+
+                        break;
 
                     // Any other mods not in the above list aren't allowed.
                     default:

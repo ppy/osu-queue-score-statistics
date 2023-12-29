@@ -293,7 +293,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var mods = new Mod[]
             {
                 new OsuModDoubleTime { SpeedChange = { Value = 1.1 } },
-                new OsuModClassic { NoSliderHeadAccuracy = { Value = false } }
+                new OsuModClassic { NoSliderHeadAccuracy = { Value = false } },
+                new OsuModFlashlight { SizeMultiplier = { Value = 2 } }
             };
 
             foreach (var mod in mods)
