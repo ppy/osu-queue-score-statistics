@@ -77,6 +77,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             using (var transaction = await db.BeginTransactionAsync())
             using (var insertCommand = db.CreateCommand())
             using (var updateCommand = db.CreateCommand())
+            using (var deleteCommand = db.CreateCommand())
             {
                 // check for existing and skip
                 SoloScoreLegacyIDMap[] existingIds = (await db.QueryAsync<SoloScoreLegacyIDMap>(
@@ -101,6 +102,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 updateCommand.CommandText =
                     "UPDATE scores SET data = @data WHERE id = @id";
 
+                deleteCommand.CommandText =
+                    "DELETE FROM scores WHERE id = @newId; DELETE FROM score_performance WHERE id = @newId; DELETE FROM solo_scores_legacy_id_map WHERE old_score_id = @oldId";
+
                 var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
                 var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt64);
                 var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
@@ -111,6 +115,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 var updateData = updateCommand.Parameters.Add("data", MySqlDbType.JSON);
                 var updateId = updateCommand.Parameters.Add("id", MySqlDbType.UInt64);
+
+                var deleteNewId = deleteCommand.Parameters.Add("newId", MySqlDbType.UInt64);
+                var deleteOldId = deleteCommand.Parameters.Add("oldId", MySqlDbType.UInt64);
 
                 foreach (var highScore in scores)
                 {
@@ -159,6 +166,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         {
                             if (highScore.is_deletion)
                             {
+                                deleteCommand.Transaction = transaction;
+
+                                deleteOldId.Value = existingMapping.old_score_id;
+                                deleteNewId.Value = existingMapping.score_id;
+
+                                if (!deleteCommand.IsPrepared)
+                                    await deleteCommand.PrepareAsync();
+
+                                await deleteCommand.ExecuteNonQueryAsync();
+                                await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction, true);
+
                                 // TODO: delete
                                 Interlocked.Increment(ref CurrentReportDeleteCount);
                                 Interlocked.Increment(ref TotalDeleteCount);
@@ -372,9 +390,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             }
         }
 
-        private async Task enqueueForFurtherProcessing(ulong scoreId, MySqlConnection connection, MySqlTransaction transaction)
+        private async Task enqueueForFurtherProcessing(ulong scoreId, MySqlConnection connection, MySqlTransaction transaction, bool isDelete = false)
         {
-            if (importLegacyPP)
+            if (importLegacyPP || isDelete)
             {
                 // we can proceed by pushing the score directly to ES for indexing.
                 ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
