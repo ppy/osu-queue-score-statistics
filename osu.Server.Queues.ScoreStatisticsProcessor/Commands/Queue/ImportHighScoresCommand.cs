@@ -344,7 +344,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if (batch.Count == 0)
                             return;
 
-                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: !watchMode || SkipScoreProcessor, SkipExisting, SkipNew));
+                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: !watchMode || SkipScoreProcessor, skipExisting: SkipExisting, skipNew: SkipNew));
                         batch.Clear();
                     }
                 }

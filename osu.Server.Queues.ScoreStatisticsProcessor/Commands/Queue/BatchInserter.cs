@@ -51,6 +51,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private readonly bool importLegacyPP;
         private readonly bool skipExisting;
         private readonly bool skipNew;
+        private readonly bool dryRun;
 
         public HighScore[] Scores { get; }
 
@@ -60,12 +61,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public List<ScoreItem> ScoreStatisticsItems { get; } = new List<ScoreItem>();
 
-        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool skipExisting, bool skipNew)
+        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool skipExisting, bool skipNew, bool dryRun = false)
         {
             this.ruleset = ruleset;
             this.importLegacyPP = importLegacyPP;
             this.skipExisting = skipExisting;
             this.skipNew = skipNew;
+            this.dryRun = dryRun;
 
             Scores = scores;
             Task = run(scores);
@@ -174,7 +176,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                                 if (!deleteCommand.IsPrepared)
                                     await deleteCommand.PrepareAsync();
 
-                                await deleteCommand.ExecuteNonQueryAsync();
+                                await runCommand(deleteCommand);
                                 await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction, true);
 
                                 // TODO: delete
@@ -194,7 +196,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                                 // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
                                 // this does not improve throughput.
-                                await updateCommand.ExecuteNonQueryAsync();
+                                await runCommand(updateCommand);
                                 await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction);
 
                                 Interlocked.Increment(ref CurrentReportUpdateCount);
@@ -217,7 +219,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                             // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
                             // this does not improve throughput.
-                            await insertCommand.ExecuteNonQueryAsync();
+                            await runCommand(insertCommand);
                             await enqueueForFurtherProcessing((ulong)insertCommand.LastInsertedId, db, transaction);
 
                             Interlocked.Increment(ref CurrentReportInsertCount);
@@ -390,6 +392,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             }
         }
 
+        private async Task runCommand(MySqlCommand command)
+        {
+            if (dryRun)
+                return;
+
+            await command.ExecuteNonQueryAsync();
+        }
+
         private async Task enqueueForFurtherProcessing(ulong scoreId, MySqlConnection connection, MySqlTransaction transaction, bool isDelete = false)
         {
             if (importLegacyPP || isDelete)
@@ -402,6 +412,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             }
             else
             {
+                if (dryRun)
+                {
+                    // We can't retrieve this from the database because it hasn't been inserted.
+                    ScoreStatisticsItems.Add(new ScoreItem(new SoloScore(), new ProcessHistory()));
+                    return;
+                }
+
                 // the legacy PP value was not imported.
                 // push the score to redis for PP processing.
                 // on completion of PP processing, the score will be pushed to ES for indexing.

@@ -38,6 +38,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-score-processor")]
         public bool SkipScoreProcessor { get; set; }
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
+        public bool DryRun { get; set; }
+
         private long lastCommitTimestamp;
         private long startupTimestamp;
 
@@ -106,6 +109,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
             }
 
+            if (DryRun)
+                Console.WriteLine("RUNNING IN DRY RUN MODE.");
+
             Console.WriteLine();
             Console.WriteLine("Starting processing in 5 seconds...");
             await Task.Delay(5000, cancellationToken);
@@ -126,7 +132,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         continue;
                     }
 
-                    var inserter = new BatchInserter(ruleset, highScores, importLegacyPP: !SkipScoreProcessor, true, false);
+                    var inserter = new BatchInserter(ruleset, highScores, importLegacyPP: !SkipScoreProcessor, skipExisting: true, skipNew: false, dryRun: DryRun);
 
                     while (!inserter.Task.IsCompleted)
                     {
@@ -169,7 +175,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 if (scoreStatisticsItems.Any())
                 {
-                    scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
+                    if (!DryRun)
+                        scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
                     Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
                 }
             }
@@ -181,7 +188,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 if (elasticItems.Any())
                 {
-                    elasticQueueProcessor.PushToQueue(elasticItems);
+                    if (!DryRun)
+                        elasticQueueProcessor.PushToQueue(elasticItems);
                     Console.WriteLine($"Queued {elasticItems.Count} item(s) for indexing");
                 }
             }
