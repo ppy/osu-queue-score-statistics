@@ -125,6 +125,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 {
                     try
                     {
+                        if (highScore.score_id == 0)
+                        {
+                            // Something really bad probably happened, abort for safety.
+                            throw new InvalidOperationException("Score arrived with no ID");
+                        }
+
                         // At least one row in the old table have invalid dates.
                         // MySQL doesn't like empty dates, so let's ensure we have a valid one.
                         if (highScore.date < DateTimeOffset.UnixEpoch)
