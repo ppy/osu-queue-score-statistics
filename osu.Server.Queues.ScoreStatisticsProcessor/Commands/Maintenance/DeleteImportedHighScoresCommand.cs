@@ -11,7 +11,7 @@ using McMaster.Extensions.CommandLineUtils;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
     /// <summary>
     /// Deletes already-imported high scores from the scores table.

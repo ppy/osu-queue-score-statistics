@@ -10,10 +10,11 @@ using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Game.Rulesets;
 using osu.Server.QueueProcessor;
+using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
     [Command("verify-imported-scores", Description = "Verifies data and pp for already imported scores")]
     public class VerifyImportedScoresCommand
