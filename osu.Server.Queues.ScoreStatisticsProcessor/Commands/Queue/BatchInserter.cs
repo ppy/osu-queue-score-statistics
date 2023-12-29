@@ -190,7 +190,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                                 await runCommand(deleteCommand);
                                 await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction, true);
 
-                                // TODO: delete
                                 Interlocked.Increment(ref CurrentReportDeleteCount);
                                 Interlocked.Increment(ref TotalDeleteCount);
                             }
