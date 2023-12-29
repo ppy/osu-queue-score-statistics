@@ -126,7 +126,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                 }
 
-                lastId = importedScores.Max(s => s.id);
+                lastId = importedScores.Max(s => s.id) + 1;
 
                 Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
                 Console.Write($"Processed up to {lastId} ({deleted} deleted {fail} failed)");
