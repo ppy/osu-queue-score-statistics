@@ -135,7 +135,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         SoloScoreLegacyIDMap? existingMapping = existingIds.FirstOrDefault(e => e.old_score_id == highScore.score_id);
 
-                        if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
+                        if (!isDeletion && ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew)))
                         {
                             Interlocked.Increment(ref TotalSkipCount);
                             continue;
