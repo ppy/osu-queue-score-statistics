@@ -96,7 +96,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         continue;
                     }
 
-                    if (!check(importedScore.id, "performance", importedScore.pp, importedScore.HighScore.pp))
+                    if (!check(importedScore.id, "performance", importedScore.pp ?? 0, importedScore.HighScore.pp ?? 0))
                     {
                         if (importedScore.HighScore.pp == null)
                         {
