@@ -165,7 +165,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         }
 
         [SuppressMessage("ReSharper", "InconsistentNaming")]
-        private class ComparableScore
+        public class ComparableScore
         {
             public ulong id;
             public int ruleset_id;
