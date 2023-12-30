@@ -287,6 +287,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
         }
 
+        [Fact]
+        public void ModsWithSettingsAreDisallowed()
+        {
+            var mods = new Mod[]
+            {
+                new OsuModDoubleTime { SpeedChange = { Value = 1.1 } },
+                new OsuModClassic { NoSliderHeadAccuracy = { Value = false } },
+                new OsuModFlashlight { SizeMultiplier = { Value = 2 } }
+            };
+
+            foreach (var mod in mods)
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
+        }
+
         private class InvalidMod : Mod
         {
             public override string Name => "Invalid";
