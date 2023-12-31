@@ -91,7 +91,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
                         Interlocked.Increment(ref fail);
 
-                        await conn.ExecuteAsync($"INSERT INTO score_performance VALUES ({importedScore.id}, {importedScore.HighScore.pp})");
+                        await conn.ExecuteAsync($"REPLACE INTO score_performance VALUES ({importedScore.id}, {importedScore.HighScore.pp})");
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         continue;
                     }
