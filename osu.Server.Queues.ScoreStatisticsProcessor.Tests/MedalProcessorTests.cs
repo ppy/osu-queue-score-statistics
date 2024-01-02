@@ -362,6 +362,30 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         /// <summary>
+        /// This tests the star rating medals, to make sure a higher level pass doesn't trigger a lower-level medal.
+        /// </summary>
+        [Fact]
+        public void TestStarRatingMedalDoesntGiveLower()
+        {
+            const int medal_id_5_star = 59;
+            const int medal_id_4_star = 58;
+
+            // Beatmap ID 2 to ensure we don't use cached star rating info
+            var beatmap = AddBeatmap(b => b.beatmap_id = 2);
+            AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
+
+            addMedal(medal_id_5_star);
+            addMedal(medal_id_4_star);
+
+            assertNoneAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id);
+
+            // After passing the 5 star beatmap, the 5 star medal is awarded, while the 4 star one is not.
+            assertAwarded(medal_id_5_star);
+            assertNotAwarded(medal_id_4_star);
+        }
+
+        /// <summary>
         /// This tests the osu!standard combo-based medals.
         /// </summary>
         [Fact]
