@@ -81,7 +81,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (importedScore.HighScore == null)
                     {
-                        await conn.ExecuteAsync("DELETE FROM scores WHERE id = @newId; DELETE FROM score_performance WHERE score_id = @newId; DELETE FROM solo_scores_legacy_id_map WHERE old_score_id = @oldId", new
+                        await conn.ExecuteAsync("DELETE FROM scores WHERE id = @newId; DELETE FROM score_performance WHERE score_id = @newId; DELETE FROM score_legacy_id_map WHERE old_score_id = @oldId", new
                         {
                             newId = importedScore.id,
                             oldId = importedScore.legacy_score_id,
