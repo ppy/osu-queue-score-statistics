@@ -70,7 +70,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 foreach (var awardedMedal in awarder.Check(score, availableMedalsForUser, conn, transaction))
                 {
                     awardMedal(score, awardedMedal);
-                    break;
                 }
             }
         }
