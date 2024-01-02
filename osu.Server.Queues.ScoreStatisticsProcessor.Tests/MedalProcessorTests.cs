@@ -8,7 +8,9 @@ using Dapper;
 using Dapper.Contrib.Extensions;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API;
+using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
+using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
@@ -236,6 +238,230 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertAwarded(medal_id);
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length * 2, CancellationToken);
+        }
+
+        /// <summary>
+        /// This tests whether Mod Introduction medals are properly awarded.
+        /// It also tests the fact that these medals should not be awarded, in case there are other mods enabled.
+        /// </summary>
+        [Fact]
+        public void TestModIntroduction()
+        {
+            const int medal_id = 122;
+
+            var beatmap = AddBeatmap();
+
+            addMedal(medal_id);
+
+            assertNoneAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModEasy()) });
+
+            // After completing the beatmaps with double time combined with easy, the medal is not awarded.
+            assertNoneAwarded();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
+
+            // Once the beatmap is completed with only double time, the medal should be awarded.
+            assertAwarded(medal_id);
+        }
+
+        /// <summary>
+        /// This tests the star rating medals, both pass and FC.
+        /// It also tests the fact that these medals should not be awarded, in case there are other mods enabled.
+        /// </summary>
+        [Fact]
+        public void TestStarRatingMedals()
+        {
+            const int medal_id_pass = 59;
+            const int medal_id_fc = 67;
+
+            // Beatmap ID 2 to ensure we don't use cached star rating info
+            var beatmap = AddBeatmap(b => b.beatmap_id = 2);
+            AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
+
+            addMedal(medal_id_pass);
+            addMedal(medal_id_fc);
+
+            assertNoneAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s => {
+                s.Score.ScoreInfo.Statistics = new()
+                {
+                    { HitResult.Perfect, 3 },
+                    { HitResult.Miss, 2 },
+                    { HitResult.LargeBonus, 0 }
+                };
+                s.Score.ScoreInfo.MaximumStatistics = new()
+                {
+                    { HitResult.Perfect, 5 },
+                    { HitResult.LargeBonus, 2 }
+                };
+                s.Score.ScoreInfo.MaxCombo = 3;
+            });
+
+            // After passing the beatmaps without an FC, the pass medal is awarded, but the FC one is not.
+            assertAwarded(medal_id_pass);
+            assertNotAwarded(medal_id_fc);
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s => {
+                s.Score.ScoreInfo.Statistics = new()
+                {
+                    { HitResult.Perfect, 5 },
+                    { HitResult.LargeBonus, 2 }
+                };
+                s.Score.ScoreInfo.MaximumStatistics = new()
+                {
+                    { HitResult.Perfect, 5 },
+                    { HitResult.LargeBonus, 2 }
+                };
+                s.Score.ScoreInfo.MaxCombo = 5;
+            });
+
+            // Once the beatmap is FC'd, both medals should be awarded.
+            assertAwarded(medal_id_pass);
+            assertAwarded(medal_id_fc);
+        }
+
+        /// <summary>
+        /// When a map is FC'd, both the pass and the FC medal for the given star rating should be awarded.
+        /// </summary>
+        [Fact]
+        public void TestBothStarRatingMedalsOnFC()
+        {
+            const int medal_id_pass = 59;
+            const int medal_id_fc = 67;
+
+            // Beatmap ID 2 to ensure we don't use cached star rating info
+            var beatmap = AddBeatmap(b => b.beatmap_id = 2);
+            AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
+
+            addMedal(medal_id_pass);
+            addMedal(medal_id_fc);
+
+            assertNoneAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s => {
+                s.Score.ScoreInfo.Statistics = new()
+                {
+                    { HitResult.Perfect, 5 },
+                    { HitResult.LargeBonus, 2 }
+                };
+                s.Score.ScoreInfo.MaximumStatistics = new()
+                {
+                    { HitResult.Perfect, 5 },
+                    { HitResult.LargeBonus, 2 }
+                };
+                s.Score.ScoreInfo.MaxCombo = 5;
+                s.Score.ruleset_id = 0;
+            });
+
+            // Once the beatmap is FC'd, both medals should be awarded.
+            assertAwarded(medal_id_pass);
+            assertAwarded(medal_id_fc);
+        }
+
+        /// <summary>
+        /// This tests the osu!standard combo-based medals.
+        /// </summary>
+        [Fact]
+        public void TestStandardComboMedal()
+        {
+            const int medal_id = 1;
+
+            var beatmap = AddBeatmap();
+
+            addMedal(medal_id);
+
+            assertNoneAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.MaxCombo = 499);
+
+            // After passing the beatmap without getting 500 combo, the medal shouldn't be awarded.
+            assertNoneAwarded();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.MaxCombo = 500);
+
+            // Once the beatmap is FC'd with enough combo, the medal may be awarded.
+            assertAwarded(medal_id);
+        }
+
+        /// <summary>
+        /// This tests the osu!standard play count-based medals.
+        /// </summary>
+        [Fact]
+        public void TestStandardPlayCountMedal()
+        {
+            const int medal_id = 20;
+
+            var beatmap = AddBeatmap();
+
+            addMedal(medal_id);
+
+            // Set up user stats with 4998 play count
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                UserStatsOsu stats = new UserStatsOsu
+                {
+                    user_id = 2,
+                    playcount = 4998
+                };
+                db.Insert(stats);
+            }
+
+            assertNoneAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 4999, CancellationToken);
+
+            // After passing the beatmap for the first time we only reach 4999 play count,
+            // the medal shouldn't be awarded.
+            assertNoneAwarded();
+
+            SetScoreForBeatmap(beatmap.beatmap_id);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 5000, CancellationToken);
+
+            // After we pass the map again, play count reaches 5000, the medal may be awarded.
+            assertAwarded(medal_id);
+        }
+
+        /// <summary>
+        /// This tests the hit statistic-based medals used in modes other than osu!standard.
+        /// </summary>
+        [Fact]
+        public void TestHitStatisticMedal()
+        {
+            const int medal_id = 46;
+
+            var beatmap = AddBeatmap();
+
+            addMedal(medal_id);
+
+            // Set up user stats with 39998 mania key presses
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                UserStatsMania stats = new UserStatsMania
+                {
+                    user_id = 2,
+                    count300 = 39998
+                };
+                db.Insert(stats);
+            }
+
+            assertNoneAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s => {
+                s.Score.ScoreInfo.Statistics = new() { { HitResult.Perfect, 1 } };
+                s.Score.ruleset_id = 3;
+            });
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats_mania WHERE user_id = 2", 39999, CancellationToken);
+
+            // After passing the beatmap for the first time we only reach 39999 key count,
+            // the medal shouldn't be awarded.
+            assertNoneAwarded();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s => {
+                s.Score.ScoreInfo.Statistics = new() { { HitResult.Perfect, 1 } };
+                s.Score.ruleset_id = 3;
+            });
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats_mania WHERE user_id = 2", 40000, CancellationToken);
+
+            // After we pass the map again, key count reaches 40000, the medal should be awarded.
+            assertAwarded(medal_id);
         }
 
         private void addMedal(int medalId)
