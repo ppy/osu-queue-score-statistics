@@ -132,6 +132,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                                              .OrderBy(s => s.queue_id)
                                              .ToArray();
 
+                    var pendingProcessing = highScores.FirstOrDefault(s => s.status == 0);
+
+                    if (pendingProcessing != null)
+                    {
+                        Console.WriteLine($"Waiting on processing of (score_id: {pendingProcessing.score_id} queue_id: {pendingProcessing.queue_id})");
+                        Thread.Sleep(500);
+                        continue;
+                    }
+
                     if (highScores.Length == 0)
                     {
                         Thread.Sleep(500);
