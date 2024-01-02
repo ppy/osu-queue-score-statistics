@@ -1,25 +1,23 @@
 ﻿using JetBrains.Annotations;
 using MySqlConnector;
-using NuGet.Packaging.Rules;
-using NuGet.Protocol.Plugins;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
-using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 {
     [UsedImplicitly]
+    [SuppressMessage("ReSharper", "MergeIntoPattern")]
     public class StarRatingMedalAwarder : IMedalAwarder
     {
         private BeatmapStore? beatmapStore;
@@ -28,10 +26,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
         public IEnumerable<Medal> Check(SoloScoreInfo score, UserStats userStats, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
         {
-            return CheckAsync(score, medals, conn, transaction).Result;
+            return checkAsync(score, medals, conn, transaction).Result;
         }
 
-        private async Task<IEnumerable<Medal>> CheckAsync(SoloScoreInfo score, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
+        private async Task<IEnumerable<Medal>> checkAsync(SoloScoreInfo score, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
         {
             List<Medal> earnedMedals = new List<Medal>();
 
@@ -68,7 +66,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 {
                     foreach (var medal in medals)
                     {
-                        if (checkMedalFC(score, medal, difficultyAttributes.StarRating))
+                        if (checkMedalFc(score, medal, difficultyAttributes.StarRating))
                             earnedMedals.Add(medal);
                     }
                 }
@@ -165,7 +163,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             };
         }
 
-        private bool checkMedalFC(SoloScoreInfo score, Medal medal, double starRating)
+        private bool checkMedalFc(SoloScoreInfo score, Medal medal, double starRating)
         {
             return medal.achievement_id switch
             {

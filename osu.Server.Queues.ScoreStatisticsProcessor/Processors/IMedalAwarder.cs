@@ -24,6 +24,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// For a given score and collection of valid medals, check which should be awarded (if any).
         /// </summary>
         /// <param name="score">The score to be checked.</param>
+        /// <param name="userStats">The calculated user statistics.</param>
         /// <param name="medals">All medals available for potential awarding.</param>
         /// <param name="conn">The MySQL connection.</param>
         /// <param name="transaction">The active transaction.</param>

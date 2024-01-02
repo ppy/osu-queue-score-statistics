@@ -43,6 +43,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
+        // ReSharper disable once UselessBinaryOperation
         // This processor needs to run after the play count and hit statistics have been applied.
         public int Order => Math.Max(PlayCountProcessor.ORDER, HitStatisticsProcessor.ORDER) + 1;
 

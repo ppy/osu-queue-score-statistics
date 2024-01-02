@@ -1,17 +1,8 @@
-﻿using Dapper;
-using JetBrains.Annotations;
+﻿using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
-using osu.Game.Scoring;
-using osu.Game.Users;
-using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Medal = osu.Server.Queues.ScoreStatisticsProcessor.Models.Medal;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 {

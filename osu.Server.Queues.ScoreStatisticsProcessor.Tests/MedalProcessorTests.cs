@@ -283,7 +283,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addMedal(medal_id_fc);
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => {
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
                 s.Score.ScoreInfo.Statistics = new()
                 {
                     { HitResult.Perfect, 3 },
@@ -302,7 +303,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertAwarded(medal_id_pass);
             assertNotAwarded(medal_id_fc);
 
-            SetScoreForBeatmap(beatmap.beatmap_id, s => {
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
                 s.Score.ScoreInfo.Statistics = new()
                 {
                     { HitResult.Perfect, 5 },
@@ -338,7 +340,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addMedal(medal_id_fc);
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => {
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
                 s.Score.ScoreInfo.Statistics = new()
                 {
                     { HitResult.Perfect, 5 },
@@ -444,7 +447,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => {
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
                 s.Score.ScoreInfo.Statistics = new() { { HitResult.Perfect, 1 } };
                 s.Score.ruleset_id = 3;
             });
@@ -454,7 +458,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // the medal shouldn't be awarded.
             assertNoneAwarded();
 
-            SetScoreForBeatmap(beatmap.beatmap_id, s => {
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
                 s.Score.ScoreInfo.Statistics = new() { { HitResult.Perfect, 1 } };
                 s.Score.ruleset_id = 3;
             });
