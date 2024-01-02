@@ -48,7 +48,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addPackMedal(medal_id, pack_id, new[] { beatmap });
 
-            assertNotAwarded();
+            assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id);
 
             assertAwarded(medal_id);
@@ -70,10 +70,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addPackMedal(medal_id, pack_id, new[] { beatmap });
 
-            assertNotAwarded();
+            assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Passed = false);
 
-            assertNotAwarded();
+            assertNoneAwarded();
         }
 
         /// <summary>
@@ -112,7 +112,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             foreach (var beatmap in allBeatmaps)
             {
-                assertNotAwarded();
+                assertNoneAwarded();
                 SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.created_at = DateTimeOffset.Now.AddMinutes(minutesOffset++));
             }
 
@@ -158,7 +158,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             foreach (var beatmap in beatmaps)
             {
-                assertNotAwarded();
+                assertNoneAwarded();
                 SetScoreForBeatmap(beatmap.beatmap_id);
             }
 
@@ -182,11 +182,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addPackMedal(medal_id, pack_id, new[] { beatmap1, beatmap2 });
 
             SetScoreForBeatmap(beatmap1.beatmap_id);
-            assertNotAwarded();
+            assertNoneAwarded();
             SetScoreForBeatmap(beatmap1.beatmap_id);
-            assertNotAwarded();
+            assertNoneAwarded();
             SetScoreForBeatmap(beatmap1.beatmap_id);
-            assertNotAwarded();
+            assertNoneAwarded();
 
             SetScoreForBeatmap(beatmap2.beatmap_id);
             assertAwarded(medal_id);
@@ -218,16 +218,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             foreach (var beatmap in allBeatmaps)
             {
-                assertNotAwarded();
+                assertNoneAwarded();
                 SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModEasy()) });
             }
 
             // Even after completing all beatmaps with easy mod, the pack medal is not awarded.
-            assertNotAwarded();
+            assertNoneAwarded();
 
             foreach (var beatmap in allBeatmaps)
             {
-                assertNotAwarded();
+                assertNoneAwarded();
                 SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
             }
 
@@ -236,6 +236,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertAwarded(medal_id);
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length * 2, CancellationToken);
+        }
+
+        private void addMedal(int medalId)
+        {
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                db.Execute($"INSERT INTO osu_achievements (achievement_id, slug, ordering, progression, name) VALUES ({medalId}, 'A', 1, 1, 'medal')");
+            }
         }
 
         private void addPackMedal(int medalId, int packId, IReadOnlyList<Beatmap> beatmaps)
@@ -252,12 +260,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private void assertAwarded(int medalId)
         {
-            Assert.Collection(awardedMedals, a => Assert.Equal(medalId, a.Medal.achievement_id));
+            Assert.Contains(awardedMedals, a => medalId == a.Medal.achievement_id);
         }
 
-        private void assertNotAwarded()
+        private void assertNoneAwarded()
         {
             Assert.Empty(awardedMedals);
+        }
+
+        private void assertNotAwarded(int medalId)
+        {
+            Assert.Collection(awardedMedals, a => Assert.NotEqual(medalId, a.Medal.achievement_id));
         }
 
         private void onMedalAwarded(MedalProcessor.AwardedMedal awarded)
