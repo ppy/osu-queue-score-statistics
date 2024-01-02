@@ -64,6 +64,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
                 db.Execute("TRUNCATE TABLE osu_beatmaps");
                 db.Execute("TRUNCATE TABLE osu_beatmapsets");
+                db.Execute("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
 
                 db.Execute("DELETE FROM scores");
                 db.Execute("DELETE FROM score_process_history");
