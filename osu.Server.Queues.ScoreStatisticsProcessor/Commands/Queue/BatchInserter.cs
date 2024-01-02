@@ -81,9 +81,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             using (var updateCommand = db.CreateCommand())
             using (var deleteCommand = db.CreateCommand())
             {
+                int rulesetId = ruleset.RulesetInfo.OnlineID;
+
                 // check for existing and skip
                 SoloScoreLegacyIDMap[] existingIds = (await db.QueryAsync<SoloScoreLegacyIDMap>(
-                    $"SELECT * FROM score_legacy_id_map WHERE `ruleset_id` = {ruleset.RulesetInfo.OnlineID} AND `old_score_id` IN @oldScoreIds",
+                    $"SELECT * FROM score_legacy_id_map WHERE `ruleset_id` = {rulesetId} AND `old_score_id` IN @oldScoreIds",
                     new
                     {
                         oldScoreIds = scores.Select(s => s.score_id)
@@ -92,20 +94,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 insertCommand.CommandText =
                     // main score insert
                     "INSERT INTO scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, unix_updated_at) "
-                    + $"VALUES (@userId, @beatmapId, {ruleset.RulesetInfo.OnlineID}, @data, @has_replay, 1, @date, UNIX_TIMESTAMP(@date));";
+                    + $"VALUES (@userId, @beatmapId, {rulesetId}, @data, @has_replay, 1, @date, UNIX_TIMESTAMP(@date));";
 
                 // pp insert
                 if (importLegacyPP)
                     insertCommand.CommandText += "INSERT INTO score_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);";
 
                 // mapping insert
-                insertCommand.CommandText += $"INSERT INTO score_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({ruleset.RulesetInfo.OnlineID}, @oldScoreId, LAST_INSERT_ID());";
+                insertCommand.CommandText += $"INSERT INTO score_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({rulesetId}, @oldScoreId, LAST_INSERT_ID());";
 
                 updateCommand.CommandText =
                     "UPDATE scores SET data = @data WHERE id = @id";
 
                 deleteCommand.CommandText =
-                    "DELETE FROM scores WHERE id = @newId; DELETE FROM score_performance WHERE score_id = @newId; DELETE FROM score_legacy_id_map WHERE old_score_id = @oldId";
+                    $"DELETE FROM scores WHERE id = @newId; DELETE FROM score_performance WHERE score_id = @newId; DELETE FROM score_legacy_id_map WHERE old_score_id = @oldId and ruleset_id = {rulesetId}";
 
                 var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
                 var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt64);
