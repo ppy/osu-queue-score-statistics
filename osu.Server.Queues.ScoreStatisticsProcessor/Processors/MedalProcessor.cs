@@ -67,7 +67,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (!score.Passed && !awarder.RunOnFailedScores)
                     continue;
 
-                foreach (var awardedMedal in awarder.Check(score, availableMedalsForUser, conn, transaction))
+                foreach (var awardedMedal in awarder.Check(score, userStats, availableMedalsForUser, conn, transaction))
                 {
                     awardMedal(score, awardedMedal);
                 }

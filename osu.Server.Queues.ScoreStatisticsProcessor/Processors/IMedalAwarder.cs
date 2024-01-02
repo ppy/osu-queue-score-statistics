@@ -28,6 +28,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="conn">The MySQL connection.</param>
         /// <param name="transaction">The active transaction.</param>
         /// <returns></returns>
-        IEnumerable<Medal> Check(SoloScoreInfo score, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction);
+        IEnumerable<Medal> Check(SoloScoreInfo score, UserStats userStats, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction);
     }
 }
