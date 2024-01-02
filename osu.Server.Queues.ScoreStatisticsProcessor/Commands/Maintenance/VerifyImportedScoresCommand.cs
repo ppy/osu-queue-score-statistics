@@ -13,6 +13,7 @@ using McMaster.Extensions.CommandLineUtils;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -63,8 +64,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     var highScores = await conn.QueryAsync<HighScore>($"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id IN ({string.Join(',', rulesetScores.Select(s => s.legacy_score_id))})");
 
+                    var legacyMaps = await conn.QueryAsync<SoloScoreLegacyIDMap>($"SELECT * FROM score_legacy_id_map WHERE ruleset_id = {rulesetScores.Key} AND old_score_id IN ({string.Join(',', rulesetScores.Select(s => s.legacy_score_id))})");
+
                     foreach (var score in rulesetScores)
                         score.HighScore = highScores.SingleOrDefault(s => s.score_id == score.legacy_score_id!.Value);
+
+                    foreach (var score in rulesetScores)
+                        score.LegacyMap = legacyMaps.SingleOrDefault(s => s.old_score_id == score.legacy_score_id!.Value);
                 }
 
                 if (!importedScores.Any())
@@ -97,6 +103,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         Interlocked.Increment(ref fail);
 
                         await conn.ExecuteAsync($"REPLACE INTO score_performance VALUES ({importedScore.id}, {importedScore.HighScore.pp})");
+                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
+                        continue;
+                    }
+
+                    if (importedScore.LegacyMap == null || importedScore.LegacyMap.score_id != importedScore.id)
+                    {
+                        Console.WriteLine($"{importedScore.id}: Legacy mapping entry missing or incorrect!!");
+                        Interlocked.Increment(ref fail);
+
+                        await conn.ExecuteAsync($"REPLACE INTO score_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({importedScore.ruleset_id}, {importedScore.legacy_score_id}, {importedScore.id})");
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         continue;
                     }
@@ -180,6 +196,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             public float? pp;
 
             public HighScore? HighScore { get; set; }
+            public SoloScoreLegacyIDMap? LegacyMap { get; set; }
         }
     }
 }
