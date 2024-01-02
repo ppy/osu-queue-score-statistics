@@ -105,7 +105,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     "UPDATE scores SET data = @data WHERE id = @id";
 
                 deleteCommand.CommandText =
-                    "DELETE FROM scores WHERE id = @newId; DELETE FROM score_performance WHERE score_id = @newId; DELETE FROM scores_legacy_id_map WHERE old_score_id = @oldId";
+                    "DELETE FROM scores WHERE id = @newId; DELETE FROM score_performance WHERE score_id = @newId; DELETE FROM score_legacy_id_map WHERE old_score_id = @oldId";
 
                 var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
                 var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt64);

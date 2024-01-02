@@ -97,22 +97,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         continue;
                     }
 
-                    if (importedScore.pp == null && importedScore.HighScore.pp != null)
-                    {
-                        Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
-                        Interlocked.Increment(ref fail);
-
-                        await conn.ExecuteAsync($"REPLACE INTO score_performance VALUES ({importedScore.id}, {importedScore.HighScore.pp})");
-                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
-                        continue;
-                    }
-
                     if (importedScore.LegacyMap == null || importedScore.LegacyMap.score_id != importedScore.id)
                     {
                         Console.WriteLine($"{importedScore.id}: Legacy mapping entry missing or incorrect!!");
                         Interlocked.Increment(ref fail);
 
                         await conn.ExecuteAsync($"REPLACE INTO score_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({importedScore.ruleset_id}, {importedScore.legacy_score_id}, {importedScore.id})");
+                    }
+
+                    if (importedScore.pp == null && importedScore.HighScore.pp != null)
+                    {
+                        Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
+                        Interlocked.Increment(ref fail);
+
+                        await conn.ExecuteAsync($"REPLACE INTO score_performance VALUES ({importedScore.id}, {importedScore.HighScore.pp})");
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         continue;
                     }
