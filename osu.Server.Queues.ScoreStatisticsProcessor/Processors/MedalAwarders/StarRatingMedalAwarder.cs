@@ -1,8 +1,10 @@
 ﻿using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
+using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -10,14 +12,13 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
+using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 {
     [UsedImplicitly]
-    [SuppressMessage("ReSharper", "MergeIntoPattern")]
     public class StarRatingMedalAwarder : IMedalAwarder
     {
         private BeatmapStore? beatmapStore;
@@ -37,7 +38,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             Mod[] mods = score.Mods.Select(m => m.ToMod(ruleset)).ToArray();
 
             // Ensure the score isn't using any difficulty reducing mods
-            if (mods.Any(x => x is ModEasy || x is ModNoFail || x is ModHalfTime))
+            if (mods.Any(x => x.IsDifficultyReductionMod()))
+                return earnedMedals;
+
+            // On mania, these medals cannot be triggered with key mods and Dual Stages
+            if (score.RulesetID == 3 && mods.Any(isManiaDisallowedMod))
                 return earnedMedals;
 
             try
@@ -46,6 +51,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
                 Beatmap? beatmap = await beatmapStore.GetBeatmapAsync(score.BeatmapID, conn, transaction);
                 if (beatmap == null)
+                    return earnedMedals;
+
+                // Make sure the map isn't Qualified or Loved, as those maps may occasionally have SR-breaking/aspire aspects
+                if (beatmap.approved == BeatmapOnlineStatus.Qualified || beatmap.approved == BeatmapOnlineStatus.Loved)
                     return earnedMedals;
 
                 // Get map star rating (including mods)
@@ -86,7 +95,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 return true;
 
             // osu!taiko 1-8*
-            if (checkMedalRange(71, medal.achievement_id, starRating))
+            // Has an exception for https://osu.ppy.sh/beatmapsets/2626#taiko/19990
+            if (score.BeatmapID != 19990 && checkMedalRange(71, medal.achievement_id, starRating))
                 return true;
 
             // osu!catch 1-8*
@@ -101,9 +111,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             {
                 // osu!standard
                 // 9 stars (Event Horizon)
-                242 => checkSR(starRating, 9),
+                242 => checkStarRating(starRating, 9),
                 // 10 stars (Phantasm)
-                244 => checkSR(starRating, 10),
+                244 => checkStarRating(starRating, 10),
 
                 _ => false
             };
@@ -116,7 +126,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 return true;
 
             // osu!taiko 1-8*
-            if (checkMedalRange(95, medal.achievement_id, starRating))
+            // Has an exception for https://osu.ppy.sh/beatmapsets/2626#taiko/19990
+            if (score.BeatmapID != 19990 && checkMedalRange(95, medal.achievement_id, starRating))
                 return true;
 
             // osu!catch 1-8*
@@ -131,9 +142,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             {
                 // osu!standard
                 // 9 stars (Chosen)
-                243 => checkSR(starRating, 9),
+                243 => checkStarRating(starRating, 9),
                 // 10 stars (Unfathomable)
-                245 => checkSR(starRating, 10),
+                245 => checkStarRating(starRating, 10),
 
                 _ => false
             };
@@ -145,10 +156,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             if (medalId < medalIdStart || medalId > medalIdStart + 7)
                 return false;
 
-            return checkSR(starRating, medalId - medalIdStart + 1);
+            return checkStarRating(starRating, medalId - medalIdStart + 1);
         }
 
-        private bool checkSR(double starRating, int expected)
+        private bool checkStarRating(double starRating, int expected)
             => starRating >= expected && starRating < (expected + 1);
+
+        private bool isManiaDisallowedMod(Mod mod)
+        {
+            switch (mod)
+            {
+                case ManiaKeyMod:
+                case ManiaModDualStages:
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
     }
 }

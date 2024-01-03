@@ -7,6 +7,7 @@ using osu.Game.Rulesets.Osu.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 {
@@ -17,20 +18,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
         public IEnumerable<Medal> Check(SoloScoreInfo score, UserStats userStats, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
         {
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.RulesetID);
+
+            // Select score mods, ignoring certain mods that can be included in the combination for mod introduction medals
+            Mod[] mods = score.Mods.Select(m => m.ToMod(ruleset)).Where(m => !checkIfAllowedCombinationMod(m, score)).ToArray();
+
             // Ensure the mod is the only one selected
-            if (score.Mods.Length != 1)
+            if (mods.Length != 1)
                 yield break;
 
-            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.RulesetID);
-            Mod mod = score.Mods[0].ToMod(ruleset);
-
             // Ensure the mod is in the default configuration
-            if (!mod.UsesDefaultConfiguration)
+            if (!mods[0].UsesDefaultConfiguration)
                 yield break;
 
             foreach (var medal in medals)
             {
-                if (checkMedal(score, medal, mod))
+                if (checkMedal(score, medal, mods[0]))
                     yield return medal;
             }
         }
@@ -59,11 +62,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 127 => mod is ModNoFail,
                 // Half Time (Slowboat)
                 128 => mod is ModHalfTime,
+
+                // TODO: These medals are currently marked inoperable in osu-web-10.
+                //       It may be desirable to set these medals up for lazer.
+                // Relax
+                // 129 => mod is ModRelax,
+                // Autopilot
+                // 130 => mod is OsuModAutopilot,
+
                 // Spun Out (Burned Out)
                 131 => mod is OsuModSpunOut,
 
                 _ => false
             };
+        }
+
+        private bool checkIfAllowedCombinationMod(Mod m, SoloScoreInfo score)
+        {
+            switch (m)
+            {
+                // Allow classic mod, only on legacy scores
+                case ModClassic:
+                    return score.IsLegacyScore;
+
+                default:
+                    return false;
+            }
         }
     }
 }
