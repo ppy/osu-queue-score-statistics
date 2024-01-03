@@ -30,7 +30,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public bool hidden { get; set; }
         public string country_acronym { get; set; } = null!;
 
-        // This comes from score_process_queue. Used in join context.
+        // These come from score_process_queue. Used in join context.
         public uint? queue_id { get; set; }
+        public byte? status { get; set; }
     }
 }
