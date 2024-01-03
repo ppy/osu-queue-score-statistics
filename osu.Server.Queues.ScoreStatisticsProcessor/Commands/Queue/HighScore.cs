@@ -25,7 +25,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public bool perfect { get; set; }
         public int enabled_mods { get; set; }
         public DateTimeOffset date { get; set; }
-        public float pp { get; set; }
+        public float? pp { get; set; }
         public bool replay { get; set; }
         public bool hidden { get; set; }
         public string country_acronym { get; set; } = null!;
