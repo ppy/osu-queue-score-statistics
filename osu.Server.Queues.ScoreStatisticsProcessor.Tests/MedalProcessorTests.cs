@@ -8,9 +8,12 @@ using Dapper;
 using Dapper.Contrib.Extensions;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API;
+using osu.Game.Rulesets.Mania.Difficulty;
+using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
@@ -266,6 +269,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         /// <summary>
+        /// This tests whether Mod Introduction medals are properly awarded when classic mod is enabled.
+        /// </summary>
+        [Fact]
+        public void TestModIntroductionWithClassic()
+        {
+            const int medal_id = 122;
+
+            var beatmap = AddBeatmap();
+
+            addMedal(medal_id);
+
+            assertNoneAwarded();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModClassic()) });
+
+            // When the beatmap is completed with double time and classic, the medal should be awarded.
+            assertAwarded(medal_id);
+        }
+
+        /// <summary>
         /// This tests the star rating medals, both pass and FC.
         /// It also tests the fact that these medals should not be awarded, in case there are other mods enabled.
         /// </summary>
@@ -383,6 +406,95 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // After passing the 5 star beatmap, the 5 star medal is awarded, while the 4 star one is not.
             assertAwarded(medal_id_5_star);
             assertNotAwarded(medal_id_4_star);
+        }
+
+        /// <summary>
+        /// This tests the taiko star rating medals, to make sure a special exception beatmap doesn't trigger it.
+        /// </summary>
+        [Fact]
+        public void TestStarRatingMedalTaikoException()
+        {
+            const int medal_id_5_star = 75;
+
+            // Taiko medals have an exception for https://osu.ppy.sh/beatmapsets/2626#taiko/19990
+            var beatmap = AddBeatmap(b => b.beatmap_id = 19990);
+            AddBeatmapAttributes<TaikoDifficultyAttributes>((uint)beatmap.beatmap_id, mode: 1);
+
+            addMedal(medal_id_5_star);
+
+            assertNoneAwarded();
+
+            // Set a score on the exception taiko beatmap
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ruleset_id = 1);
+
+            assertNoneAwarded();
+        }
+
+        /// <summary>
+        /// This tests the mania star rating medals, to make sure mod exceptions are working.
+        /// </summary>
+        [Fact]
+        public void TestStarRatingMedalManiaModExceptions()
+        {
+            const int medal_id_5_star = 91;
+
+            // Beatmap ID 2 to ensure we don't use cached star rating info
+            var beatmap = AddBeatmap(b => b.beatmap_id = 2);
+            AddBeatmapAttributes<ManiaDifficultyAttributes>((uint)beatmap.beatmap_id, mode: 3);
+
+            addMedal(medal_id_5_star);
+
+            assertNoneAwarded();
+
+            // Set a score with the Dual Stages mod
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.ruleset_id = 3;
+                s.Score.ScoreInfo.Mods = new[] { new APIMod(new ManiaModDualStages()) };
+            });
+
+            // This shouldn't award a medal
+            assertNoneAwarded();
+
+            // Set a score with the a modified key count, which also shouldn't award the medal
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.ruleset_id = 3;
+                s.Score.ScoreInfo.Mods = new[] { new APIMod(new ManiaModKey7()) };
+            });
+
+            assertNoneAwarded();
+
+            // Set a score without restricted mods, which should award the medal
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ruleset_id = 3);
+
+            assertAwarded(medal_id_5_star);
+        }
+
+        /// <summary>
+        /// This tests the star rating medals, to make sure a loved maps don't trigger medals.
+        /// </summary>
+        [Fact]
+        public void TestStarRatingMedalLovedMaps()
+        {
+            const int medal_id_5_star = 59;
+
+            // Beatmap ID 3 to ensure we don't use cached star rating/beatmap metadata
+            var beatmap = AddBeatmap(b =>
+            {
+                b.beatmap_id = 3;
+                b.approved = BeatmapOnlineStatus.Loved;
+            });
+            AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
+
+            addMedal(medal_id_5_star);
+
+            assertNoneAwarded();
+
+            // Set a score on the loved map, which shouldn't trigger a medal
+            SetScoreForBeatmap(beatmap.beatmap_id);
+
+            assertNoneAwarded();
         }
 
         /// <summary>

@@ -182,7 +182,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             return beatmap;
         }
 
-        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null)
+        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null, ushort mode = 0)
             where TDifficultyAttributes : DifficultyAttributes, new()
         {
             var attribs = new TDifficultyAttributes
@@ -200,7 +200,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     db.Insert(new BeatmapDifficultyAttribute
                     {
                         beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
-                        mode = 0,
+                        mode = mode,
                         mods = 0,
                         attrib_id = (ushort)a.attributeId,
                         value = Convert.ToSingle(a.value),
