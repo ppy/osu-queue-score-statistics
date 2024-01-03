@@ -81,9 +81,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
         {
             switch (m)
             {
-                // Allow classic mod, only on legacy scores
+                // Allow classic mod
                 case ModClassic:
-                    return score.IsLegacyScore;
+                    return true;
 
                 default:
                     return false;
