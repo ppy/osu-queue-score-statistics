@@ -39,11 +39,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
             // Ensure the score isn't using any difficulty reducing mods
             if (mods.Any(x => x.IsDifficultyReductionMod()))
-                return earnedMedals;
+                return Enumerable.Empty<Medal>();
 
             // On mania, these medals cannot be triggered with key mods and Dual Stages
             if (score.RulesetID == 3 && mods.Any(isManiaDisallowedMod))
-                return earnedMedals;
+                return Enumerable.Empty<Medal>();
 
             try
             {
@@ -51,17 +51,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
                 Beatmap? beatmap = await beatmapStore.GetBeatmapAsync(score.BeatmapID, conn, transaction);
                 if (beatmap == null)
-                    return earnedMedals;
+                    return Enumerable.Empty<Medal>();
 
                 // Make sure the map isn't Qualified or Loved, as those maps may occasionally have SR-breaking/aspire aspects
                 if (beatmap.approved == BeatmapOnlineStatus.Qualified || beatmap.approved == BeatmapOnlineStatus.Loved)
-                    return earnedMedals;
+                    return Enumerable.Empty<Medal>();
 
                 // Get map star rating (including mods)
                 APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
                 DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, conn, transaction);
+
                 if (difficultyAttributes == null)
-                    return earnedMedals;
+                    return Enumerable.Empty<Medal>();
 
                 // Award pass medals
                 foreach (var medal in medals)
