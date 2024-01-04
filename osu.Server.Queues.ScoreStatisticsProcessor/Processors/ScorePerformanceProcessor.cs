@@ -104,7 +104,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="transaction">An existing transaction.</param>
         public async Task ProcessScoreAsync(SoloScoreInfo score, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            // This method is also used by the CLI batch processor.
+            // Usually checked via "RunOnFailedScores", but this method is also used by the CLI batch processor.
             if (!score.Passed)
                 return;
 
