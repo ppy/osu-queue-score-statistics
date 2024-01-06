@@ -122,7 +122,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    HighScore[] highScores = (await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM osu.score_process_queue LEFT JOIN {highScoreTable} h USING (score_id) WHERE queue_id >= @lastQueueId AND mode = {RulesetId} ORDER BY queue_id LIMIT 1000", new
+                    HighScore[] highScores = (await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM osu.score_process_queue LEFT JOIN {highScoreTable} h USING (score_id) WHERE queue_id >= @lastQueueId AND mode = {RulesetId} ORDER BY queue_id LIMIT 50", new
                                              {
                                                  lastQueueId,
                                                  RulesetId,
