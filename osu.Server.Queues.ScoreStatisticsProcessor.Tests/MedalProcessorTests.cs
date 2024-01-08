@@ -290,7 +290,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         /// <summary>
         /// This tests the star rating medals, both pass and FC.
-        /// It also tests the fact that these medals should not be awarded, in case there are other mods enabled.
         /// </summary>
         [Fact]
         public void TestStarRatingMedals()
@@ -298,7 +297,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_pass = 59;
             const int medal_id_fc = 67;
 
-            // Beatmap ID 2 to ensure we don't use cached star rating info
+            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
+            // in order to avoid using stale data, we use beatmap ID 2
             var beatmap = AddBeatmap(b => b.beatmap_id = 2);
             AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
 
@@ -355,7 +355,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_pass = 59;
             const int medal_id_fc = 67;
 
-            // Beatmap ID 2 to ensure we don't use cached star rating info
+            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
+            // in order to avoid using stale data, we use beatmap ID 2
             var beatmap = AddBeatmap(b => b.beatmap_id = 2);
             AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
 
@@ -393,7 +394,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_5_star = 59;
             const int medal_id_4_star = 58;
 
-            // Beatmap ID 2 to ensure we don't use cached star rating info
+            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
+            // in order to avoid using stale data, we use beatmap ID 2
             var beatmap = AddBeatmap(b => b.beatmap_id = 2);
             AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
 
@@ -438,7 +440,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             const int medal_id_5_star = 91;
 
-            // Beatmap ID 2 to ensure we don't use cached star rating info
+            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
+            // in order to avoid using stale data, we use beatmap ID 2
             var beatmap = AddBeatmap(b => b.beatmap_id = 2);
             AddBeatmapAttributes<ManiaDifficultyAttributes>((uint)beatmap.beatmap_id, mode: 3);
 
@@ -472,14 +475,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         /// <summary>
-        /// This tests the star rating medals, to make sure a loved maps don't trigger medals.
+        /// This tests the star rating medals, to make sure loved maps don't trigger medals.
         /// </summary>
         [Fact]
         public void TestStarRatingMedalLovedMaps()
         {
             const int medal_id_5_star = 59;
 
-            // Beatmap ID 3 to ensure we don't use cached star rating/beatmap metadata
+            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
+            // in order to avoid using stale data, we use beatmap ID 3 (ID 2 may have a cached ranked status)
             var beatmap = AddBeatmap(b =>
             {
                 b.beatmap_id = 3;
@@ -517,7 +521,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.MaxCombo = 500);
 
-            // Once the beatmap is FC'd with enough combo, the medal may be awarded.
+            // Once the beatmap is passed with 500 combo, the medal may be awarded.
             assertAwarded(medal_id);
         }
 
