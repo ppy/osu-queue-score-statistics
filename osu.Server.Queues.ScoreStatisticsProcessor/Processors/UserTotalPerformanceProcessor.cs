@@ -144,25 +144,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                                                       .ToArray();
 
             // Build the diminishing sum
-            double factor = 1;
+            double factor = 52.5;
             double totalPp = 0;
             double totalAccuracy = 0;
+            double weightTotal = 0;
 
-            foreach (var item in groupedItems)
+            foreach (var (item, i) in groupedItems.Select((value, i) => ( value, i )))
             {
-                totalPp += item.pp!.Value * factor;
-                totalAccuracy += item.ScoreInfo.Accuracy * factor;
-                factor *= 0.95;
+                // This sum is an unbounded logarithmic style summation that uses factor and the index to weight each score.
+                weight = (1 + Math.Pow(factor / (i + 1), 2)) / (i + 1 + Math.Pow(factor / (i + 1), 2));
+                totalPp += item.pp!.Value * weight;
+                totalAccuracy += item.ScoreInfo.Accuracy * weight;
+                weightTotal += weight;
             }
-
-            // This weird factor is to keep legacy compatibility with the diminishing bonus of 0.25 by 0.9994 each score.
-            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.9994, groupedItems.Length));
 
             // We want our accuracy to be normalized.
             if (groupedItems.Length > 0)
             {
-                // We want the percentage, not a factor in [0, 1], hence we divide 20 by 100.
-                totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, groupedItems.Length)));
+                // We want the percentage, not a factor in [0, 1], hence 100 in the numerator.
+                totalAccuracy *= 100.0 / weightTotal;
             }
 
             userStats.rank_score_exp = (float)totalPp;
