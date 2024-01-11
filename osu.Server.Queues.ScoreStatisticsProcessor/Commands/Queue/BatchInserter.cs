@@ -14,7 +14,6 @@ using Newtonsoft.Json;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Database;
 using osu.Game.Online.API;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
@@ -93,20 +92,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 insertCommand.CommandText =
                     // main score insert
-                    "INSERT INTO scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, unix_updated_at) "
-                    + $"VALUES (@userId, @beatmapId, {rulesetId}, @data, @has_replay, 1, @date, UNIX_TIMESTAMP(@date));";
+                    "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) "
+                    + $"VALUES (@user_id, {rulesetId}, @beatmap_id, @has_replay, 1, @rank, 1, @accuracy, @max_combo, @total_score, @data, @pp, @legacy_score_id, @legacy_total_score, @ended_at, UNIX_TIMESTAMP(@ended_at));";
 
                 updateCommand.CommandText = "UPDATE scores SET data = @data WHERE id = @id";
 
                 deleteCommand.CommandText = "DELETE FROM scores WHERE id = @id;";
 
-                var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
-                var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt64);
-                var beatmapId = insertCommand.Parameters.Add("beatmapId", MySqlDbType.UInt24);
+                var userId = insertCommand.Parameters.Add("user_id", MySqlDbType.UInt32);
+                var oldScoreId = insertCommand.Parameters.Add("legacy_score_id", MySqlDbType.UInt64);
+                var beatmapId = insertCommand.Parameters.Add("beatmap_id", MySqlDbType.UInt24);
                 var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
-                var date = insertCommand.Parameters.Add("date", MySqlDbType.DateTime);
+                var endedAt = insertCommand.Parameters.Add("ended_at", MySqlDbType.DateTime);
                 var hasReplay = insertCommand.Parameters.Add("has_replay", MySqlDbType.Bool);
                 var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
+                var rank = insertCommand.Parameters.Add("rank", MySqlDbType.VarChar);
+                var accuracy = insertCommand.Parameters.Add("accuracy", MySqlDbType.Float);
+                var maxCombo = insertCommand.Parameters.Add("max_combo", MySqlDbType.UInt32);
+                var totalScore = insertCommand.Parameters.Add("total_score", MySqlDbType.UInt32);
+                var legacyTotalScore = insertCommand.Parameters.Add("legacy_total_score", MySqlDbType.UInt32);
 
                 var updateData = updateCommand.Parameters.Add("data", MySqlDbType.JSON);
                 var updateId = updateCommand.Parameters.Add("id", MySqlDbType.UInt64);
@@ -165,7 +169,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         }
 
                         ScoreInfo referenceScore = await CreateReferenceScore(ruleset, highScore, db, transaction);
-                        var serialisedScore = SerialiseScore(ruleset, highScore, referenceScore);
+                        string serialisedScore = SerialiseScoreData(referenceScore);
 
                         if (existingMapping != null)
                         {
@@ -188,17 +192,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         }
                         else
                         {
-                            if (importLegacyPP)
-                                pp.Value = highScore.pp;
                             userId.Value = highScore.user_id;
                             oldScoreId.Value = highScore.score_id;
                             beatmapId.Value = highScore.beatmap_id;
-                            date.Value = highScore.date;
+                            endedAt.Value = highScore.date;
                             hasReplay.Value = highScore.replay;
                             data.Value = serialisedScore;
+                            rank.Value = referenceScore.Rank.ToString();
+                            accuracy.Value = referenceScore.Accuracy;
+                            maxCombo.Value = referenceScore.MaxCombo;
+                            totalScore.Value = referenceScore.TotalScore;
+                            legacyTotalScore.Value = referenceScore.LegacyTotalScore;
+
+                            if (importLegacyPP)
+                                pp.Value = highScore.pp;
 
                             if (!insertCommand.IsPrepared)
                                 await insertCommand.PrepareAsync();
+
                             insertCommand.Transaction = transaction;
 
                             // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
@@ -220,31 +231,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             }
         }
 
-        public static string SerialiseScore(Ruleset ruleset, HighScore highScore, ScoreInfo referenceScore)
-        {
-            var serialisedScore = JsonConvert.SerializeObject(new SoloScoreInfo
+        public static string SerialiseScoreData(ScoreInfo referenceScore) =>
+            JsonConvert.SerializeObject(new SoloScoreData
             {
-                // id will be written below in the UPDATE call.
-                UserID = highScore.user_id,
-                BeatmapID = highScore.beatmap_id,
-                RulesetID = ruleset.RulesetInfo.OnlineID,
-                Passed = true,
-                TotalScore = (int)referenceScore.TotalScore,
-                Accuracy = referenceScore.Accuracy,
-                MaxCombo = highScore.maxcombo,
-                Rank = Enum.TryParse(highScore.rank, out ScoreRank parsed) ? parsed : ScoreRank.D,
                 Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
                 Statistics = referenceScore.Statistics,
                 MaximumStatistics = referenceScore.MaximumStatistics,
-                EndedAt = highScore.date,
-                LegacyTotalScore = highScore.score,
-                LegacyScoreId = highScore.score_id
             }, new JsonSerializerSettings
             {
                 DefaultValueHandling = DefaultValueHandling.Ignore
             });
-            return serialisedScore;
-        }
 
         /// <summary>
         /// Creates a partially-populated "reference" score that provides:
