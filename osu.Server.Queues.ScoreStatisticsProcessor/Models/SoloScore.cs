@@ -67,7 +67,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         {
             BeatmapID = (int)beatmap_id,
             RulesetID = ruleset_id,
-            BuildID = null,
+            BuildID = build_id,
             Passed = passed,
             TotalScore = total_score,
             Accuracy = accuracy,
