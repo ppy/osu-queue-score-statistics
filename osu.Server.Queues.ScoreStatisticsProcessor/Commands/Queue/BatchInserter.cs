@@ -85,7 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 // check for existing and skip
                 SoloScore[] existingIds = (await db.QueryAsync<SoloScore>(
-                    $"SELECT * FROM scores WHERE `ruleset_id` = {rulesetId} AND `legacy_score_id` IN @legacyScoreIds",
+                    $"SELECT id, legacy_score_id FROM scores WHERE `ruleset_id` = {rulesetId} AND `legacy_score_id` IN @legacyScoreIds",
                     new
                     {
                         legacyScoreIds = scores.Select(s => s.score_id)
