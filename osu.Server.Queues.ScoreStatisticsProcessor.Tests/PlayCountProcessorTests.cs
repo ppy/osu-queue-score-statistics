@@ -209,13 +209,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestMonthlyPlaycountIncrease()
         {
-            WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, CancellationToken);
+            checkPlaycount(null);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
-            WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '2002'", 1, CancellationToken);
+            checkPlaycount(1);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
-            WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '2002'", 2, CancellationToken);
+            checkPlaycount(2);
+
             WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_month_playcount WHERE user_id = 2", 1, CancellationToken);
         }
 
@@ -226,7 +227,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             var score = CreateTestScore();
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, CancellationToken);
+            checkPlaycount(null);
             PushToQueueAndWaitForProcess(score);
 
             score.MarkProcessed();
@@ -236,7 +237,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             score.ProcessHistory.processed_version = (byte)version;
 
             PushToQueueAndWaitForProcess(score);
-            WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '2002'", 2, CancellationToken);
+            checkPlaycount(2);
         }
 
         [Fact]
@@ -244,17 +245,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             var score = CreateTestScore();
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2", (int?)null, CancellationToken);
+            checkPlaycount(null);
 
             PushToQueueAndWaitForProcess(score);
-            WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '2002'", 1, CancellationToken);
+            checkPlaycount(1);
 
             // the score will be marked as processed (in the database) at this point, so should not increase the playcount if processed a second time.
             score.MarkProcessed();
 
             PushToQueueAndWaitForProcess(score);
-            WaitForDatabaseState("SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '2002'", 1, CancellationToken);
+            checkPlaycount(1);
             WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_month_playcount WHERE user_id = 2", 1, CancellationToken);
+        }
+
+        private void checkPlaycount(int? expected)
+        {
+            var now = DateTimeOffset.Now;
+            string yearMonth = $"{now.Year % 2000}{now.Month:00}";
+
+            WaitForDatabaseState($"SELECT playcount FROM osu_user_month_playcount WHERE user_id = 2 AND `year_month` = '{yearMonth}'", expected, CancellationToken);
         }
     }
 }

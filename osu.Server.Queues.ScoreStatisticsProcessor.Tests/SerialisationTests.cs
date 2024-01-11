@@ -54,6 +54,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 // ignore time values for now until we can figure how to test without precision issues.
                 retrieved.ended_at = score.ended_at;
+                retrieved.started_at = score.started_at;
 
                 retrieved.ShouldDeepEqual(score);
             }

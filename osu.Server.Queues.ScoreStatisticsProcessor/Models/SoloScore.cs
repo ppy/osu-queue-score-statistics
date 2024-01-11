@@ -58,6 +58,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public DateTimeOffset? started_at { get; set; }
         public DateTimeOffset ended_at { get; set; }
+
         public override string ToString() => $"score_id: {id} user_id: {user_id}";
 
         public ushort? build_id { get; set; }

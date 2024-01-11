@@ -109,16 +109,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         public static ScoreItem CreateTestScore(uint? rulesetId = null, uint? beatmapId = null)
         {
-            var startTime = new DateTimeOffset(new DateTime(2020, 02, 05));
-
             var row = new SoloScore
             {
                 id = Interlocked.Increment(ref scoreIDSource),
                 user_id = 2,
                 beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
                 ruleset_id = (ushort)(rulesetId ?? 0),
-                started_at = startTime,
-                ended_at = startTime + TimeSpan.FromSeconds(180),
+                started_at = DateTimeOffset.UtcNow - TimeSpan.FromSeconds(180),
+                ended_at = DateTimeOffset.UtcNow,
                 max_combo = MAX_COMBO,
                 total_score = 100000,
                 rank = ScoreRank.S,

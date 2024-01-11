@@ -105,11 +105,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                var scoreInfo = score.Score.ToScoreInfo();
-
-                scoreInfo.TotalScore = 50000;
-                scoreInfo.Statistics[HitResult.Perfect] = 0;
-                scoreInfo.Statistics[HitResult.Ok] = 5;
+                score.Score.total_score = 50000;
+                score.Score.ScoreData.Statistics[HitResult.Perfect] = 0;
+                score.Score.ScoreData.Statistics[HitResult.Ok] = 5;
             });
             waitForRankedScore("osu_user_stats", 5041);
 
@@ -143,11 +141,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                var scoreInfo = score.Score.ToScoreInfo();
-
-                scoreInfo.TotalScore = 50000;
-                scoreInfo.Statistics[HitResult.Perfect] = 0;
-                scoreInfo.Statistics[HitResult.Ok] = 5;
+                score.Score.total_score = 50000;
+                score.Score.ScoreData.Statistics[HitResult.Perfect] = 0;
+                score.Score.ScoreData.Statistics[HitResult.Ok] = 5;
             });
             waitForRankedScore("osu_user_stats", 5041);
 

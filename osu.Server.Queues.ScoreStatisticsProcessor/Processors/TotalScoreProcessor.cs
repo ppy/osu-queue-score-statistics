@@ -28,18 +28,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             if (previousVersion < 8)
             {
-                userStats.total_score -= (ulong)score.TotalScore;
+                userStats.total_score -= score.TotalScore;
                 userStats.level = calculateLevel(userStats.total_score);
                 return;
             }
 
-            userStats.total_score -= (ulong)score.GetDisplayScore(ScoringMode.Classic);
+            userStats.total_score -= score.GetDisplayScore(ScoringMode.Classic);
             userStats.level = calculateLevel(userStats.total_score);
         }
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            userStats.total_score += (ulong)score.GetDisplayScore(ScoringMode.Classic);
+            userStats.total_score += score.GetDisplayScore(ScoringMode.Classic);
             userStats.level = calculateLevel(userStats.total_score);
         }
 
@@ -47,16 +47,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
         }
 
-        private static float calculateLevel(ulong totalScore)
+        private static float calculateLevel(long totalScore)
         {
             // Based on https://github.com/peppy/osu-stable-reference/blob/7519cafd1823f1879c0d9c991ba0e5c7fd3bfa02/osu!/Online/Drawable/User.cs#L383-L399
-            ulong remainingScore = totalScore;
+            long remainingScore = totalScore;
             float level = 0;
 
             while (remainingScore > 0)
             {
                 // if we're exceeding available array entries, continue using the requirement for the highest level.
-                ulong nextLevelRequirement = to_next_level[Math.Min(to_next_level.Length - 1, (int)Math.Round(level))];
+                long nextLevelRequirement = to_next_level[Math.Min(to_next_level.Length - 1, (int)Math.Round(level))];
 
                 // always increment by at most one level, but include the fractional portion for the final level.
                 level += Math.Min(1, (float)remainingScore / nextLevelRequirement);
@@ -68,7 +68,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             return level + 1;
         }
 
-        private static readonly ulong[] to_next_level =
+        private static readonly long[] to_next_level =
         {
             30000, 100000, 210000, 360000, 550000, 780000, 1050000,
             1360000, 1710000, 2100000, 2530000, 3000000, 3510000, 4060000,

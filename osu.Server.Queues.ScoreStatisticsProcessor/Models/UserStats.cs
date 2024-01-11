@@ -23,7 +23,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public float accuracy { get; set; }
         public int playcount { get; set; }
         public long ranked_score { get; set; }
-        public ulong total_score { get; set; }
+        public long total_score { get; set; }
         public int x_rank_count { get; set; }
         public int xh_rank_count { get; set; }
         public int s_rank_count { get; set; }
