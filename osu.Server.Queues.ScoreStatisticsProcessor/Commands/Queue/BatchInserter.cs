@@ -96,7 +96,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     + $"VALUES (@user_id, {rulesetId}, @beatmap_id, @has_replay, 1, @rank, 1, @accuracy, @max_combo, @total_score, @data, @pp, @legacy_score_id, @legacy_total_score, @ended_at, UNIX_TIMESTAMP(@ended_at));";
 
                 updateCommand.CommandText = "UPDATE scores SET data = @data WHERE id = @id";
-
                 deleteCommand.CommandText = "DELETE FROM scores WHERE id = @id;";
 
                 var userId = insertCommand.Parameters.Add("user_id", MySqlDbType.UInt32);
@@ -254,6 +253,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// </summary>
         public static async Task<ScoreInfo> CreateReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection, MySqlTransaction? transaction)
         {
+            int rulesetId = ruleset.RulesetInfo.OnlineID;
+
             Mod? classicMod = ruleset.CreateMod<ModClassic>();
             Debug.Assert(classicMod != null);
 
@@ -315,12 +316,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
             int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
-            BeatmapScoringAttributes? scoreAttributes = await connection.QuerySingleOrDefaultAsync<BeatmapScoringAttributes>(
-                "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
-                {
-                    BeatmapId = highScore.beatmap_id,
-                    RulesetId = ruleset.RulesetInfo.OnlineID
-                }, transaction);
+            var scoreAttributes = await getScoringAttributes(rulesetId, highScore.beatmap_id, connection, transaction);
 
             if (scoreAttributes == null)
             {
@@ -332,7 +328,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 #pragma warning disable CS0618
             // Pad the maximum combo.
             // Special case here for osu!mania as it requires per-mod considerations (key mods).
-            if (ruleset.RulesetInfo.OnlineID == 3)
+
+            if (rulesetId == 3)
             {
                 // Using the BeatmapStore class will fail if a particular difficulty attribute value doesn't exist in the database as a result of difficulty calculation not having been run yet.
                 // Additionally, to properly fill out attribute objects, the BeatmapStore class would require a beatmap object resulting in another database query.
@@ -340,10 +337,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 // The isConvertedBeatmap parameter only affects whether mania key mods are allowed.
                 // Since we're dealing with high scores, we assume that the database mod values have already been validated for mania-specific beatmaps that don't allow key mods.
-                int difficultyMods = (int)LegacyModsHelper.MaskRelevantMods((LegacyMods)highScore.enabled_mods, true, ruleset.RulesetInfo.OnlineID);
+                int difficultyMods = (int)LegacyModsHelper.MaskRelevantMods((LegacyMods)highScore.enabled_mods, true, rulesetId);
 
                 Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = queryAttributes(
-                    new DifficultyAttributesLookup(highScore.beatmap_id, ruleset.RulesetInfo.OnlineID, difficultyMods), connection, transaction);
+                    new DifficultyAttributesLookup(highScore.beatmap_id, rulesetId, difficultyMods), connection, transaction);
 
                 if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
                 {
@@ -363,16 +360,45 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
 #pragma warning restore CS0618
 
-            Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
-            {
-                BeatmapId = highScore.beatmap_id
-            }, transaction);
-
-            LegacyBeatmapConversionDifficultyInfo difficulty = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
+            var difficulty = await getDificultyInfo(highScore.beatmap_id, connection, transaction);
 
             StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, difficulty, scoreAttributes.ToAttributes());
 
             return scoreInfo;
+        }
+
+        private static readonly ConcurrentDictionary<int, BeatmapScoringAttributes?> scoring_attributes_cache =
+            new ConcurrentDictionary<int, BeatmapScoringAttributes?>();
+
+        private static async Task<BeatmapScoringAttributes?> getScoringAttributes(int rulesetId, int beatmapId, MySqlConnection connection, MySqlTransaction? transaction)
+        {
+            if (scoring_attributes_cache.TryGetValue(beatmapId, out var existing))
+                return existing;
+
+            BeatmapScoringAttributes? scoreAttributes = await connection.QuerySingleOrDefaultAsync<BeatmapScoringAttributes>(
+                "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
+                {
+                    BeatmapId = beatmapId,
+                    RulesetId = rulesetId,
+                }, transaction);
+
+            return scoring_attributes_cache[beatmapId] = scoreAttributes;
+        }
+
+        private static readonly ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo> difficulty_info_cache =
+            new ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo>();
+
+        private static async Task<LegacyBeatmapConversionDifficultyInfo> getDificultyInfo(int beatmapId, MySqlConnection connection, MySqlTransaction? transaction)
+        {
+            if (difficulty_info_cache.TryGetValue(beatmapId, out var existing))
+                return existing;
+
+            Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+            {
+                BeatmapId = beatmapId
+            }, transaction);
+
+            return difficulty_info_cache[beatmapId] = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
         }
 
         private static readonly ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>> attributes_cache =
