@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
@@ -79,12 +78,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 lastStoreRefresh = currentTimestamp;
             }
 
-            List<SoloScoreWithPerformance> scores = (await connection.QueryAsync<SoloScoreWithPerformance>(
-                "SELECT `s`.*, `p`.`pp` FROM scores `s` "
-                + "JOIN score_performance `p` ON `s`.`id` = `p`.`score_id` "
-                + "WHERE `s`.`user_id` = @UserId "
-                + "AND `s`.`ruleset_id` = @RulesetId "
-                + "AND `s`.`preserve` = 1", new
+            List<SoloScore> scores = (await connection.QueryAsync<SoloScore>(
+                "SELECT * FROM scores WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId AND `preserve` = 1", new
                 {
                     UserId = userStats.user_id,
                     RulesetId = rulesetId
@@ -134,7 +129,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 return !ScorePerformanceProcessor.AllModsValidForPerformance(s.ScoreInfo, s.ScoreInfo.Mods.Select(m => m.ToMod(ruleset)).ToArray());
             });
 
-            SoloScoreWithPerformance[] groupedItems = scores
+            SoloScore[] groupedItems = scores
                                                       // Group by beatmap ID.
                                                       .GroupBy(i => i.beatmap_id)
                                                       // Extract the maximum PP for each beatmap.
@@ -168,13 +163,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             userStats.rank_score_exp = (float)totalPp;
             userStats.rank_score_index_exp = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score_exp > {totalPp}", transaction: transaction)) + 1;
             userStats.accuracy_new = (float)totalAccuracy;
-        }
-
-        [SuppressMessage("ReSharper", "InconsistentNaming")]
-        [Serializable]
-        private class SoloScoreWithPerformance : SoloScore
-        {
-            public double? pp { get; set; }
         }
     }
 }

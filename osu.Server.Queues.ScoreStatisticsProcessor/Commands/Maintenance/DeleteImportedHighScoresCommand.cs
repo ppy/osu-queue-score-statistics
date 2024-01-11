@@ -79,12 +79,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 continue;
 
                             Console.WriteLine($"Deleting {score.id}...");
-                            await conn.ExecuteAsync("DELETE FROM score_performance WHERE score_id = @id; DELETE FROM scores WHERE id = @id", score, transaction);
-                            await conn.ExecuteAsync("DELETE FROM score_legacy_id_map WHERE ruleset_id = @ruleset_id AND old_score_id = @legacy_score_id", new
-                            {
-                                score.ruleset_id,
-                                legacy_score_id = score.ScoreInfo.LegacyScoreId
-                            }, transaction);
+                            await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", score, transaction);
 
                             elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
                             deleted++;

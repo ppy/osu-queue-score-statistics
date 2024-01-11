@@ -136,7 +136,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (performanceAttributes == null)
                     return;
 
-                await connection.ExecuteAsync("INSERT INTO score_performance (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
+                await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
                 {
                     ScoreId = score.ID,
                     Pp = performanceAttributes.Total

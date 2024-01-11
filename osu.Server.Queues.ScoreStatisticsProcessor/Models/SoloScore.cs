@@ -23,6 +23,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public int ruleset_id { get; set; }
 
+        public ulong legacy_score_id { get; set; }
+
+        public double? pp { get; set; }
+
         public string data
         {
             get => JsonConvert.SerializeObject(ScoreInfo);

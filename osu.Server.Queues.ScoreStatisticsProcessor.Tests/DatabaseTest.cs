@@ -67,7 +67,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 db.Execute("DELETE FROM scores");
                 db.Execute("DELETE FROM score_process_history");
-                db.Execute("DELETE FROM score_performance");
 
                 db.Execute("TRUNCATE TABLE osu_builds");
                 db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");

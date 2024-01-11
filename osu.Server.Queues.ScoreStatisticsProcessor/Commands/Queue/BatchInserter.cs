@@ -84,11 +84,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 int rulesetId = ruleset.RulesetInfo.OnlineID;
 
                 // check for existing and skip
-                SoloScoreLegacyIDMap[] existingIds = (await db.QueryAsync<SoloScoreLegacyIDMap>(
-                    $"SELECT * FROM score_legacy_id_map WHERE `ruleset_id` = {rulesetId} AND `old_score_id` IN @oldScoreIds",
+                SoloScore[] existingIds = (await db.QueryAsync<SoloScore>(
+                    $"SELECT * FROM scores WHERE `ruleset_id` = {rulesetId} AND `legacy_score_id` IN @legacyScoreIds",
                     new
                     {
-                        oldScoreIds = scores.Select(s => s.score_id)
+                        legacyScoreIds = scores.Select(s => s.score_id)
                     }, transaction)).ToArray();
 
                 insertCommand.CommandText =
@@ -96,18 +96,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     "INSERT INTO scores (user_id, beatmap_id, ruleset_id, data, has_replay, preserve, created_at, unix_updated_at) "
                     + $"VALUES (@userId, @beatmapId, {rulesetId}, @data, @has_replay, 1, @date, UNIX_TIMESTAMP(@date));";
 
-                // pp insert
-                if (importLegacyPP)
-                    insertCommand.CommandText += "INSERT INTO score_performance (score_id, pp) VALUES (LAST_INSERT_ID(), @pp);";
+                updateCommand.CommandText = "UPDATE scores SET data = @data WHERE id = @id";
 
-                // mapping insert
-                insertCommand.CommandText += $"INSERT INTO score_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({rulesetId}, @oldScoreId, LAST_INSERT_ID());";
-
-                updateCommand.CommandText =
-                    "UPDATE scores SET data = @data WHERE id = @id";
-
-                deleteCommand.CommandText =
-                    $"DELETE FROM scores WHERE id = @newId; DELETE FROM score_performance WHERE score_id = @newId; DELETE FROM score_legacy_id_map WHERE old_score_id = @oldId and ruleset_id = {rulesetId}";
+                deleteCommand.CommandText = "DELETE FROM scores WHERE id = @id;";
 
                 var userId = insertCommand.Parameters.Add("userId", MySqlDbType.UInt32);
                 var oldScoreId = insertCommand.Parameters.Add("oldScoreId", MySqlDbType.UInt64);
@@ -120,8 +111,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 var updateData = updateCommand.Parameters.Add("data", MySqlDbType.JSON);
                 var updateId = updateCommand.Parameters.Add("id", MySqlDbType.UInt64);
 
-                var deleteNewId = deleteCommand.Parameters.Add("newId", MySqlDbType.UInt64);
-                var deleteOldId = deleteCommand.Parameters.Add("oldId", MySqlDbType.UInt64);
+                var deleteNewId = deleteCommand.Parameters.Add("id", MySqlDbType.UInt64);
 
                 foreach (var highScore in scores)
                 {
@@ -133,7 +123,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             throw new InvalidOperationException("Score arrived with no ID");
                         }
 
-                        SoloScoreLegacyIDMap? existingMapping = existingIds.FirstOrDefault(e => e.old_score_id == highScore.score_id);
+                        SoloScore? existingMapping = existingIds.FirstOrDefault(e => e.legacy_score_id == highScore.score_id);
 
                         // Yes this is a weird way of determining whether it's a deletion.
                         // Look away please.
@@ -147,14 +137,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                             deleteCommand.Transaction = transaction;
 
-                            deleteOldId.Value = existingMapping.old_score_id;
-                            deleteNewId.Value = existingMapping.score_id;
+                            deleteNewId.Value = existingMapping.id;
 
                             if (!deleteCommand.IsPrepared)
                                 await deleteCommand.PrepareAsync();
 
                             await runCommand(deleteCommand);
-                            await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction, true);
+                            await enqueueForFurtherProcessing(existingMapping.id, db, transaction, true);
 
                             Interlocked.Increment(ref CurrentReportDeleteCount);
                             Interlocked.Increment(ref TotalDeleteCount);
@@ -183,7 +172,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             // Note that this only updates the `data` field. We could add others in the future as required.
                             updateCommand.Transaction = transaction;
 
-                            updateId.Value = existingMapping.score_id;
+                            updateId.Value = existingMapping.id;
                             updateData.Value = serialisedScore;
 
                             if (!updateCommand.IsPrepared)
@@ -192,14 +181,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
                             // this does not improve throughput.
                             await runCommand(updateCommand);
-                            await enqueueForFurtherProcessing(existingMapping.score_id, db, transaction);
+                            await enqueueForFurtherProcessing(existingMapping.id, db, transaction);
 
                             Interlocked.Increment(ref CurrentReportUpdateCount);
                             Interlocked.Increment(ref TotalUpdateCount);
                         }
                         else
                         {
-                            pp.Value = highScore.pp;
+                            if (importLegacyPP)
+                                pp.Value = highScore.pp;
                             userId.Value = highScore.user_id;
                             oldScoreId.Value = highScore.score_id;
                             beatmapId.Value = highScore.beatmap_id;

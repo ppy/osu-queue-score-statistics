@@ -26,10 +26,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             using (var deleteConnection = DatabaseAccess.GetConnection())
             using (var deleteCommand = deleteConnection.CreateCommand())
             {
-                deleteCommand.CommandText =
-                    "DELETE FROM score_performance WHERE score_id = @id;" +
-                    "DELETE FROM score_process_history WHERE score_id = @id;" +
-                    "DELETE FROM scores WHERE id = @id;";
+                deleteCommand.CommandText = "DELETE FROM scores WHERE id = @id;";
 
                 MySqlParameter scoreId = deleteCommand.Parameters.Add("id", MySqlDbType.UInt64);
 

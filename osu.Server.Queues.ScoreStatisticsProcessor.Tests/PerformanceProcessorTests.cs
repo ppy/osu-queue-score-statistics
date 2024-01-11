@@ -82,10 +82,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.ScoreInfo.Accuracy = 1;
                 score.Score.ScoreInfo.BuildID = TestBuildID;
                 score.Score.ScoreInfo.Mods = new[] { new APIMod(new InvalidMod()) };
+                score.Score.ScoreInfo.PP = 1;
                 score.Score.preserve = true;
 
-                long scoreId = conn.Insert(score.Score);
-                conn.Execute($"INSERT INTO score_performance (score_id, pp) VALUES ({scoreId}, 1)");
+                conn.Insert(score.Score);
 
                 PushToQueueAndWaitForProcess(score);
             }
@@ -260,7 +260,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.ScoreInfo.Passed = false;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM score_performance WHERE score_id = @ScoreId", 0, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL", 0, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });
@@ -281,7 +281,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM score_performance WHERE score_id = @ScoreId", 1, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL", 1, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });

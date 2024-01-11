@@ -13,7 +13,6 @@ using McMaster.Extensions.CommandLineUtils;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
-using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -49,12 +48,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 IEnumerable<ComparableScore> importedScores = await conn.QueryAsync<ComparableScore>(
                     "SELECT id, "
                     + "ruleset_id, "
-                    + "data->'$.legacy_score_id' as legacy_score_id, "
-                    + "data->'$.legacy_total_score' as legacy_total_score, "
-                    + "data->'$.total_score' as total_score, "
+                    + "legacy_score_id, "
+                    + "legacy_total_score, "
+                    + "total_score, "
                     + "pp "
                     + "FROM scores "
-                    + "LEFT JOIN score_performance ON scores.id = score_performance.score_id "
                     + "WHERE id >= @lastId ORDER BY id LIMIT 2000", new { lastId });
 
                 // gather high scores for each ruleset
@@ -64,13 +62,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     var highScores = await conn.QueryAsync<HighScore>($"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id IN ({string.Join(',', rulesetScores.Select(s => s.legacy_score_id))})");
 
-                    var legacyMaps = await conn.QueryAsync<SoloScoreLegacyIDMap>($"SELECT * FROM score_legacy_id_map WHERE ruleset_id = {rulesetScores.Key} AND old_score_id IN ({string.Join(',', rulesetScores.Select(s => s.legacy_score_id))})");
-
                     foreach (var score in rulesetScores)
                         score.HighScore = highScores.SingleOrDefault(s => s.score_id == score.legacy_score_id!.Value);
-
-                    foreach (var score in rulesetScores)
-                        score.LegacyMap = legacyMaps.SingleOrDefault(s => s.old_score_id == score.legacy_score_id!.Value);
                 }
 
                 if (!importedScores.Any())
@@ -87,23 +80,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (importedScore.HighScore == null)
                     {
-                        await conn.ExecuteAsync("DELETE FROM scores WHERE id = @newId; DELETE FROM score_performance WHERE score_id = @newId; DELETE FROM score_legacy_id_map WHERE old_score_id = @oldId AND ruleset_id = @rulesetId", new
+                        await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
                         {
-                            newId = importedScore.id,
-                            oldId = importedScore.legacy_score_id,
-                            rulesetId = importedScore.ruleset_id,
+                            id = importedScore.id,
                         });
 
                         Interlocked.Increment(ref deleted);
                         continue;
-                    }
-
-                    if (importedScore.LegacyMap == null || importedScore.LegacyMap.score_id != importedScore.id)
-                    {
-                        Console.WriteLine($"{importedScore.id}: Legacy mapping entry missing or incorrect!!");
-                        Interlocked.Increment(ref fail);
-
-                        await conn.ExecuteAsync($"REPLACE INTO score_legacy_id_map (ruleset_id, old_score_id, score_id) VALUES ({importedScore.ruleset_id}, {importedScore.legacy_score_id}, {importedScore.id})");
                     }
 
                     if (importedScore.pp == null && importedScore.HighScore.pp != null)
@@ -111,7 +94,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
                         Interlocked.Increment(ref fail);
 
-                        await conn.ExecuteAsync($"REPLACE INTO score_performance VALUES ({importedScore.id}, {importedScore.HighScore.pp})");
+                        await conn.ExecuteAsync($"UPDATE scores SET pp = {importedScore.HighScore.pp} WHERE id = {importedScore.id}");
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         continue;
                     }
@@ -120,14 +103,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     {
                         if (importedScore.HighScore.pp == null)
                         {
-                            await conn.ExecuteAsync("DELETE FROM score_performance WHERE score_id = @id", new
+                            await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
                             {
                                 id = importedScore.id,
                             });
                         }
                         else
                         {
-                            await conn.ExecuteAsync("UPDATE score_performance SET pp = @pp WHERE score_id = @id", new
+                            await conn.ExecuteAsync("UPDATE scores SET pp = @pp WHERE id = @id", new
                             {
                                 pp = importedScore.HighScore.pp,
                                 id = importedScore.id,
@@ -143,13 +126,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     // var referenceScore = await BatchInserter.CreateReferenceScore(ruleset, importedScore.HighScore, conn, null);
                     // if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore)) Interlocked.Increment(ref fail);
                     // if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore)) Interlocked.Increment(ref fail);
-
-                    // await conn.ExecuteAsync("DELETE FROM score_performance WHERE score_id = @id; DELETE FROM scores WHERE id = @id", score, transaction);
-                    // await conn.ExecuteAsync("DELETE FROM score_legacy_id_map WHERE ruleset_id = @ruleset_id AND old_score_id = @legacy_score_id", new
-                    // {
-                    //     score.ruleset_id,
-                    //     legacy_score_id = score.ScoreInfo.LegacyScoreId
-                    // }, transaction);
                     //
                     // elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
                     // Interlocked.Increment(ref deleted);
@@ -195,7 +171,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             public float? pp;
 
             public HighScore? HighScore { get; set; }
-            public SoloScoreLegacyIDMap? LegacyMap { get; set; }
         }
     }
 }
