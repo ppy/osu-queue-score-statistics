@@ -44,7 +44,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                         break;
 
                     int offset = i - attempt_count;
-                    SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.created_at = DateTimeOffset.Now.AddMinutes(offset));
+                    SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.ended_at = DateTimeOffset.Now.AddMinutes(offset));
                 }
             }, cts.Token);
 
@@ -75,8 +75,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.EndedAt = score.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(4);
-            score.Score.ScoreInfo.Passed = false;
+            score.Score.ended_at = score.Score.started_at!.Value + TimeSpan.FromSeconds(4);
+            score.Score.passed = false;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
@@ -88,8 +88,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.TotalScore = 20;
-            score.Score.ScoreInfo.Passed = false;
+            score.Score.total_score = 20;
+            score.Score.passed = false;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
@@ -105,9 +105,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.Statistics = new Dictionary<HitResult, int> { [HitResult.Great] = hitCount };
-            score.Score.ScoreInfo.MaximumStatistics = new Dictionary<HitResult, int> { [HitResult.Great] = totalCount };
-            score.Score.ScoreInfo.Passed = false;
+            score.Score.ScoreData.Statistics = new Dictionary<HitResult, int> { [HitResult.Great] = hitCount };
+            score.Score.ScoreData.MaximumStatistics = new Dictionary<HitResult, int> { [HitResult.Great] = totalCount };
+            score.Score.passed = false;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
@@ -119,7 +119,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.EndedAt = score.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(4);
+            score.Score.ended_at = score.Score.started_at!.Value + TimeSpan.FromSeconds(4);
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 1, CancellationToken);

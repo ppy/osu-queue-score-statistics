@@ -25,13 +25,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(50);
+            testScore.Score.ended_at = testScore.Score.started_at!.Value + TimeSpan.FromSeconds(50);
 
             PushToQueueAndWaitForProcess(testScore);
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 50, CancellationToken);
 
             testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(100);
+            testScore.Score.ended_at = testScore.Score.started_at!.Value + TimeSpan.FromSeconds(100);
 
             PushToQueueAndWaitForProcess(testScore);
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 150, CancellationToken);
@@ -45,7 +45,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // Beatmap used in test score is 158 seconds.
 
             var testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(200);
+            testScore.Score.ended_at = testScore.Score.started_at!.Value + TimeSpan.FromSeconds(200);
 
             PushToQueueAndWaitForProcess(testScore);
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", beatmap_length, CancellationToken);
@@ -61,11 +61,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.Mods = new[]
+            testScore.Score.ScoreData.Mods = new[]
             {
                 new APIMod(new OsuModDoubleTime()),
             };
-            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(200);
+            testScore.Score.ended_at = testScore.Score.started_at!.Value + TimeSpan.FromSeconds(200);
 
             PushToQueueAndWaitForProcess(testScore);
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int)(beatmap_length / double_time_rate), CancellationToken);
@@ -81,11 +81,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var testScore = CreateTestScore();
-            testScore.Score.ScoreInfo.Mods = new[]
+            testScore.Score.ScoreData.Mods = new[]
             {
                 new APIMod(new OsuModDoubleTime { SpeedChange = { Value = custom_rate } }),
             };
-            testScore.Score.ScoreInfo.EndedAt = testScore.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(200);
+            testScore.Score.ended_at = testScore.Score.started_at!.Value + TimeSpan.FromSeconds(200);
 
             PushToQueueAndWaitForProcess(testScore);
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int)(beatmap_length / custom_rate), CancellationToken);
@@ -97,8 +97,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.EndedAt = score.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(4);
-            score.Score.ScoreInfo.Passed = false;
+            score.Score.ended_at = score.Score.started_at!.Value + TimeSpan.FromSeconds(4);
+            score.Score.passed = false;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
@@ -110,8 +110,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.TotalScore = 20;
-            score.Score.ScoreInfo.Passed = false;
+            score.Score.total_score = 20;
+            score.Score.passed = false;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
@@ -127,9 +127,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.Statistics = new Dictionary<HitResult, int> { [HitResult.Great] = hitCount };
-            score.Score.ScoreInfo.MaximumStatistics = new Dictionary<HitResult, int> { [HitResult.Great] = totalCount };
-            score.Score.ScoreInfo.Passed = false;
+            score.Score.ScoreData.Statistics = new Dictionary<HitResult, int> { [HitResult.Great] = hitCount };
+            score.Score.ScoreData.MaximumStatistics = new Dictionary<HitResult, int> { [HitResult.Great] = totalCount };
+            score.Score.passed = false;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
@@ -141,7 +141,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.EndedAt = score.Score.ScoreInfo.StartedAt!.Value + TimeSpan.FromSeconds(4);
+            score.Score.ended_at = score.Score.started_at!.Value + TimeSpan.FromSeconds(4);
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT total_seconds_played FROM osu_user_stats WHERE user_id = 2", 4, CancellationToken);

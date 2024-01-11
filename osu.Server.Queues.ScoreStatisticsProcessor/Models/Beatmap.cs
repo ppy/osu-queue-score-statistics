@@ -15,9 +15,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     public class Beatmap
     {
         [ExplicitKey]
-        public int beatmap_id { get; set; }
+        public uint beatmap_id { get; set; }
 
-        public int beatmapset_id { get; set; }
+        public uint beatmapset_id { get; set; }
 
         public uint countTotal { get; set; }
         public uint countNormal { get; set; }
@@ -35,8 +35,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public APIBeatmap ToAPIBeatmap() => new APIBeatmap
         {
-            OnlineID = beatmap_id,
-            OnlineBeatmapSetID = beatmapset_id,
+            OnlineID = (int)beatmap_id,
+            OnlineBeatmapSetID = (int)beatmapset_id,
             CircleCount = (int)countNormal,
             SliderCount = (int)countSlider,
             SpinnerCount = (int)countSpinner,

@@ -18,7 +18,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.MaxCombo++;
+            score.Score.max_combo++;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO + 1, CancellationToken);
@@ -40,7 +40,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     db.Execute($"UPDATE osu_beatmaps SET approved = 0 WHERE beatmap_id = {TEST_BEATMAP_ID}");
 
                 var testScore = CreateTestScore();
-                testScore.Score.ScoreInfo.MaxCombo++;
+                testScore.Score.max_combo++;
 
                 PushToQueueAndWaitForProcess(testScore);
                 WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, CancellationToken);
@@ -63,7 +63,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.MaxCombo--;
+            score.Score.max_combo--;
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", MAX_COMBO, CancellationToken);
@@ -77,8 +77,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             var score = CreateTestScore();
-            score.Score.ScoreInfo.MaxCombo++;
-            score.Score.ScoreInfo.Mods = new[]
+            score.Score.max_combo++;
+            score.Score.ScoreData.Mods = new[]
             {
                 new APIMod(new OsuModRelax()),
             };
@@ -95,7 +95,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
-            SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.ScoreInfo.Passed = false);
+            SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.passed = false);
 
             WaitForDatabaseState("SELECT max_combo FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
         }

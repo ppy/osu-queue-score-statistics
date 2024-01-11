@@ -85,7 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     RulesetId = rulesetId
                 }, transaction: transaction)).ToList();
 
-            Dictionary<int, Beatmap?> beatmaps = new Dictionary<int, Beatmap?>();
+            Dictionary<uint, Beatmap?> beatmaps = new Dictionary<uint, Beatmap?>();
 
             foreach (var score in scores)
             {
@@ -103,7 +103,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     return true;
 
                 // Score must be a pass (safeguard - should be redundant with preserve flag).
-                if (!s.ScoreInfo.Passed)
+                if (!s.passed)
                     return true;
 
                 // Beatmap must exist.
@@ -115,18 +115,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     return true;
 
                 // Legacy scores are always valid.
-                if (s.ScoreInfo.IsLegacyScore)
+                if (s.legacy_score_id != null)
                     return false;
 
                 // Some older lazer scores don't have build IDs.
-                if (s.ScoreInfo.BuildID == null)
+                if (s.build_id == null)
                     return true;
 
                 // Performance needs to be allowed for the build.
-                if (buildStore.GetBuild(s.ScoreInfo.BuildID.Value)?.allow_performance != true)
+                if (buildStore.GetBuild(s.build_id.Value)?.allow_performance != true)
                     return true;
 
-                return !ScorePerformanceProcessor.AllModsValidForPerformance(s.ScoreInfo, s.ScoreInfo.Mods.Select(m => m.ToMod(ruleset)).ToArray());
+                return !ScorePerformanceProcessor.AllModsValidForPerformance(s.ToScoreInfo(), s.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray());
             });
 
             SoloScore[] groupedItems = scores
@@ -146,7 +146,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             foreach (var item in groupedItems)
             {
                 totalPp += item.pp!.Value * factor;
-                totalAccuracy += item.ScoreInfo.Accuracy * factor;
+                totalAccuracy += item.accuracy * factor;
                 factor *= 0.95;
             }
 

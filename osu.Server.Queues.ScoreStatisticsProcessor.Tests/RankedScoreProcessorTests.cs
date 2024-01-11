@@ -15,7 +15,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AddBeatmap();
             waitForRankedScore("osu_user_stats", 0);
 
-            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.ScoreInfo.Passed = false);
+            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.passed = false);
             waitForRankedScore("osu_user_stats", 0);
         }
 
@@ -72,7 +72,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForRankedScore("osu_user_stats", 10081);
             waitForRankedScore("osu_user_stats_mania", 0);
 
-            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.ruleset_id = item.Score.ScoreInfo.RulesetID = 3);
+            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.ruleset_id = item.Score.ruleset_id = 3);
             waitForRankedScore("osu_user_stats", 10081);
             waitForRankedScore("osu_user_stats_mania", 100000);
         }
@@ -88,7 +88,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                var scoreInfo = score.Score.ScoreInfo;
+                var scoreInfo = score.Score.ToScoreInfo();
 
                 scoreInfo.TotalScore = 50000;
                 scoreInfo.Statistics[HitResult.Perfect] = 0;
@@ -105,7 +105,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                var scoreInfo = score.Score.ScoreInfo;
+                var scoreInfo = score.Score.ToScoreInfo();
 
                 scoreInfo.TotalScore = 50000;
                 scoreInfo.Statistics[HitResult.Perfect] = 0;
@@ -143,7 +143,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                var scoreInfo = score.Score.ScoreInfo;
+                var scoreInfo = score.Score.ToScoreInfo();
 
                 scoreInfo.TotalScore = 50000;
                 scoreInfo.Statistics[HitResult.Perfect] = 0;
@@ -176,11 +176,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var secondScore = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                var scoreInfo = score.Score.ScoreInfo;
-
-                scoreInfo.TotalScore = 50000;
-                scoreInfo.Statistics[HitResult.Perfect] = 0;
-                scoreInfo.Statistics[HitResult.Ok] = 5;
+                score.Score.total_score = 50000;
+                score.Score.ScoreData.Statistics[HitResult.Perfect] = 0;
+                score.Score.ScoreData.Statistics[HitResult.Ok] = 5;
             });
             waitForRankedScore("osu_user_stats", 10081);
 

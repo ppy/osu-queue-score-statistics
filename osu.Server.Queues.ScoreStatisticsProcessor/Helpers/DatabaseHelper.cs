@@ -215,7 +215,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                     offset = offset,
                 }, transaction);
 
-            return rankSource?.ScoreInfo;
+            return rankSource?.ToScoreInfo();
         }
     }
 }

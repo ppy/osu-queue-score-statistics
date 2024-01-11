@@ -75,7 +75,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                         foreach (var score in highScores)
                         {
-                            if (!score.ScoreInfo.IsLegacyScore)
+                            if (score.legacy_score_id == null)
                                 continue;
 
                             Console.WriteLine($"Deleting {score.id}...");

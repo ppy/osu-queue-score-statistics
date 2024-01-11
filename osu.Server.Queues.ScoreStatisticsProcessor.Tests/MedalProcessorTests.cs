@@ -71,7 +71,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addPackMedal(medal_id, pack_id, new[] { beatmap });
 
             assertNotAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Passed = false);
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.passed = false);
 
             assertNotAwarded();
         }
@@ -113,7 +113,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNotAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.created_at = DateTimeOffset.Now.AddMinutes(minutesOffset++));
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ended_at = DateTimeOffset.Now.AddMinutes(minutesOffset++));
             }
 
             assertAwarded(medal_id);
@@ -219,7 +219,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNotAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModEasy()) });
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModEasy()) });
             }
 
             // Even after completing all beatmaps with easy mod, the pack medal is not awarded.
@@ -228,7 +228,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNotAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
             }
 
             // Only after completing each beatmap again without easy mod (double time arbitrarily added to mix things up)
