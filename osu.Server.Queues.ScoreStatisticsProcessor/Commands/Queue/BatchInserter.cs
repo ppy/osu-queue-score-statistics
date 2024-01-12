@@ -138,9 +138,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     }
                 }
 
-                // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
-                // this does not improve throughput.
-
                 using var cmd = db.CreateCommand();
                 cmd.CommandText = insertCommand.ToString().Trim(',', ' ');
 

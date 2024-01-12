@@ -79,21 +79,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private ElasticQueuePusher? elasticQueueProcessor;
         private ScoreStatisticsQueueProcessor? scoreStatisticsQueueProcessor;
 
-        /// <summary>
-        /// The number of scores done in a single processing query. These scores are read in one go, then distributed to parallel insertion workers.
-        /// May be adjusted at runtime based on the replication state.
-        /// </summary>
-        private const int maximum_scores_per_query = 40000;
-
-        /// <summary>
-        /// In cases of slave replication latency, this will be the minimum scores processed per top-level query.
-        /// </summary>
-        private const int safe_minimum_scores_per_query = 500;
+        private const int thread_count = 2;
 
         /// <summary>
         /// The number of scores to run in each batch. Setting this higher will reduce the parallelism and in turn, the throughput of this process.
         /// </summary>
-        private const int mysql_batch_size = 500;
+        private const int mysql_batch_size = 256000;
 
         /// <summary>
         /// The number of seconds between console progress reports.
@@ -105,8 +96,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// </summary>
         private const int seconds_between_latency_checks = 60;
 
-        private int scoresPerQuery = safe_minimum_scores_per_query * 4;
-
         /// <summary>
         /// The latency a slave is allowed to fall behind before we start to panic.
         /// </summary>
@@ -114,9 +103,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            if (!CheckSlaveLatency)
-                scoresPerQuery = maximum_scores_per_query;
-
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
             string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
 
@@ -209,12 +195,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     if (CheckSlaveLatency)
                         checkSlaveLatency(dbMainQuery);
 
+                    const int retrieve_size = mysql_batch_size * thread_count;
+
                     var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} h {where}" +
                                                                              " ORDER BY score_id LIMIT @scoresPerQuery", new
                     {
                         lastId,
                         maxProcessableId,
-                        scoresPerQuery,
+                        batch_size = retrieve_size,
                         rulesetId = ruleset.RulesetInfo.OnlineID,
                     });
 
@@ -398,34 +386,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             lastLatencyCheckTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
 
-            // This latency is best-effort, and randomly queried from available hosts (with rough precedence of the importance of the host).
-            // When we detect a high latency value, a recovery period should be introduced where we are pretty sure that we're back in a good
-            // state before resuming operations.
-            int? latency = db.QueryFirstOrDefault<int?>("SELECT `count` FROM `osu_counts` WHERE NAME = 'slave_latency'");
+            int? latency;
 
-            if (latency == null)
-                return;
-
-            if (latency > maximum_slave_latency_seconds)
+            do
             {
+                // This latency is best-effort, and randomly queried from available hosts (with rough precedence of the importance of the host).
+                // When we detect a high latency value, a recovery period should be introduced where we are pretty sure that we're back in a good
+                // state before resuming operations.
+                latency = db.QueryFirstOrDefault<int?>("SELECT `count` FROM `osu_counts` WHERE NAME = 'slave_latency'");
+
+                if (latency == null)
+                    return;
+
                 Console.WriteLine($"Current slave latency of {latency} seconds exceeded maximum of {maximum_slave_latency_seconds} seconds.");
                 Console.WriteLine($"Sleeping for {latency} seconds to allow catch-up.");
-
                 Thread.Sleep(latency.Value * 1000);
-
-                // greatly reduce processing rate to allow for recovery.
-                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - 500);
-            }
-            else if (latency > 2)
-            {
-                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - 200);
-                Console.WriteLine($"Decreasing processing rate to {scoresPerQuery} due to latency of {latency}");
-            }
-            else if (scoresPerQuery < maximum_scores_per_query)
-            {
-                scoresPerQuery = Math.Min(maximum_scores_per_query, scoresPerQuery + 100);
-                Console.WriteLine($"Increasing processing rate to {scoresPerQuery} due to latency of {latency}");
-            }
+            } while (latency > maximum_slave_latency_seconds);
         }
     }
 }
