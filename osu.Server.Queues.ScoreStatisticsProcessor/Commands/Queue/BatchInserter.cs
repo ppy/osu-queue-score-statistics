@@ -172,7 +172,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             using (var db = DatabaseAccess.GetConnection())
             {
-                ulong firstInsertId = db.QuerySingle<ulong>(sql, commandTimeout: 120);
+                ulong firstInsertId = db.ExecuteScalar<ulong>(sql, commandTimeout: 120);
                 ulong lastInsertId = firstInsertId + (ulong)scores.Length - 1;
                 Console.WriteLine($" Command completed in {sw.Elapsed.TotalSeconds:N1} seconds");
 
