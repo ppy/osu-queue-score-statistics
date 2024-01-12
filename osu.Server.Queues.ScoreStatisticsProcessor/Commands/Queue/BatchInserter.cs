@@ -75,6 +75,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             StringBuilder insertBuilder = new StringBuilder("INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
+            Console.WriteLine($"Processing scores {scores.First().score_id} to {scores.Last().score_id}");
             Parallel.ForEach(scores, new ParallelOptions
             {
                 MaxDegreeOfParallelism = Environment.ProcessorCount,
@@ -137,7 +138,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             });
 
             if (insertCount == 0)
+            {
+                Console.WriteLine($"Skipped all {scores.Length} scores");
                 return;
+            }
 
             string sql = insertBuilder.ToString().Trim(',', ' ') + "; SELECT LAST_INSERT_ID()";
 
