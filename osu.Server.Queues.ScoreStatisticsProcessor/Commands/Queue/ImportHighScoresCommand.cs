@@ -111,15 +111,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
             }
 
-            using (var dbMainQuery = DatabaseAccess.GetConnection())
+            using (var db = DatabaseAccess.GetConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     if (CheckSlaveLatency)
-                        checkSlaveLatency(dbMainQuery);
+                        checkSlaveLatency(db);
 
-                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} h WHERE score_id >= @lastId AND score_id <= @maxProcessableId" +
-                                                                             " ORDER BY score_id LIMIT @batchSize", new
+                    var highScores = await db.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} h WHERE score_id >= @lastId AND score_id <= @maxProcessableId" +
+                                                                    " ORDER BY score_id LIMIT @batchSize", new
                     {
                         lastId,
                         maxProcessableId,
@@ -156,7 +156,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     queueNextBatch();
 
                     // update lastId to allow the next bulk query to start from the correct location.
-                    lastId = highScores.Max(s => s.score_id);
+                    lastId = highScores.Last().score_id;
 
                     while (!runningBatches.All(t => t.Task.IsCompleted))
                     {
