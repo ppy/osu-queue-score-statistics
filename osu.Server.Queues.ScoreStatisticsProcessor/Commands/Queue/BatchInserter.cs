@@ -83,7 +83,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             StringBuilder insertBuilder = new StringBuilder("INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
-            Console.WriteLine($"Processing scores {scores.First().score_id} to {scores.Last().score_id}");
+            Console.WriteLine($" Processing scores {scores.First().score_id} to {scores.Last().score_id}");
             Stopwatch sw = new Stopwatch();
             sw.Start();
             Parallel.ForEach(scores, new ParallelOptions
@@ -130,7 +130,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     // MySQL doesn't like empty dates, so let's ensure we have a valid one.
                     if (highScore.date < DateTimeOffset.UnixEpoch)
                     {
-                        Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
+                        Console.WriteLine($" Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
                         highScore.date = DateTimeOffset.UnixEpoch;
                     }
 
@@ -154,11 +154,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 }
             });
 
-            Console.WriteLine($"Processing completed in {sw.Elapsed.TotalSeconds:N1} seconds");
+            Console.WriteLine($" Processing completed in {sw.Elapsed.TotalSeconds:N1} seconds");
 
             if (insertCount == 0)
             {
-                Console.WriteLine($"Skipped all {scores.Length} scores");
+                Console.WriteLine($" Skipped all {scores.Length} scores");
+
                 return;
             }
 
@@ -166,14 +167,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             string sql = insertBuilder.ToString().Trim(',', ' ') + "; SELECT LAST_INSERT_ID()";
 
-            Console.WriteLine($"Running insert command with {sql.Length:#,0} bytes");
+            Console.WriteLine($" Running insert command with {sql.Length:#,0} bytes");
             sw.Restart();
 
             using (var db = DatabaseAccess.GetConnection())
             {
                 ulong firstInsertId = db.QuerySingle<ulong>(sql, commandTimeout: 120);
                 ulong lastInsertId = firstInsertId + (ulong)scores.Length - 1;
-                Console.WriteLine($"Command completed in {sw.Elapsed.TotalSeconds:N1} seconds");
+                Console.WriteLine($" Command completed in {sw.Elapsed.TotalSeconds:N1} seconds");
 
                 await enqueueForFurtherProcessing(firstInsertId, lastInsertId, db);
             }
@@ -290,7 +291,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
                 {
                     // TODO: LOG
-                    Console.Error.WriteLine($"{highScore.score_id}: Could not determine max combo from the difficulty attributes of beatmap {highScore.beatmap_id}.");
+                    Console.Error.WriteLine($" {highScore.score_id}: Could not determine max combo from the difficulty attributes of beatmap {highScore.beatmap_id}.");
                     return scoreInfo;
                 }
 
