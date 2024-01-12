@@ -46,6 +46,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public static int TotalSkipCount;
 
         private readonly Ruleset ruleset;
+        private readonly HitResult maxBasicResult;
+        private readonly ModClassic classicMod;
+
         private readonly bool importLegacyPP;
         private readonly bool dryRun;
 
@@ -62,6 +65,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             this.ruleset = ruleset;
             this.importLegacyPP = importLegacyPP;
             this.dryRun = dryRun;
+
+            using (var scoreProcessor = ruleset.CreateScoreProcessor())
+                maxBasicResult = ruleset.GetHitResults().Where(h => h.result.IsBasic()).Select(h => h.result).MaxBy(scoreProcessor.GetBaseScoreForResult);
+            classicMod = ruleset.CreateMod<ModClassic>()!;
 
             Scores = scores;
             Task = Task.Run(() => run(scores));
@@ -127,7 +134,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         highScore.date = DateTimeOffset.UnixEpoch;
                     }
 
-                    ScoreInfo referenceScore = CreateReferenceScore(ruleset, highScore);
+                    ScoreInfo referenceScore = CreateReferenceScore(highScore);
                     string serialisedScore = SerialiseScoreData(referenceScore);
 
                     Interlocked.Increment(ref insertCount);
@@ -196,12 +203,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// <item><term><see cref="ScoreInfo.MaximumStatistics"/></term></item>
         /// </list>
         /// </summary>
-        public static ScoreInfo CreateReferenceScore(Ruleset ruleset, HighScore highScore)
+        public ScoreInfo CreateReferenceScore(HighScore highScore)
         {
             int rulesetId = ruleset.RulesetInfo.OnlineID;
-
-            Mod? classicMod = ruleset.CreateMod<ModClassic>();
-            Debug.Assert(classicMod != null);
 
             var scoreInfo = new ScoreInfo
             {
@@ -213,8 +217,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 LegacyTotalScore = highScore.score,
                 IsLegacyScore = true
             };
-
-            var scoreProcessor = ruleset.CreateScoreProcessor();
 
             // Populate statistics and accuracy.
             scoreInfo.SetCount50(highScore.count50);
@@ -229,8 +231,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             scoreInfo.Statistics = scoreInfo.Statistics.Where(kvp => kvp.Value != 0).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
             // Populate the maximum statistics.
-            HitResult maxBasicResult = ruleset.GetHitResults().Select(h => h.result).Where(h => h.IsBasic()).MaxBy(scoreProcessor.GetBaseScoreForResult);
-
             foreach ((HitResult result, int count) in scoreInfo.Statistics)
             {
                 switch (result)
