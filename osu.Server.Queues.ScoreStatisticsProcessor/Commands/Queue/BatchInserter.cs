@@ -69,17 +69,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         private async Task run(HighScore[] scores)
         {
+            int insertCount = 0;
+
             using (var db = DatabaseAccess.GetConnection())
             {
                 int rulesetId = ruleset.RulesetInfo.OnlineID;
 
                 // check for existing and skip
-                SoloScore[] existingIds = (await db.QueryAsync<SoloScore>(
+                Dictionary<ulong, SoloScore> existingIds = (await db.QueryAsync<SoloScore>(
                     $"SELECT id, legacy_score_id FROM scores WHERE `ruleset_id` = {rulesetId} AND `legacy_score_id` IN @legacyScoreIds",
                     new
                     {
                         legacyScoreIds = scores.Select(s => s.score_id)
-                    })).ToArray();
+                    })).ToDictionary(s => s.legacy_score_id!.Value);
 
                 StringBuilder insertCommand = new StringBuilder();
 
@@ -99,41 +101,30 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             throw new InvalidOperationException("Score arrived with no ID");
                         }
 
-                        SoloScore? existingMapping = existingIds.FirstOrDefault(e => e.legacy_score_id == highScore.score_id);
-
                         // Yes this is a weird way of determining whether it's a deletion.
                         // Look away please.
                         bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
 
+                        // Check if the score already exists in the new table..
+                        existingIds.TryGetValue(highScore.score_id, out var existing);
+
                         if (isDeletion)
                         {
-                            // Check if the score actually exists in the new table..
-                            SoloScore? score = await db.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM scores WHERE legacy_score_id = @id AND ruleset_id = @ruleset_id", new
-                            {
-                                id = highScore.score_id,
-                                ruleset_id = rulesetId
-                            });
-
-                            if (score == null)
+                            if (existing == null)
                             {
                                 Interlocked.Increment(ref TotalSkipCount);
                                 continue;
                             }
 
-                            await db.ExecuteAsync("DELETE FROM scores WHERE legacy_score_id = @id AND ruleset_id = @ruleset_id", new
-                            {
-                                id = highScore.score_id,
-                                ruleset_id = rulesetId
-                            });
-
-                            ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)score.id });
+                            await db.ExecuteAsync("DELETE FROM scores WHERE id = @id", new { existing.id });
+                            ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)existing.id });
 
                             Interlocked.Increment(ref TotalDeleteCount);
                             Interlocked.Increment(ref CurrentReportDeleteCount);
                             continue;
                         }
 
-                        if (existingMapping != null || isDeletion)
+                        if (existing != null)
                         {
                             Interlocked.Increment(ref TotalSkipCount);
                             continue;
@@ -150,6 +141,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         ScoreInfo referenceScore = await CreateReferenceScore(ruleset, highScore, db);
                         string serialisedScore = SerialiseScoreData(referenceScore);
 
+                        insertCount++;
                         insertCommand.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()}),");
                     }
                     catch (Exception e)
@@ -157,6 +149,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         throw new AggregateException($"Processing legacy score {highScore.score_id} failed.", e);
                     }
                 }
+
+                if (insertCount == 0)
+                    return;
 
                 using var cmd = db.CreateCommand();
                 cmd.CommandText = insertCommand.ToString().Trim(',', ' ');
