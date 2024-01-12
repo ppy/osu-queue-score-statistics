@@ -70,6 +70,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private async Task run(HighScore[] scores)
         {
             int insertCount = 0;
+            bool first = true;
 
             int rulesetId = ruleset.RulesetInfo.OnlineID;
 
@@ -128,8 +129,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     string serialisedScore = SerialiseScoreData(referenceScore);
 
                     Interlocked.Increment(ref insertCount);
+
                     lock (insertBuilder)
-                        insertBuilder.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()}),");
+                    {
+                        if (!first)
+                            insertBuilder.Append(",");
+                        first = false;
+
+                        insertBuilder.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()})");
+                    }
                 }
                 catch (Exception e)
                 {
@@ -142,6 +150,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Console.WriteLine($"Skipped all {scores.Length} scores");
                 return;
             }
+
+            insertBuilder.Append("; SELECT LAST_INSERT_ID()");
 
             string sql = insertBuilder.ToString().Trim(',', ' ') + "; SELECT LAST_INSERT_ID()";
 
