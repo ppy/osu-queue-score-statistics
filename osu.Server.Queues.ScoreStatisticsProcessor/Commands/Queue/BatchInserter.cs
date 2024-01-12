@@ -77,8 +77,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         {
             using (var db = DatabaseAccess.GetConnection())
             {
-                MySqlTransaction transaction = null;
-
                 int rulesetId = ruleset.RulesetInfo.OnlineID;
 
                 // check for existing and skip
@@ -87,7 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     new
                     {
                         legacyScoreIds = scores.Select(s => s.score_id)
-                    }, transaction)).ToArray();
+                    })).ToArray();
 
                 StringBuilder insertCommand = new StringBuilder();
 
@@ -127,7 +125,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             highScore.date = DateTimeOffset.UnixEpoch;
                         }
 
-                        ScoreInfo referenceScore = await CreateReferenceScore(ruleset, highScore, db, transaction);
+                        ScoreInfo referenceScore = await CreateReferenceScore(ruleset, highScore, db);
                         string serialisedScore = SerialiseScoreData(referenceScore);
 
                         insertCommand.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()}),");
@@ -166,13 +164,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 if (lastId != (long)scores.Last().score_id) throw new InvalidOperationException("OUT OF ORDER");
                 if (firstId != (long)scores.First().score_id) throw new InvalidOperationException("OUT OF ORDER");
 
-                // TODO: wrong
-                await enqueueForFurtherProcessing(firstInsertId, lastInsertId, db, transaction);
+                await enqueueForFurtherProcessing(firstInsertId, lastInsertId, db);
 
                 Interlocked.Add(ref CurrentReportInsertCount, scores.Length);
                 Interlocked.Add(ref TotalInsertCount, scores.Length);
-
-                // await transaction.CommitAsync();
             }
         }
 
@@ -197,7 +192,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// <item><term><see cref="ScoreInfo.MaximumStatistics"/></term></item>
         /// </list>
         /// </summary>
-        public static async Task<ScoreInfo> CreateReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection, MySqlTransaction? transaction)
+        public static async Task<ScoreInfo> CreateReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection)
         {
             int rulesetId = ruleset.RulesetInfo.OnlineID;
 
@@ -262,7 +257,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
             int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
-            var scoreAttributes = await getScoringAttributes(rulesetId, highScore.beatmap_id, connection, transaction);
+            var scoreAttributes = await getScoringAttributes(rulesetId, highScore.beatmap_id, connection);
 
             if (scoreAttributes == null)
             {
@@ -286,7 +281,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 int difficultyMods = (int)LegacyModsHelper.MaskRelevantMods((LegacyMods)highScore.enabled_mods, true, rulesetId);
 
                 Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = queryAttributes(
-                    new DifficultyAttributesLookup(highScore.beatmap_id, rulesetId, difficultyMods), connection, transaction);
+                    new DifficultyAttributesLookup(highScore.beatmap_id, rulesetId, difficultyMods), connection);
 
                 if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
                 {
@@ -306,7 +301,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
 #pragma warning restore CS0618
 
-            var difficulty = await getDificultyInfo(highScore.beatmap_id, connection, transaction);
+            var difficulty = await getDificultyInfo(highScore.beatmap_id, connection);
 
             StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, difficulty, scoreAttributes.ToAttributes());
 
@@ -316,7 +311,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private static readonly ConcurrentDictionary<int, BeatmapScoringAttributes?> scoring_attributes_cache =
             new ConcurrentDictionary<int, BeatmapScoringAttributes?>();
 
-        private static async Task<BeatmapScoringAttributes?> getScoringAttributes(int rulesetId, int beatmapId, MySqlConnection connection, MySqlTransaction? transaction)
+        private static async Task<BeatmapScoringAttributes?> getScoringAttributes(int rulesetId, int beatmapId, MySqlConnection connection)
         {
             if (scoring_attributes_cache.TryGetValue(beatmapId, out var existing))
                 return existing;
@@ -326,7 +321,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 {
                     BeatmapId = beatmapId,
                     RulesetId = rulesetId,
-                }, transaction);
+                });
 
             return scoring_attributes_cache[beatmapId] = scoreAttributes;
         }
@@ -334,7 +329,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private static readonly ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo> difficulty_info_cache =
             new ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo>();
 
-        private static async Task<LegacyBeatmapConversionDifficultyInfo> getDificultyInfo(int beatmapId, MySqlConnection connection, MySqlTransaction? transaction)
+        private static async Task<LegacyBeatmapConversionDifficultyInfo> getDificultyInfo(int beatmapId, MySqlConnection connection)
         {
             if (difficulty_info_cache.TryGetValue(beatmapId, out var existing))
                 return existing;
@@ -342,7 +337,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
             {
                 BeatmapId = beatmapId
-            }, transaction);
+            });
 
             return difficulty_info_cache[beatmapId] = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
         }
@@ -350,14 +345,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private static readonly ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>> attributes_cache =
             new ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>>();
 
-        private static Dictionary<int, BeatmapDifficultyAttribute> queryAttributes(DifficultyAttributesLookup lookup, MySqlConnection connection, MySqlTransaction? transaction)
+        private static Dictionary<int, BeatmapDifficultyAttribute> queryAttributes(DifficultyAttributesLookup lookup, MySqlConnection connection)
         {
             if (attributes_cache.TryGetValue(lookup, out Dictionary<int, BeatmapDifficultyAttribute>? existing))
                 return existing;
 
             IEnumerable<BeatmapDifficultyAttribute> dbAttributes =
                 connection.Query<BeatmapDifficultyAttribute>(
-                    "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup, transaction);
+                    "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
 
             return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
         }
@@ -385,7 +380,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             await command.ExecuteNonQueryAsync();
         }
 
-        private async Task enqueueForFurtherProcessing(ulong firstId, ulong lastId, MySqlConnection connection, MySqlTransaction transaction, bool isDelete = false)
+        private async Task enqueueForFurtherProcessing(ulong firstId, ulong lastId, MySqlConnection connection, bool isDelete = false)
         {
             for (ulong scoreId = firstId; scoreId <= lastId; scoreId++)
             {
@@ -412,9 +407,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
                     // is not constructed anywhere before this...
                     var score = await connection.QuerySingleAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id",
-                        new { id = scoreId }, transaction);
+                        new { id = scoreId });
                     var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id",
-                        new { id = scoreId }, transaction);
+                        new { id = scoreId });
                     ScoreStatisticsItems.Add(new ScoreItem(score, history));
                 }
             }
