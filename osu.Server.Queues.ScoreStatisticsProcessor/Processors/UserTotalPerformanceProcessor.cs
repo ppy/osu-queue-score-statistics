@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
@@ -79,18 +78,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 lastStoreRefresh = currentTimestamp;
             }
 
-            List<SoloScoreWithPerformance> scores = (await connection.QueryAsync<SoloScoreWithPerformance>(
-                "SELECT `s`.*, `p`.`pp` FROM scores `s` "
-                + "JOIN score_performance `p` ON `s`.`id` = `p`.`score_id` "
-                + "WHERE `s`.`user_id` = @UserId "
-                + "AND `s`.`ruleset_id` = @RulesetId "
-                + "AND `s`.`preserve` = 1", new
+            List<SoloScore> scores = (await connection.QueryAsync<SoloScore>(
+                "SELECT * FROM scores WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId AND `preserve` = 1", new
                 {
                     UserId = userStats.user_id,
                     RulesetId = rulesetId
                 }, transaction: transaction)).ToList();
 
-            Dictionary<int, Beatmap?> beatmaps = new Dictionary<int, Beatmap?>();
+            Dictionary<uint, Beatmap?> beatmaps = new Dictionary<uint, Beatmap?>();
 
             foreach (var score in scores)
             {
@@ -108,7 +103,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     return true;
 
                 // Score must be a pass (safeguard - should be redundant with preserve flag).
-                if (!s.ScoreInfo.Passed)
+                if (!s.passed)
                     return true;
 
                 // Beatmap must exist.
@@ -120,21 +115,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     return true;
 
                 // Legacy scores are always valid.
-                if (s.ScoreInfo.IsLegacyScore)
+                if (s.legacy_score_id != null)
                     return false;
 
                 // Some older lazer scores don't have build IDs.
-                if (s.ScoreInfo.BuildID == null)
+                if (s.build_id == null)
                     return true;
 
                 // Performance needs to be allowed for the build.
-                if (buildStore.GetBuild(s.ScoreInfo.BuildID.Value)?.allow_performance != true)
+                if (buildStore.GetBuild(s.build_id.Value)?.allow_performance != true)
                     return true;
 
-                return !ScorePerformanceProcessor.AllModsValidForPerformance(s.ScoreInfo, s.ScoreInfo.Mods.Select(m => m.ToMod(ruleset)).ToArray());
+                return !ScorePerformanceProcessor.AllModsValidForPerformance(s.ToScoreInfo(), s.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray());
             });
 
-            SoloScoreWithPerformance[] groupedItems = scores
+            SoloScore[] groupedItems = scores
                                                       // Group by beatmap ID.
                                                       .GroupBy(i => i.beatmap_id)
                                                       // Extract the maximum PP for each beatmap.
@@ -151,7 +146,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             foreach (var item in groupedItems)
             {
                 totalPp += item.pp!.Value * factor;
-                totalAccuracy += item.ScoreInfo.Accuracy * factor;
+                totalAccuracy += item.accuracy * factor;
                 factor *= 0.95;
             }
 
@@ -168,13 +163,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             userStats.rank_score_exp = (float)totalPp;
             userStats.rank_score_index_exp = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score_exp > {totalPp}", transaction: transaction)) + 1;
             userStats.accuracy_new = (float)totalAccuracy;
-        }
-
-        [SuppressMessage("ReSharper", "InconsistentNaming")]
-        [Serializable]
-        private class SoloScoreWithPerformance : SoloScore
-        {
-            public double? pp { get; set; }
         }
     }
 }

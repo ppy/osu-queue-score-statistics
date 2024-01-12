@@ -94,7 +94,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="score">The score to process.</param>
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
-        public Task ProcessScoreAsync(SoloScore score, MySqlConnection connection, MySqlTransaction? transaction = null) => ProcessScoreAsync(score.ScoreInfo, connection, transaction);
+        public Task ProcessScoreAsync(SoloScore score, MySqlConnection connection, MySqlTransaction? transaction = null) => ProcessScoreAsync(score.ToScoreInfo(), connection, transaction);
 
         /// <summary>
         /// Processes the raw PP value of a given score.
@@ -112,12 +112,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             try
             {
-                Beatmap? beatmap = await beatmapStore.GetBeatmapAsync(score.BeatmapID, connection, transaction);
+                Beatmap? beatmap = await beatmapStore.GetBeatmapAsync((uint)score.BeatmapID, connection, transaction);
 
                 if (beatmap == null)
                     return;
 
-                if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, score.RulesetID))
+                if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, (uint)score.RulesetID))
                     return;
 
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.RulesetID);
@@ -136,7 +136,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (performanceAttributes == null)
                     return;
 
-                await connection.ExecuteAsync("INSERT INTO score_performance (`score_id`, `pp`) VALUES (@ScoreId, @Pp) ON DUPLICATE KEY UPDATE `pp` = @Pp", new
+                await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
                 {
                     ScoreId = score.ID,
                     Pp = performanceAttributes.Total

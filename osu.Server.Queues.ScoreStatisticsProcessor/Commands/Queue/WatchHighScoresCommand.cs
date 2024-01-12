@@ -63,7 +63,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             using var db = DatabaseAccess.GetConnection();
 
-            ulong? lastImportedLegacyScoreId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM score_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
+            ulong? lastImportedLegacyScoreId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(legacy_score_id) FROM scores HERE ruleset_id = {RulesetId}") ?? 0;
 
             var firstEntry = db.QuerySingleOrDefault<ScoreProcessQueue>($"SELECT * FROM score_process_queue WHERE mode = {RulesetId} ORDER BY queue_id LIMIT 1");
 

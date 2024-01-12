@@ -18,13 +18,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
 
-            SetScoreForBeatmap(firstBeatmap.beatmap_id, item => item.Score.ScoreInfo.Rank = ScoreRank.X);
+            SetScoreForBeatmap(firstBeatmap.beatmap_id, item => item.Score.rank = ScoreRank.X);
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
                 [ScoreRank.X] = 1,
             });
 
-            SetScoreForBeatmap(secondBeatmap.beatmap_id, item => item.Score.ScoreInfo.Rank = ScoreRank.A);
+            SetScoreForBeatmap(secondBeatmap.beatmap_id, item => item.Score.rank = ScoreRank.A);
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
                 [ScoreRank.X] = 1,
@@ -39,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
             waitForRankCounts("osu_user_stats_mania", new Dictionary<ScoreRank, int>());
 
-            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.ScoreInfo.Rank = ScoreRank.X);
+            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.rank = ScoreRank.X);
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
                 [ScoreRank.X] = 1,
@@ -48,8 +48,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ruleset_id = item.Score.ScoreInfo.RulesetID = 3;
-                item.Score.ScoreInfo.Rank = ScoreRank.A;
+                item.Score.ruleset_id = item.Score.ruleset_id = 3;
+                item.Score.rank = ScoreRank.A;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -69,8 +69,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Passed = false;
-                item.Score.ScoreInfo.Rank = ScoreRank.A;
+                item.Score.passed = false;
+                item.Score.rank = ScoreRank.A;
             });
 
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
@@ -82,7 +82,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AddBeatmap();
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
 
-            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.ScoreInfo.Rank = ScoreRank.B);
+            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.rank = ScoreRank.B);
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
         }
 
@@ -96,7 +96,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AddBeatmap(b => b.approved = status);
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
 
-            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.ScoreInfo.Rank = ScoreRank.A);
+            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.rank = ScoreRank.A);
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
         }
 
@@ -109,7 +109,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AddBeatmap(b => b.approved = status);
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>());
 
-            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.ScoreInfo.Rank = ScoreRank.A);
+            SetScoreForBeatmap(TEST_BEATMAP_ID, item => item.Score.rank = ScoreRank.A);
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
                 [ScoreRank.A] = 1
@@ -124,8 +124,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.A;
-                item.Score.ScoreInfo.TotalScore = 600_000;
+                item.Score.rank = ScoreRank.A;
+                item.Score.total_score = 600_000;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -134,8 +134,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.X;
-                item.Score.ScoreInfo.TotalScore = 700_000;
+                item.Score.rank = ScoreRank.X;
+                item.Score.total_score = 700_000;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -151,8 +151,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.A;
-                item.Score.ScoreInfo.TotalScore = 600_000;
+                item.Score.rank = ScoreRank.A;
+                item.Score.total_score = 600_000;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -161,8 +161,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.X;
-                item.Score.ScoreInfo.TotalScore = 500_000;
+                item.Score.rank = ScoreRank.X;
+                item.Score.total_score = 500_000;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -182,8 +182,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = firstRank;
-                item.Score.ScoreInfo.TotalScore = total_score;
+                item.Score.rank = firstRank;
+                item.Score.total_score = total_score;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -192,8 +192,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = secondRank;
-                item.Score.ScoreInfo.TotalScore = total_score;
+                item.Score.rank = secondRank;
+                item.Score.total_score = total_score;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -210,8 +210,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var score = SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.A;
-                item.Score.ScoreInfo.TotalScore = 600_000;
+                item.Score.rank = ScoreRank.A;
+                item.Score.total_score = 600_000;
             });
 
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
@@ -239,8 +239,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.A;
-                item.Score.ScoreInfo.TotalScore = 600_000;
+                item.Score.rank = ScoreRank.A;
+                item.Score.total_score = 600_000;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -249,8 +249,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var secondScore = SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.X;
-                item.Score.ScoreInfo.TotalScore = 700_000;
+                item.Score.rank = ScoreRank.X;
+                item.Score.total_score = 700_000;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -281,8 +281,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.A;
-                item.Score.ScoreInfo.TotalScore = total_score;
+                item.Score.rank = ScoreRank.A;
+                item.Score.total_score = total_score;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -291,8 +291,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var secondScore = SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.X;
-                item.Score.ScoreInfo.TotalScore = total_score;
+                item.Score.rank = ScoreRank.X;
+                item.Score.total_score = total_score;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -321,8 +321,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.A;
-                item.Score.ScoreInfo.TotalScore = 700_000;
+                item.Score.rank = ScoreRank.A;
+                item.Score.total_score = 700_000;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -331,8 +331,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var secondScore = SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
-                item.Score.ScoreInfo.Rank = ScoreRank.X;
-                item.Score.ScoreInfo.TotalScore = 600_000;
+                item.Score.rank = ScoreRank.X;
+                item.Score.total_score = 600_000;
             });
 
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>

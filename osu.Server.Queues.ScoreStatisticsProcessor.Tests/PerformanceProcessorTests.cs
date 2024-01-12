@@ -39,10 +39,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
-                score.Score.ScoreInfo.MaxCombo = 100;
-                score.Score.ScoreInfo.Accuracy = 1;
-                score.Score.ScoreInfo.BuildID = TestBuildID;
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
                 score.Score.preserve = true;
             });
 
@@ -58,9 +58,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
-                score.Score.ScoreInfo.MaxCombo = 100;
-                score.Score.ScoreInfo.Accuracy = 1;
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
                 score.Score.preserve = true;
             });
 
@@ -77,15 +77,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 var score = CreateTestScore(beatmapId: TEST_BEATMAP_ID);
 
-                score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
-                score.Score.ScoreInfo.MaxCombo = 100;
-                score.Score.ScoreInfo.Accuracy = 1;
-                score.Score.ScoreInfo.BuildID = TestBuildID;
-                score.Score.ScoreInfo.Mods = new[] { new APIMod(new InvalidMod()) };
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.ScoreData.Mods = new[] { new APIMod(new InvalidMod()) };
+                score.Score.pp = 1;
                 score.Score.preserve = true;
 
-                long scoreId = conn.Insert(score.Score);
-                conn.Execute($"INSERT INTO score_performance (score_id, pp) VALUES ({scoreId}, 1)");
+                conn.Insert(score.Score);
 
                 PushToQueueAndWaitForProcess(score);
             }
@@ -254,13 +254,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
-                score.Score.ScoreInfo.MaxCombo = 100;
-                score.Score.ScoreInfo.Accuracy = 1;
-                score.Score.ScoreInfo.Passed = false;
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.passed = false;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM score_performance WHERE score_id = @ScoreId", 0, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL", 0, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });
@@ -274,14 +274,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                score.Score.ScoreInfo.Statistics[HitResult.Great] = 100;
-                score.Score.ScoreInfo.MaxCombo = 100;
-                score.Score.ScoreInfo.Accuracy = 1;
-                score.Score.ScoreInfo.LegacyScoreId = 1;
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.legacy_score_id = 1;
                 score.Score.preserve = true;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM score_performance WHERE score_id = @ScoreId", 1, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL", 1, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });

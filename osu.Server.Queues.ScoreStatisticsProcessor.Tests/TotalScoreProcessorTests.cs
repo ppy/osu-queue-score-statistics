@@ -53,7 +53,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var score = CreateTestScore();
 
-            score.Score.ScoreInfo.LegacyScoreId = 1234;
+            score.Score.legacy_score_id = 1234;
 
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
@@ -101,10 +101,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             using (var db = Processor.GetDatabaseConnection())
             using (var transaction = await db.BeginTransactionAsync())
             {
-                var userStats = await DatabaseHelper.GetUserStatsAsync(score.Score.ScoreInfo, db, transaction);
+                var userStats = await DatabaseHelper.GetUserStatsAsync(score.Score.ToScoreInfo(), db, transaction);
 
                 Debug.Assert(userStats != null);
-                userStats.total_score = score.Score.ScoreInfo.TotalScore;
+                userStats.total_score = score.Score.total_score;
                 await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
 
                 await db.InsertAsync(score.ProcessHistory, transaction);

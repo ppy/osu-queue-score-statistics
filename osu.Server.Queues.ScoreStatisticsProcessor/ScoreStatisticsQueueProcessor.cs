@@ -101,7 +101,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         {
             var tags = new List<string>();
 
-            if (item.Score.ScoreInfo.IsLegacyScore)
+            if (item.Score.legacy_score_id != null)
                 tags.Add("type:legacy");
 
             if (item.ProcessHistory?.processed_version == VERSION)
@@ -115,7 +115,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 using (var conn = GetDatabaseConnection())
                 {
                     var scoreRow = item.Score;
-                    var score = scoreRow.ScoreInfo;
+                    var score = scoreRow.ToScoreInfo();
 
                     score.Beatmap = conn.QuerySingleOrDefault<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
                     {

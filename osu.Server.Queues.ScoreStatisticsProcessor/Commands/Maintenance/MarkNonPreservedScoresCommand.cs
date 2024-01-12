@@ -121,11 +121,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             var maxPPUserScore = userScores
                                  .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s))
-                                 .MaxBy(s => s.ScoreInfo.PP);
+                                 .MaxBy(s => s.pp);
 
             var maxScoreUserScore = userScores
                                     .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s))
-                                    .MaxBy(s => s.ScoreInfo.TotalScore);
+                                    .MaxBy(s => s.total_score);
 
             // Check whether this score is the user's highest
             return maxPPUserScore?.id == candidate.id || maxScoreUserScore?.id == candidate.id;
@@ -133,8 +133,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             bool compareMods(SoloScore a, SoloScore b)
             {
                 // Compare non-ordered mods, ignoring any settings applied.
-                var aMods = new HashSet<string>(a.ScoreInfo.Mods.Select(m => m.Acronym));
-                var bMods = new HashSet<string>(b.ScoreInfo.Mods.Select(m => m.Acronym));
+                var aMods = new HashSet<string>(a.ScoreData.Mods.Select(m => m.Acronym));
+                var bMods = new HashSet<string>(b.ScoreData.Mods.Select(m => m.Acronym));
 
                 return aMods.SetEquals(bMods);
             }
