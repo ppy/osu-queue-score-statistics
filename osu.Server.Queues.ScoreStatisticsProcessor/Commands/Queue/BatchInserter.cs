@@ -89,10 +89,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     // main score insert
                     "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
-                for (var i = 0; i < scores.Length; i++)
+                Parallel.ForEach(scores, new ParallelOptions
                 {
-                    HighScore highScore = scores[i];
-
+                    MaxDegreeOfParallelism = Environment.ProcessorCount,
+                }, highScore =>
+                {
                     try
                     {
                         if (highScore.score_id == 0)
@@ -113,21 +114,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             if (existing == null)
                             {
                                 Interlocked.Increment(ref TotalSkipCount);
-                                continue;
+                                return;
                             }
 
-                            await db.ExecuteAsync("DELETE FROM scores WHERE id = @id", new { existing.id });
+                            using (var conn = DatabaseAccess.GetConnection())
+                                conn.Execute("DELETE FROM scores WHERE id = @id", new { existing.id });
                             ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)existing.id });
 
                             Interlocked.Increment(ref TotalDeleteCount);
                             Interlocked.Increment(ref CurrentReportDeleteCount);
-                            continue;
+                            return;
                         }
 
                         if (existing != null)
                         {
                             Interlocked.Increment(ref TotalSkipCount);
-                            continue;
+                            return;
                         }
 
                         // At least one row in the old table have invalid dates.
@@ -138,17 +140,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             highScore.date = DateTimeOffset.UnixEpoch;
                         }
 
-                        ScoreInfo referenceScore = await CreateReferenceScore(ruleset, highScore, db);
+                        ScoreInfo referenceScore = CreateReferenceScore(ruleset, highScore);
                         string serialisedScore = SerialiseScoreData(referenceScore);
 
-                        insertCount++;
+                        Interlocked.Increment(ref insertCount);
                         insertCommand.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()}),");
                     }
                     catch (Exception e)
                     {
                         throw new AggregateException($"Processing legacy score {highScore.score_id} failed.", e);
                     }
-                }
+                });
 
                 if (insertCount == 0)
                     return;
@@ -209,7 +211,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// <item><term><see cref="ScoreInfo.MaximumStatistics"/></term></item>
         /// </list>
         /// </summary>
-        public static async Task<ScoreInfo> CreateReferenceScore(Ruleset ruleset, HighScore highScore, MySqlConnection connection)
+        public static ScoreInfo CreateReferenceScore(Ruleset ruleset, HighScore highScore)
         {
             int rulesetId = ruleset.RulesetInfo.OnlineID;
 
@@ -274,12 +276,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
             int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
-            var scoreAttributes = await getScoringAttributes(rulesetId, highScore.beatmap_id, connection);
+            var scoreAttributes = getScoringAttributes(rulesetId, highScore.beatmap_id).Result;
 
             if (scoreAttributes == null)
             {
                 // TODO: LOG
-                await Console.Error.WriteLineAsync($"{highScore.score_id}: Scoring attribs entry missing for beatmap {highScore.beatmap_id}.");
+                Console.Error.WriteLineAsync($"{highScore.score_id}: Scoring attribs entry missing for beatmap {highScore.beatmap_id}.");
                 return scoreInfo;
             }
 
@@ -298,12 +300,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 int difficultyMods = (int)LegacyModsHelper.MaskRelevantMods((LegacyMods)highScore.enabled_mods, true, rulesetId);
 
                 Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = queryAttributes(
-                    new DifficultyAttributesLookup(highScore.beatmap_id, rulesetId, difficultyMods), connection);
+                    new DifficultyAttributesLookup(highScore.beatmap_id, rulesetId, difficultyMods));
 
                 if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
                 {
                     // TODO: LOG
-                    await Console.Error.WriteLineAsync($"{highScore.score_id}: Could not determine max combo from the difficulty attributes of beatmap {highScore.beatmap_id}.");
+                    Console.Error.WriteLine($"{highScore.score_id}: Could not determine max combo from the difficulty attributes of beatmap {highScore.beatmap_id}.");
                     return scoreInfo;
                 }
 
@@ -318,7 +320,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
 #pragma warning restore CS0618
 
-            var difficulty = await getDificultyInfo(highScore.beatmap_id, connection);
+            var difficulty = getDificultyInfo(highScore.beatmap_id).Result;
 
             StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, difficulty, scoreAttributes.ToAttributes());
 
@@ -328,50 +330,59 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private static readonly ConcurrentDictionary<int, BeatmapScoringAttributes?> scoring_attributes_cache =
             new ConcurrentDictionary<int, BeatmapScoringAttributes?>();
 
-        private static async Task<BeatmapScoringAttributes?> getScoringAttributes(int rulesetId, int beatmapId, MySqlConnection connection)
+        private static async Task<BeatmapScoringAttributes?> getScoringAttributes(int rulesetId, int beatmapId)
         {
             if (scoring_attributes_cache.TryGetValue(beatmapId, out var existing))
                 return existing;
 
-            BeatmapScoringAttributes? scoreAttributes = await connection.QuerySingleOrDefaultAsync<BeatmapScoringAttributes>(
-                "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
-                {
-                    BeatmapId = beatmapId,
-                    RulesetId = rulesetId,
-                });
+            using (var connection = DatabaseAccess.GetConnection())
+            {
+                BeatmapScoringAttributes? scoreAttributes = await connection.QuerySingleOrDefaultAsync<BeatmapScoringAttributes>(
+                    "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
+                    {
+                        BeatmapId = beatmapId,
+                        RulesetId = rulesetId,
+                    });
 
-            return scoring_attributes_cache[beatmapId] = scoreAttributes;
+                return scoring_attributes_cache[beatmapId] = scoreAttributes;
+            }
         }
 
         private static readonly ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo> difficulty_info_cache =
             new ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo>();
 
-        private static async Task<LegacyBeatmapConversionDifficultyInfo> getDificultyInfo(int beatmapId, MySqlConnection connection)
+        private static async Task<LegacyBeatmapConversionDifficultyInfo> getDificultyInfo(int beatmapId)
         {
             if (difficulty_info_cache.TryGetValue(beatmapId, out var existing))
                 return existing;
 
-            Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+            using (var connection = DatabaseAccess.GetConnection())
             {
-                BeatmapId = beatmapId
-            });
+                Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                {
+                    BeatmapId = beatmapId
+                });
 
-            return difficulty_info_cache[beatmapId] = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
+                return difficulty_info_cache[beatmapId] = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
+            }
         }
 
         private static readonly ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>> attributes_cache =
             new ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>>();
 
-        private static Dictionary<int, BeatmapDifficultyAttribute> queryAttributes(DifficultyAttributesLookup lookup, MySqlConnection connection)
+        private static Dictionary<int, BeatmapDifficultyAttribute> queryAttributes(DifficultyAttributesLookup lookup)
         {
             if (attributes_cache.TryGetValue(lookup, out Dictionary<int, BeatmapDifficultyAttribute>? existing))
                 return existing;
 
-            IEnumerable<BeatmapDifficultyAttribute> dbAttributes =
-                connection.Query<BeatmapDifficultyAttribute>(
-                    "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
+            using (var connection = DatabaseAccess.GetConnection())
+            {
+                IEnumerable<BeatmapDifficultyAttribute> dbAttributes =
+                    connection.Query<BeatmapDifficultyAttribute>(
+                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
 
-            return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
+                return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
+            }
         }
 
         private record DifficultyAttributesLookup(int BeatmapId, int RulesetId, int Mods)
