@@ -179,12 +179,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 ulong firstInsertId = (ulong)cmd.LastInsertedId;
                 ulong lastInsertId = firstInsertId + (ulong)scores.Length - 1;
 
-                // check consecutive inserts (can probably remove this now that we're sure).
-                long firstId = db.QuerySingle<long>($"SELECT legacy_score_id FROM scores WHERE id = {firstInsertId}");
-                long lastId = db.QuerySingle<long>($"SELECT legacy_score_id FROM scores WHERE id = {lastInsertId}");
-                if (lastId != (long)scores.Last().score_id) throw new InvalidOperationException("OUT OF ORDER");
-                if (firstId != (long)scores.First().score_id) throw new InvalidOperationException("OUT OF ORDER");
-
                 await enqueueForFurtherProcessing(firstInsertId, lastInsertId, db);
 
                 Interlocked.Add(ref CurrentReportInsertCount, scores.Length);
