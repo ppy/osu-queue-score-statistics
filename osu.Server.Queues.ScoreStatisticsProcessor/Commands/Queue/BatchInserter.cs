@@ -83,9 +83,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         legacyScoreIds = scores.Select(s => s.score_id)
                     })).ToDictionary(s => s.legacy_score_id!.Value);
 
-                StringBuilder insertCommand = new StringBuilder();
+                StringBuilder insertBuilder = new StringBuilder();
 
-                insertCommand.Append(
+                insertBuilder.Append(
                     // main score insert
                     "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
@@ -144,7 +144,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         string serialisedScore = SerialiseScoreData(referenceScore);
 
                         Interlocked.Increment(ref insertCount);
-                        insertCommand.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()}),");
+                        lock (insertBuilder)
+                            insertBuilder.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()}),");
                     }
                     catch (Exception e)
                     {
@@ -156,7 +157,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     return;
 
                 using var cmd = db.CreateCommand();
-                cmd.CommandText = insertCommand.ToString().Trim(',', ' ');
+                cmd.CommandText = insertBuilder.ToString().Trim(',', ' ');
                 cmd.CommandTimeout = 120;
 
                 try
