@@ -64,7 +64,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             this.dryRun = dryRun;
 
             Scores = scores;
-            Task = run(scores);
+            Task = Task.Run(() => run(scores));
         }
 
         private async Task run(HighScore[] scores)
