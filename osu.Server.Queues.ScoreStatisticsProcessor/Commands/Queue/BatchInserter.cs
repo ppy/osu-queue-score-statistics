@@ -39,18 +39,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
     public class BatchInserter
     {
         public static int CurrentReportInsertCount;
-        public static int CurrentReportUpdateCount;
         public static int CurrentReportDeleteCount;
         public static int TotalInsertCount;
-        public static int TotalUpdateCount;
         public static int TotalDeleteCount;
 
         public static int TotalSkipCount;
 
         private readonly Ruleset ruleset;
         private readonly bool importLegacyPP;
-        private readonly bool skipExisting;
-        private readonly bool skipNew;
         private readonly bool dryRun;
 
         public HighScore[] Scores { get; }
@@ -61,12 +57,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public List<ScoreItem> ScoreStatisticsItems { get; } = new List<ScoreItem>();
 
-        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool skipExisting, bool skipNew, bool dryRun = false)
+        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool dryRun = false)
         {
             this.ruleset = ruleset;
             this.importLegacyPP = importLegacyPP;
-            this.skipExisting = skipExisting;
-            this.skipNew = skipNew;
             this.dryRun = dryRun;
 
             Scores = scores;
@@ -111,7 +105,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         // Look away please.
                         bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
 
-                        if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
+                        if (isDeletion)
+                        {
+                            // TODO: handle deletion
+                        }
+
+                        if (existingMapping != null || isDeletion)
                         {
                             Interlocked.Increment(ref TotalSkipCount);
                             continue;

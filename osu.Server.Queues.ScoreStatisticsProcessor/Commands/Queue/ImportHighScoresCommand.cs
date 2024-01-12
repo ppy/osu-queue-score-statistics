@@ -47,19 +47,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public bool CheckSlaveLatency { get; set; }
 
         /// <summary>
-        /// Whether existing legacy score IDs should be skipped rather than reprocessed. Defaults to <c>true</c>.
-        /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-existing")]
-        public bool SkipExisting { get; set; } = true;
-
-        /// <summary>
-        /// Whether new legacy score IDs should be skipped rather than inserted. Defaults to <c>false</c>.
-        /// Use in conjunction with `SkipExisting=false` to reprocess older items in an isolated context.
-        /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-new")]
-        public bool SkipNew { get; set; }
-
-        /// <summary>
         /// Whether to skip pushing imported score to the elasticsearch indexing queue.
         /// </summary>
         [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-indexing")]
@@ -250,14 +237,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if ((currentTimestamp - lastCommitTimestamp) / 1000f >= seconds_between_report)
                         {
                             int inserted = Interlocked.Exchange(ref BatchInserter.CurrentReportInsertCount, 0);
-                            int updated = Interlocked.Exchange(ref BatchInserter.CurrentReportUpdateCount, 0);
 
                             // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
-                            if (inserted + updated > 0 && startupTimestamp == 0)
+                            if (inserted > 0 && startupTimestamp == 0)
                                 startupTimestamp = lastCommitTimestamp;
 
                             double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
-                            double processingRate = (BatchInserter.TotalInsertCount + BatchInserter.TotalUpdateCount) / secondsSinceStart;
+                            double processingRate = BatchInserter.TotalInsertCount / secondsSinceStart;
 
                             string eta = string.Empty;
 
@@ -272,7 +258,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                             Console.WriteLine($"Inserting up to {lastId:N0} "
                                               + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
-                                              + $"{BatchInserter.TotalInsertCount:N0} inserted {BatchInserter.TotalUpdateCount:N0} updated {BatchInserter.TotalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd) {processingRate:N0}/s {eta}");
+                                              + $"{BatchInserter.TotalInsertCount:N0} inserted {BatchInserter.TotalSkipCount:N0} skipped (+{inserted:N0}) {processingRate:N0}/s {eta}");
 
                             lastCommitTimestamp = currentTimestamp;
                         }
@@ -332,7 +318,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if (batch.Count == 0)
                             return;
 
-                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: !watchMode || SkipScoreProcessor, skipExisting: SkipExisting, skipNew: SkipNew));
+                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: !watchMode || SkipScoreProcessor));
                         batch.Clear();
                     }
                 }

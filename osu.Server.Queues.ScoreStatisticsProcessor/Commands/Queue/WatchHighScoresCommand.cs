@@ -147,7 +147,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         continue;
                     }
 
-                    var inserter = new BatchInserter(ruleset, highScores, importLegacyPP: SkipScoreProcessor, skipExisting: true, skipNew: false, dryRun: DryRun);
+                    var inserter = new BatchInserter(ruleset, highScores, importLegacyPP: SkipScoreProcessor, dryRun: DryRun);
 
                     while (!inserter.Task.IsCompleted)
                     {
@@ -215,18 +215,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             if ((currentTimestamp - lastCommitTimestamp) / 1000f >= seconds_between_report)
             {
                 int inserted = Interlocked.Exchange(ref BatchInserter.CurrentReportInsertCount, 0);
-                int updated = Interlocked.Exchange(ref BatchInserter.CurrentReportUpdateCount, 0);
                 int deleted = Interlocked.Exchange(ref BatchInserter.CurrentReportDeleteCount, 0);
 
                 // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
-                if (inserted + updated > 0 && startupTimestamp == 0)
+                if (inserted > 0 && startupTimestamp == 0)
                     startupTimestamp = lastCommitTimestamp;
 
                 double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
-                double processingRate = (BatchInserter.TotalInsertCount + BatchInserter.TotalUpdateCount) / secondsSinceStart;
+                double processingRate = BatchInserter.TotalInsertCount / secondsSinceStart;
 
                 Console.WriteLine($"Inserting up to {lastQueueId:N0}: "
-                                  + $"{BatchInserter.TotalInsertCount:N0} ins {BatchInserter.TotalUpdateCount:N0} upd {BatchInserter.TotalDeleteCount:N0} del {BatchInserter.TotalSkipCount:N0} skip (+{inserted:N0} new +{updated:N0} upd +{deleted:N0} del) {processingRate:N0}/s");
+                                  + $"{BatchInserter.TotalInsertCount:N0} ins {BatchInserter.TotalDeleteCount:N0} del {BatchInserter.TotalSkipCount:N0} skip (+{inserted:N0} new +{deleted:N0} del) {processingRate:N0}/s");
 
                 lastCommitTimestamp = currentTimestamp;
             }
