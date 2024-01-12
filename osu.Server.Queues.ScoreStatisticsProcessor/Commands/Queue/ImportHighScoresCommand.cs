@@ -59,19 +59,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-score-processor")]
         public bool SkipScoreProcessor { get; set; }
 
+        /// <summary>
+        /// The number of processing threads. Note that too many threads may lead to table fragmentation.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--thread-count")]
+        public int ThreadCount { get; set; } = 2;
+
+        /// <summary>
+        /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--batch-size")]
+        public int InsertBatchSize { get; set; } = 256000;
+
         private long lastCommitTimestamp;
         private long startupTimestamp;
         private long lastLatencyCheckTimestamp;
 
         private ElasticQueuePusher? elasticQueueProcessor;
         private ScoreStatisticsQueueProcessor? scoreStatisticsQueueProcessor;
-
-        private const int thread_count = 2;
-
-        /// <summary>
-        /// The number of scores to run in each batch. Setting this higher will reduce the parallelism and in turn, the throughput of this process.
-        /// </summary>
-        private const int mysql_batch_size = 256000;
 
         /// <summary>
         /// The number of seconds between console progress reports.
@@ -136,6 +141,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine();
             Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
             Console.WriteLine($"Inserting into scores and processing {(watchMode ? "indefinitely" : "as single run")}");
+            Console.WriteLine($"Insert size: {InsertBatchSize}");
+            Console.WriteLine($"Threads: {ThreadCount}");
 
             if (watchMode)
             {
@@ -173,8 +180,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
             }
 
-            await Task.Delay(5000, cancellationToken);
-
             using (var dbMainQuery = DatabaseAccess.GetConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
@@ -182,14 +187,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     if (CheckSlaveLatency)
                         checkSlaveLatency(dbMainQuery);
 
-                    const int retrieve_size = mysql_batch_size * thread_count;
-
                     var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} h {where}" +
                                                                              " ORDER BY score_id LIMIT @scoresPerQuery", new
                     {
                         lastId,
                         maxProcessableId,
-                        batch_size = retrieve_size,
+                        batch_size = InsertBatchSize * ThreadCount,
                         rulesetId = ruleset.RulesetInfo.OnlineID,
                     });
 
@@ -219,7 +222,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         // Ensure batches are only ever split on dealing with scores from a new beatmap_id.
                         // This is to enforce insertion order per-beatmap as we may use this to decide ordering in tiebreaker scenarios.
-                        if (lastBeatmapId != score.beatmap_id && batch.Count >= mysql_batch_size)
+                        if (lastBeatmapId != score.beatmap_id && batch.Count >= InsertBatchSize)
                             queueNextBatch();
 
                         lastBeatmapId = score.beatmap_id;
