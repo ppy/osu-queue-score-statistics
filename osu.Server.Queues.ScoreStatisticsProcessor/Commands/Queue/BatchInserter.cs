@@ -71,94 +71,91 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         {
             int insertCount = 0;
 
-            using (var db = DatabaseAccess.GetConnection())
+            int rulesetId = ruleset.RulesetInfo.OnlineID;
+
+            StringBuilder insertBuilder = new StringBuilder("INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
+
+            Parallel.ForEach(scores, new ParallelOptions
             {
-                int rulesetId = ruleset.RulesetInfo.OnlineID;
-
-                StringBuilder insertBuilder = new StringBuilder();
-
-                insertBuilder.Append(
-                    // main score insert
-                    "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
-
-                Parallel.ForEach(scores, new ParallelOptions
+                MaxDegreeOfParallelism = Environment.ProcessorCount,
+            }, highScore =>
+            {
+                try
                 {
-                    MaxDegreeOfParallelism = Environment.ProcessorCount,
-                }, highScore =>
-                {
-                    try
+                    if (highScore.score_id == 0)
                     {
-                        if (highScore.score_id == 0)
-                        {
-                            // Something really bad probably happened, abort for safety.
-                            throw new InvalidOperationException("Score arrived with no ID");
-                        }
+                        // Something really bad probably happened, abort for safety.
+                        throw new InvalidOperationException("Score arrived with no ID");
+                    }
 
-                        // Yes this is a weird way of determining whether it's a deletion.
-                        // Look away please.
-                        bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
+                    // Yes this is a weird way of determining whether it's a deletion.
+                    // Look away please.
+                    bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
 
-                        if (isDeletion)
-                        {
-                            if (highScore.new_id == null)
-                            {
-                                Interlocked.Increment(ref TotalSkipCount);
-                                return;
-                            }
-
-                            using (var conn = DatabaseAccess.GetConnection())
-                                conn.Execute("DELETE FROM scores WHERE id = @id", new { highScore.new_id });
-                            ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)highScore.new_id });
-
-                            Interlocked.Increment(ref TotalDeleteCount);
-                            Interlocked.Increment(ref CurrentReportDeleteCount);
-                            return;
-                        }
-
-                        if (highScore.new_id != null)
+                    if (isDeletion)
+                    {
+                        if (highScore.new_id == null)
                         {
                             Interlocked.Increment(ref TotalSkipCount);
                             return;
                         }
 
-                        // At least one row in the old table have invalid dates.
-                        // MySQL doesn't like empty dates, so let's ensure we have a valid one.
-                        if (highScore.date < DateTimeOffset.UnixEpoch)
-                        {
-                            Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
-                            highScore.date = DateTimeOffset.UnixEpoch;
-                        }
+                        using (var conn = DatabaseAccess.GetConnection())
+                            conn.Execute("DELETE FROM scores WHERE id = @id", new { highScore.new_id });
+                        ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)highScore.new_id });
 
-                        ScoreInfo referenceScore = CreateReferenceScore(ruleset, highScore);
-                        string serialisedScore = SerialiseScoreData(referenceScore);
-
-                        Interlocked.Increment(ref insertCount);
-                        lock (insertBuilder)
-                            insertBuilder.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()}),");
+                        Interlocked.Increment(ref TotalDeleteCount);
+                        Interlocked.Increment(ref CurrentReportDeleteCount);
+                        return;
                     }
-                    catch (Exception e)
+
+                    if (highScore.new_id != null)
                     {
-                        throw new AggregateException($"Processing legacy score {highScore.score_id} failed.", e);
+                        Interlocked.Increment(ref TotalSkipCount);
+                        return;
                     }
-                });
 
-                if (insertCount == 0)
-                    return;
+                    // At least one row in the old table have invalid dates.
+                    // MySQL doesn't like empty dates, so let's ensure we have a valid one.
+                    if (highScore.date < DateTimeOffset.UnixEpoch)
+                    {
+                        Console.WriteLine($"Legacy score {highScore.score_id} has invalid date ({highScore.date}), fixing.");
+                        highScore.date = DateTimeOffset.UnixEpoch;
+                    }
 
-                string sql = insertBuilder.ToString().Trim(',', ' ') + "; SELECT LAST_INSERT_ID()";
+                    ScoreInfo referenceScore = CreateReferenceScore(ruleset, highScore);
+                    string serialisedScore = SerialiseScoreData(referenceScore);
 
-                Console.WriteLine($"Running insert command with {sql.Length} bytes");
-                Stopwatch sw = new Stopwatch();
-                sw.Start();
+                    Interlocked.Increment(ref insertCount);
+                    lock (insertBuilder)
+                        insertBuilder.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()}),");
+                }
+                catch (Exception e)
+                {
+                    throw new AggregateException($"Processing legacy score {highScore.score_id} failed.", e);
+                }
+            });
+
+            if (insertCount == 0)
+                return;
+
+            string sql = insertBuilder.ToString().Trim(',', ' ') + "; SELECT LAST_INSERT_ID()";
+
+            Console.WriteLine($"Running insert command with {sql.Length} bytes");
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+
+            using (var db = DatabaseAccess.GetConnection())
+            {
                 ulong firstInsertId = db.QuerySingle<ulong>(sql, commandTimeout: 120);
                 ulong lastInsertId = firstInsertId + (ulong)scores.Length - 1;
                 Console.WriteLine($"Command completed in {sw.Elapsed.TotalSeconds} seconds");
 
                 await enqueueForFurtherProcessing(firstInsertId, lastInsertId, db);
-
-                Interlocked.Add(ref CurrentReportInsertCount, scores.Length);
-                Interlocked.Add(ref TotalInsertCount, scores.Length);
             }
+
+            Interlocked.Add(ref CurrentReportInsertCount, scores.Length);
+            Interlocked.Add(ref TotalInsertCount, scores.Length);
         }
 
         public static string SerialiseScoreData(ScoreInfo referenceScore) =>
