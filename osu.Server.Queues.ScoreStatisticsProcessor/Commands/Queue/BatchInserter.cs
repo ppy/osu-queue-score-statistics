@@ -75,14 +75,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 int rulesetId = ruleset.RulesetInfo.OnlineID;
 
-                // check for existing and skip
-                Dictionary<ulong, SoloScore> existingIds = (await db.QueryAsync<SoloScore>(
-                    $"SELECT id, legacy_score_id FROM scores WHERE `ruleset_id` = {rulesetId} AND `legacy_score_id` IN @legacyScoreIds",
-                    new
-                    {
-                        legacyScoreIds = scores.Select(s => s.score_id)
-                    })).ToDictionary(s => s.legacy_score_id!.Value);
-
                 StringBuilder insertBuilder = new StringBuilder();
 
                 insertBuilder.Append(
@@ -106,27 +98,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         // Look away please.
                         bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
 
-                        // Check if the score already exists in the new table..
-                        existingIds.TryGetValue(highScore.score_id, out var existing);
-
                         if (isDeletion)
                         {
-                            if (existing == null)
+                            if (highScore.new_id == null)
                             {
                                 Interlocked.Increment(ref TotalSkipCount);
                                 return;
                             }
 
                             using (var conn = DatabaseAccess.GetConnection())
-                                conn.Execute("DELETE FROM scores WHERE id = @id", new { existing.id });
-                            ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)existing.id });
+                                conn.Execute("DELETE FROM scores WHERE id = @id", new { highScore.new_id });
+                            ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)highScore.new_id });
 
                             Interlocked.Increment(ref TotalDeleteCount);
                             Interlocked.Increment(ref CurrentReportDeleteCount);
                             return;
                         }
 
-                        if (existing != null)
+                        if (highScore.new_id != null)
                         {
                             Interlocked.Increment(ref TotalSkipCount);
                             return;

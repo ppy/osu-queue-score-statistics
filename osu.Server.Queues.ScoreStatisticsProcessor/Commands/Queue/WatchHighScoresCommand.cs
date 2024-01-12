@@ -122,11 +122,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    HighScore[] highScores = (await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM osu.score_process_queue LEFT JOIN {highScoreTable} h USING (score_id) WHERE queue_id >= @lastQueueId AND mode = {RulesetId} ORDER BY queue_id LIMIT 50", new
-                                             {
-                                                 lastQueueId,
-                                                 RulesetId,
-                                             }))
+                    HighScore[] highScores = (await dbMainQuery.QueryAsync<HighScore>(
+                                                 $"SELECT h.*, s.id as new_id FROM osu.score_process_queue "
+                                                 + $"LEFT JOIN {highScoreTable} h USING (score_id) "
+                                                 + $"LEFT JOIN scores s ON h.score_id = s.legacy_score_id AND s.ruleset_id = {RulesetId} "
+                                                 + $"WHERE queue_id >= @lastQueueId AND mode = {RulesetId} ORDER BY queue_id LIMIT 50", new
+                                                 {
+                                                     lastQueueId,
+                                                     RulesetId,
+                                                 }))
                                              // there might be multiple queue entries for the same insert. this can cause issues due to how we do the mapping lookup so let's fix that.
                                              .DistinctBy(s => s.score_id)
                                              .OrderBy(s => s.queue_id)
