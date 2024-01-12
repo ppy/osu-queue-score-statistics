@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
@@ -75,11 +76,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private async Task run(HighScore[] scores)
         {
             using (var db = DatabaseAccess.GetConnection())
-            using (var transaction = await db.BeginTransactionAsync())
-            using (var insertCommand = db.CreateCommand())
-            using (var updateCommand = db.CreateCommand())
-            using (var deleteCommand = db.CreateCommand())
             {
+                MySqlTransaction transaction = null;
+
                 int rulesetId = ruleset.RulesetInfo.OnlineID;
 
                 // check for existing and skip
@@ -90,34 +89,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         legacyScoreIds = scores.Select(s => s.score_id)
                     }, transaction)).ToArray();
 
-                insertCommand.CommandText =
+                StringBuilder insertCommand = new StringBuilder();
+
+                insertCommand.Append(
                     // main score insert
-                    "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) "
-                    + $"VALUES (@user_id, {rulesetId}, @beatmap_id, @has_replay, 1, @rank, 1, @accuracy, @max_combo, @total_score, @data, @pp, @legacy_score_id, @legacy_total_score, @ended_at, UNIX_TIMESTAMP(@ended_at));";
+                    "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
-                updateCommand.CommandText = "UPDATE scores SET data = @data WHERE id = @id";
-                deleteCommand.CommandText = "DELETE FROM scores WHERE id = @id;";
-
-                var userId = insertCommand.Parameters.Add("user_id", MySqlDbType.UInt32);
-                var oldScoreId = insertCommand.Parameters.Add("legacy_score_id", MySqlDbType.UInt64);
-                var beatmapId = insertCommand.Parameters.Add("beatmap_id", MySqlDbType.UInt24);
-                var data = insertCommand.Parameters.Add("data", MySqlDbType.JSON);
-                var endedAt = insertCommand.Parameters.Add("ended_at", MySqlDbType.DateTime);
-                var hasReplay = insertCommand.Parameters.Add("has_replay", MySqlDbType.Bool);
-                var pp = insertCommand.Parameters.Add("pp", MySqlDbType.Float);
-                var rank = insertCommand.Parameters.Add("rank", MySqlDbType.VarChar);
-                var accuracy = insertCommand.Parameters.Add("accuracy", MySqlDbType.Float);
-                var maxCombo = insertCommand.Parameters.Add("max_combo", MySqlDbType.UInt32);
-                var totalScore = insertCommand.Parameters.Add("total_score", MySqlDbType.UInt32);
-                var legacyTotalScore = insertCommand.Parameters.Add("legacy_total_score", MySqlDbType.UInt32);
-
-                var updateData = updateCommand.Parameters.Add("data", MySqlDbType.JSON);
-                var updateId = updateCommand.Parameters.Add("id", MySqlDbType.UInt64);
-
-                var deleteNewId = deleteCommand.Parameters.Add("id", MySqlDbType.UInt64);
-
-                foreach (var highScore in scores)
+                for (var i = 0; i < scores.Length; i++)
                 {
+                    var highScore = scores[i];
+
                     try
                     {
                         if (highScore.score_id == 0)
@@ -131,27 +112,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         // Yes this is a weird way of determining whether it's a deletion.
                         // Look away please.
                         bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
-
-                        if (isDeletion)
-                        {
-                            // Deletion for a row which wasn't inserted into the new table, can safely ignore.
-                            if (existingMapping == null)
-                                continue;
-
-                            deleteCommand.Transaction = transaction;
-
-                            deleteNewId.Value = existingMapping.id;
-
-                            if (!deleteCommand.IsPrepared)
-                                await deleteCommand.PrepareAsync();
-
-                            await runCommand(deleteCommand);
-                            await enqueueForFurtherProcessing(existingMapping.id, db, transaction, true);
-
-                            Interlocked.Increment(ref CurrentReportDeleteCount);
-                            Interlocked.Increment(ref TotalDeleteCount);
-                            continue;
-                        }
 
                         if ((existingMapping != null && skipExisting) || (existingMapping == null && skipNew))
                         {
@@ -170,55 +130,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         ScoreInfo referenceScore = await CreateReferenceScore(ruleset, highScore, db, transaction);
                         string serialisedScore = SerialiseScoreData(referenceScore);
 
-                        if (existingMapping != null)
-                        {
-                            // Note that this only updates the `data` field. We could add others in the future as required.
-                            updateCommand.Transaction = transaction;
-
-                            updateId.Value = existingMapping.id;
-                            updateData.Value = serialisedScore;
-
-                            if (!updateCommand.IsPrepared)
-                                await updateCommand.PrepareAsync();
-
-                            // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
-                            // this does not improve throughput.
-                            await runCommand(updateCommand);
-                            await enqueueForFurtherProcessing(existingMapping.id, db, transaction);
-
-                            Interlocked.Increment(ref CurrentReportUpdateCount);
-                            Interlocked.Increment(ref TotalUpdateCount);
-                        }
-                        else
-                        {
-                            userId.Value = highScore.user_id;
-                            oldScoreId.Value = highScore.score_id;
-                            beatmapId.Value = highScore.beatmap_id;
-                            endedAt.Value = highScore.date;
-                            hasReplay.Value = highScore.replay;
-                            data.Value = serialisedScore;
-                            rank.Value = referenceScore.Rank.ToString();
-                            accuracy.Value = referenceScore.Accuracy;
-                            maxCombo.Value = referenceScore.MaxCombo;
-                            totalScore.Value = referenceScore.TotalScore;
-                            legacyTotalScore.Value = referenceScore.LegacyTotalScore;
-
-                            if (importLegacyPP)
-                                pp.Value = highScore.pp;
-
-                            if (!insertCommand.IsPrepared)
-                                await insertCommand.PrepareAsync();
-
-                            insertCommand.Transaction = transaction;
-
-                            // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
-                            // this does not improve throughput.
-                            await runCommand(insertCommand);
-                            await enqueueForFurtherProcessing((ulong)insertCommand.LastInsertedId, db, transaction);
-
-                            Interlocked.Increment(ref CurrentReportInsertCount);
-                            Interlocked.Increment(ref TotalInsertCount);
-                        }
+                        insertCommand.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()}),");
                     }
                     catch (Exception e)
                     {
@@ -226,7 +138,44 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     }
                 }
 
-                await transaction.CommitAsync();
+                // This could potentially be batched further (ie. to run more SQL statements in a single NonQuery call), but in practice
+                // this does not improve throughput.
+
+                using var cmd = db.CreateCommand();
+                cmd.CommandText = insertCommand.ToString().Trim(',', ' ');
+
+                try
+                {
+                    await cmd.PrepareAsync();
+                }
+                catch
+                {
+                    Console.WriteLine($"Running: {cmd.CommandText}");
+                    throw;
+                }
+
+                Console.WriteLine($"Running insert command with {cmd.CommandText.Length} bytes");
+                Stopwatch sw = new Stopwatch();
+                sw.Start();
+                await runCommand(cmd);
+                Console.WriteLine($"Command completed in {sw.Elapsed.TotalSeconds} seconds");
+
+                ulong firstInsertId = (ulong)cmd.LastInsertedId;
+                ulong lastInsertId = firstInsertId + (ulong)scores.Length - 1;
+
+                // check consecutive inserts (can probably remove this now that we're sure).
+                long firstId = db.QuerySingle<long>($"SELECT legacy_score_id FROM scores WHERE id = {firstInsertId}");
+                long lastId = db.QuerySingle<long>($"SELECT legacy_score_id FROM scores WHERE id = {lastInsertId}");
+                if (lastId != (long)scores.Last().score_id) throw new InvalidOperationException("OUT OF ORDER");
+                if (firstId != (long)scores.First().score_id) throw new InvalidOperationException("OUT OF ORDER");
+
+                // TODO: wrong
+                await enqueueForFurtherProcessing(firstInsertId, lastInsertId, db, transaction);
+
+                Interlocked.Add(ref CurrentReportInsertCount, scores.Length);
+                Interlocked.Add(ref TotalInsertCount, scores.Length);
+
+                // await transaction.CommitAsync();
             }
         }
 
@@ -439,35 +388,38 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             await command.ExecuteNonQueryAsync();
         }
 
-        private async Task enqueueForFurtherProcessing(ulong scoreId, MySqlConnection connection, MySqlTransaction transaction, bool isDelete = false)
+        private async Task enqueueForFurtherProcessing(ulong firstId, ulong lastId, MySqlConnection connection, MySqlTransaction transaction, bool isDelete = false)
         {
-            if (importLegacyPP || isDelete)
+            for (ulong scoreId = firstId; scoreId <= lastId; scoreId++)
             {
-                // we can proceed by pushing the score directly to ES for indexing.
-                ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
+                if (importLegacyPP || isDelete)
                 {
-                    ScoreId = (long)scoreId
-                });
-            }
-            else
-            {
-                if (dryRun)
-                {
-                    // We can't retrieve this from the database because it hasn't been inserted.
-                    ScoreStatisticsItems.Add(new ScoreItem(new SoloScore(), new ProcessHistory()));
-                    return;
+                    // we can proceed by pushing the score directly to ES for indexing.
+                    ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
+                    {
+                        ScoreId = (long)scoreId
+                    });
                 }
+                else
+                {
+                    if (dryRun)
+                    {
+                        // We can't retrieve this from the database because it hasn't been inserted.
+                        ScoreStatisticsItems.Add(new ScoreItem(new SoloScore(), new ProcessHistory()));
+                        return;
+                    }
 
-                // the legacy PP value was not imported.
-                // push the score to redis for PP processing.
-                // on completion of PP processing, the score will be pushed to ES for indexing.
-                // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
-                // is not constructed anywhere before this...
-                var score = await connection.QuerySingleAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id",
-                    new { id = scoreId }, transaction);
-                var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id",
-                    new { id = scoreId }, transaction);
-                ScoreStatisticsItems.Add(new ScoreItem(score, history));
+                    // the legacy PP value was not imported.
+                    // push the score to redis for PP processing.
+                    // on completion of PP processing, the score will be pushed to ES for indexing.
+                    // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
+                    // is not constructed anywhere before this...
+                    var score = await connection.QuerySingleAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id",
+                        new { id = scoreId }, transaction);
+                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id",
+                        new { id = scoreId }, transaction);
+                    ScoreStatisticsItems.Add(new ScoreItem(score, history));
+                }
             }
         }
     }
