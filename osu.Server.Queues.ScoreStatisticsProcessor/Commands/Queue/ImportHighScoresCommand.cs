@@ -62,7 +62,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
         /// </summary>
         [Option(CommandOptionType.SingleValue, Template = "--batch-size")]
-        public int InsertBatchSize { get; set; } = 256000;
+        public int InsertBatchSize { get; set; } = 128000;
 
         private long lastCommitTimestamp;
         private long startupTimestamp;
