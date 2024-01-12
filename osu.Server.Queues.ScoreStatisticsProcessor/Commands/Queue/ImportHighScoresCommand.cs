@@ -85,21 +85,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// </summary>
         private const int maximum_slave_latency_seconds = 60;
 
+        private ulong maxProcessableId;
+        private ulong lastProcessedId;
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
             string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
 
             DateTimeOffset start = DateTimeOffset.Now;
-
-            ulong lastId = StartId ?? 0;
+            lastProcessedId = StartId ?? 0;
 
             Console.WriteLine();
-            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
+            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastProcessedId}");
             Console.WriteLine($"Insert size: {InsertBatchSize}");
             Console.WriteLine($"Threads: {ThreadCount}");
 
-            ulong maxProcessableId = getMaxProcessable(ruleset);
+            maxProcessableId = getMaxProcessable(ruleset);
 
             Console.WriteLine(maxProcessableId != ulong.MaxValue
                 ? $"Will process scores up to ID {maxProcessableId}"
@@ -124,7 +126,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                                                                     + $"WHERE score_id >= @lastId AND score_id <= @maxProcessableId" +
                                                                     " ORDER BY score_id LIMIT @batchSize", new
                     {
-                        lastId,
+                        lastId = lastProcessedId,
                         maxProcessableId,
                         batchSize = InsertBatchSize * ThreadCount,
                         rulesetId = ruleset.RulesetInfo.OnlineID,
@@ -159,43 +161,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     queueNextBatch();
 
                     // update lastId to allow the next bulk query to start from the correct location.
-                    lastId = highScores.Last().score_id;
+                    lastProcessedId = highScores.Last().score_id;
 
                     while (!runningBatches.All(t => t.Task.IsCompleted))
-                    {
-                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-
-                        if ((currentTimestamp - lastCommitTimestamp) / 1000f >= seconds_between_report)
-                        {
-                            int inserted = Interlocked.Exchange(ref BatchInserter.CurrentReportInsertCount, 0);
-
-                            // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
-                            if (inserted > 0 && startupTimestamp == 0)
-                                startupTimestamp = lastCommitTimestamp;
-
-                            double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
-                            double processingRate = BatchInserter.TotalInsertCount / secondsSinceStart;
-
-                            double secondsLeft = (maxProcessableId - lastId) / processingRate;
-
-                            int etaHours = (int)(secondsLeft / 3600);
-                            int etaMins = (int)(secondsLeft - etaHours * 3600) / 60;
-                            string eta = $"{etaHours}h{etaMins}m";
-
-                            Console.WriteLine($"Inserting up to {lastId:N0} "
-                                              + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
-                                              + $"{BatchInserter.TotalInsertCount:N0} inserted {BatchInserter.TotalSkipCount:N0} skipped (+{inserted:N0}) {processingRate:N0}/s {eta}");
-
-                            lastCommitTimestamp = currentTimestamp;
-                        }
-
                         Thread.Sleep(10);
-                    }
+
+                    report();
 
                     if (runningBatches.Any(t => t.Task.IsFaulted))
                     {
                         Console.WriteLine("ERROR: At least one tasks were faulted. Aborting for safety.");
-                        Console.WriteLine($"Running batches were processing up to {lastId}.");
+                        Console.WriteLine($"Running batches were processing up to {lastProcessedId}.");
                         Console.WriteLine();
 
                         for (int i = 0; i < runningBatches.Count; i++)
@@ -224,8 +200,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         }
                     }
 
-                    Console.WriteLine($"Workers processed up to score_id {lastId}");
-                    lastId++;
+                    lastProcessedId++;
 
                     void queueNextBatch()
                     {
@@ -245,7 +220,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 Console.WriteLine($"Cancelled after {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
                 Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted, {BatchInserter.TotalSkipCount} skipped");
-                Console.WriteLine($"Resume from start id {lastId}");
+                Console.WriteLine($"Resume from start id {lastProcessedId}");
             }
             else
             {
@@ -256,6 +231,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine();
             Console.WriteLine();
             return 0;
+        }
+
+        private void report()
+        {
+            long currentTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            int inserted = Interlocked.Exchange(ref BatchInserter.CurrentReportInsertCount, 0);
+
+            // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
+            if (inserted > 0 && startupTimestamp == 0)
+                startupTimestamp = lastCommitTimestamp;
+
+            double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
+            double processingRate = BatchInserter.TotalInsertCount / secondsSinceStart;
+
+            double secondsLeft = (maxProcessableId - lastProcessedId) / processingRate;
+
+            int etaHours = (int)(secondsLeft / 3600);
+            int etaMins = (int)(secondsLeft - etaHours * 3600) / 60;
+            string eta = processingRate == 0 ? "--h--m" : $"{etaHours}h{etaMins}m";
+
+            Console.WriteLine($"{BatchInserter.TotalInsertCount:N0} inserted {BatchInserter.TotalSkipCount:N0} skipped (+{inserted:N0}) {processingRate:N0}/s {eta}");
+
+            lastCommitTimestamp = currentTimestamp;
         }
 
         private ulong getMaxProcessable(Ruleset ruleset)
