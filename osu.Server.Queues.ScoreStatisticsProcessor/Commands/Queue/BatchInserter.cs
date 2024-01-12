@@ -89,7 +89,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 for (var i = 0; i < scores.Length; i++)
                 {
-                    var highScore = scores[i];
+                    HighScore highScore = scores[i];
 
                     try
                     {
@@ -107,7 +107,30 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         if (isDeletion)
                         {
-                            // TODO: handle deletion
+                            // Check if the score actually exists in the new table..
+                            SoloScore? score = await db.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM scores WHERE legacy_score_id = @id AND ruleset_id = @ruleset_id", new
+                            {
+                                id = highScore.score_id,
+                                ruleset_id = rulesetId
+                            });
+
+                            if (score == null)
+                            {
+                                Interlocked.Increment(ref TotalSkipCount);
+                                continue;
+                            }
+
+                            await db.ExecuteAsync("DELETE FROM scores WHERE legacy_score_id = @id AND ruleset_id = @ruleset_id", new
+                            {
+                                id = highScore.score_id,
+                                ruleset_id = rulesetId
+                            });
+
+                            ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)score.id });
+
+                            Interlocked.Increment(ref TotalDeleteCount);
+                            Interlocked.Increment(ref CurrentReportDeleteCount);
+                            continue;
                         }
 
                         if (existingMapping != null || isDeletion)
@@ -379,11 +402,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             await command.ExecuteNonQueryAsync();
         }
 
-        private async Task enqueueForFurtherProcessing(ulong firstId, ulong lastId, MySqlConnection connection, bool isDelete = false)
+        private async Task enqueueForFurtherProcessing(ulong firstId, ulong lastId, MySqlConnection connection)
         {
             for (ulong scoreId = firstId; scoreId <= lastId; scoreId++)
             {
-                if (importLegacyPP || isDelete)
+                if (importLegacyPP)
                 {
                     // we can proceed by pushing the score directly to ES for indexing.
                     ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
