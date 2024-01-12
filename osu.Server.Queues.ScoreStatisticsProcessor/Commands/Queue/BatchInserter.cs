@@ -156,28 +156,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 if (insertCount == 0)
                     return;
 
-                using var cmd = db.CreateCommand();
-                cmd.CommandText = insertBuilder.ToString().Trim(',', ' ');
-                cmd.CommandTimeout = 120;
+                string sql = insertBuilder.ToString().Trim(',', ' ') + "; SELECT LAST_INSERT_ID()";
 
-                try
-                {
-                    await cmd.PrepareAsync();
-                }
-                catch
-                {
-                    Console.WriteLine($"Running: {cmd.CommandText}");
-                    throw;
-                }
-
-                Console.WriteLine($"Running insert command with {cmd.CommandText.Length} bytes");
+                Console.WriteLine($"Running insert command with {sql.Length} bytes");
                 Stopwatch sw = new Stopwatch();
                 sw.Start();
-                await runCommand(cmd);
-                Console.WriteLine($"Command completed in {sw.Elapsed.TotalSeconds} seconds");
-
-                ulong firstInsertId = (ulong)cmd.LastInsertedId;
+                ulong firstInsertId = db.QuerySingle<ulong>(sql, commandTimeout: 120);
                 ulong lastInsertId = firstInsertId + (ulong)scores.Length - 1;
+                Console.WriteLine($"Command completed in {sw.Elapsed.TotalSeconds} seconds");
 
                 await enqueueForFurtherProcessing(firstInsertId, lastInsertId, db);
 
@@ -387,21 +373,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 return $"{{ BeatmapId = {BeatmapId}, RulesetId = {RulesetId}, Mods = {Mods} }}";
             }
-        }
-
-        private async Task runCommand(MySqlCommand command)
-        {
-            if (dryRun)
-            {
-                Console.WriteLine($"Running: {command.CommandText}");
-                Console.WriteLine();
-
-                string paramString = string.Join(", ", command.Parameters.Select(p => $"{p.ParameterName}:{p.Value}"));
-                Console.WriteLine($"Params: {paramString}");
-                return;
-            }
-
-            await command.ExecuteNonQueryAsync();
         }
 
         private async Task enqueueForFurtherProcessing(ulong firstId, ulong lastId, MySqlConnection connection)
