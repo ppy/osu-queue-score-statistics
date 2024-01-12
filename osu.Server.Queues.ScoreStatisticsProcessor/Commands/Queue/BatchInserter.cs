@@ -157,6 +157,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 using var cmd = db.CreateCommand();
                 cmd.CommandText = insertCommand.ToString().Trim(',', ' ');
+                cmd.CommandTimeout = 120;
 
                 try
                 {
