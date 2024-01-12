@@ -53,13 +53,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public bool SkipIndexing { get; set; }
 
         /// <summary>
-        /// When set to <c>true</c> and in watch mode, scores will not be queued to the score statistics processor,
-        /// instead being sent straight to the elasticsearch indexing queue.
-        /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-score-processor")]
-        public bool SkipScoreProcessor { get; set; }
-
-        /// <summary>
         /// The number of processing threads. Note that too many threads may lead to table fragmentation.
         /// </summary>
         [Option(CommandOptionType.SingleValue, Template = "--thread-count")]
@@ -76,7 +69,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private long lastLatencyCheckTimestamp;
 
         private ElasticQueuePusher? elasticQueueProcessor;
-        private ScoreStatisticsQueueProcessor? scoreStatisticsQueueProcessor;
 
         /// <summary>
         /// The number of seconds between console progress reports.
@@ -101,80 +93,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             DateTimeOffset start = DateTimeOffset.Now;
 
             ulong lastId = StartId ?? 0;
-            string where;
-            bool watchMode = !StartId.HasValue;
-            ulong maxProcessableId;
-
-            // When running in watch mode, we need to ascertain a few things:
-            // - There is active ongoing processing in `score_process_queue` – if not, there will be nothing to watch and we will switch to full run mode.
-            // - Check whether the full run (non-watch) has caught up to recent scores (ie. processed up to a `score_id` contained in `score_process_queue`,
-            //   which generally keeps ~3 days of scores). If not, we should warn that there is a gap in processing, and an extra full run should be performed
-            //   to catch up.
-            if (watchMode)
-            {
-                using var db = DatabaseAccess.GetConnection();
-
-                ulong? lastImportedLegacyScore = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(legacy_score_id) FROM scores WHERE ruleset_id = {RulesetId}") ?? 0;
-                ulong? lowestProcessQueueEntry = db.QuerySingleOrDefault<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deletion = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1;
-
-                if (lowestProcessQueueEntry == null)
-                {
-                    // Generally for bootstrapping a local dev setup.
-                    Console.WriteLine("No start ID specified, and no `score_process_queue` entries, switching to single run.");
-                    lastId = 0;
-                    watchMode = false;
-                }
-                else if (lastImportedLegacyScore >= lowestProcessQueueEntry)
-                {
-                    lastId = lastImportedLegacyScore.Value + 1;
-                    Console.WriteLine($"Continuing watch mode from last processed legacy score ({lastId})");
-                }
-                else
-                {
-                    lastId = lowestProcessQueueEntry.Value;
-                    Console.WriteLine($"WARNING: Continuing watch mode from start of score_process_queue ({lastId})");
-                    Console.WriteLine("This implies that a full import hasn't been run yet, you might want to run another import first to catch up.");
-                    await Task.Delay(5000, cancellationToken);
-                }
-            }
 
             Console.WriteLine();
             Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
-            Console.WriteLine($"Inserting into scores and processing {(watchMode ? "indefinitely" : "as single run")}");
             Console.WriteLine($"Insert size: {InsertBatchSize}");
             Console.WriteLine($"Threads: {ThreadCount}");
 
-            if (watchMode)
-            {
-                if (!SkipScoreProcessor)
-                {
-                    scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
+            ulong maxProcessableId = getMaxProcessable(ruleset);
 
-                    if (SkipIndexing)
-                    {
-                        throw new NotSupportedException("Skipping indexing in watch mode is not supported, "
-                                                        + $"as watch mode will push imported scores to the {scoreStatisticsQueueProcessor.QueueName} redis queue in order to process PP, "
-                                                        + "and once that score is processed on the aforementioned queue, it will be pushed for indexing to ES.");
-                    }
+            Console.WriteLine(maxProcessableId != ulong.MaxValue
+                ? $"Will process scores up to ID {maxProcessableId}"
+                : "Will process all scores to end of table (could not determine queue state from `score_process_queue`)");
 
-                    Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
-                }
-
-                // We are going to enqueue the score for pp processing ourselves, so we don't care about its current processing status on the old queue.
-                maxProcessableId = ulong.MaxValue;
-                where = "WHERE score_id >= @lastId";
-            }
-            else
-            {
-                maxProcessableId = getMaxProcessable(ruleset);
-                where = "WHERE score_id >= @lastId AND score_id <= @maxProcessableId";
-
-                Console.WriteLine(maxProcessableId != ulong.MaxValue
-                    ? $"Will process scores up to ID {maxProcessableId}"
-                    : "Will process all scores to end of table (could not determine queue state from `score_process_queue`)");
-            }
-
-            if (!SkipIndexing && scoreStatisticsQueueProcessor == null)
+            if (!SkipIndexing)
             {
                 elasticQueueProcessor = new ElasticQueuePusher();
                 Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
@@ -187,25 +118,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     if (CheckSlaveLatency)
                         checkSlaveLatency(dbMainQuery);
 
-                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} h {where}" +
-                                                                             " ORDER BY score_id LIMIT @scoresPerQuery", new
+                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} h WHERE score_id >= @lastId AND score_id <= @maxProcessableId" +
+                                                                             " ORDER BY score_id LIMIT @batchSize", new
                     {
                         lastId,
                         maxProcessableId,
-                        batch_size = InsertBatchSize * ThreadCount,
+                        batchSize = InsertBatchSize * ThreadCount,
                         rulesetId = ruleset.RulesetInfo.OnlineID,
                     });
 
                     if (!highScores.Any())
                     {
-                        if (!watchMode)
-                        {
-                            Console.WriteLine("No scores found, all done!");
-                            break;
-                        }
-
-                        Thread.Sleep(500);
-                        continue;
+                        Console.WriteLine("No scores found, all done!");
+                        break;
                     }
 
                     List<BatchInserter> runningBatches = new List<BatchInserter>();
@@ -248,16 +173,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
                             double processingRate = BatchInserter.TotalInsertCount / secondsSinceStart;
 
-                            string eta = string.Empty;
+                            double secondsLeft = (maxProcessableId - lastId) / processingRate;
 
-                            if (!watchMode)
-                            {
-                                double secondsLeft = (maxProcessableId - lastId) / processingRate;
-
-                                int etaHours = (int)(secondsLeft / 3600);
-                                int etaMins = (int)(secondsLeft - etaHours * 3600) / 60;
-                                eta = $"{etaHours}h{etaMins}m";
-                            }
+                            int etaHours = (int)(secondsLeft / 3600);
+                            int etaMins = (int)(secondsLeft - etaHours * 3600) / 60;
+                            string eta = $"{etaHours}h{etaMins}m";
 
                             Console.WriteLine($"Inserting up to {lastId:N0} "
                                               + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
@@ -288,19 +208,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         return -1;
                     }
 
-                    if (scoreStatisticsQueueProcessor != null)
-                    {
-                        Debug.Assert(!runningBatches.SelectMany(b => b.ElasticScoreItems).Any());
-
-                        var scoreStatisticsItems = runningBatches.SelectMany(b => b.ScoreStatisticsItems).ToList();
-
-                        if (scoreStatisticsItems.Any())
-                        {
-                            scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
-                            Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
-                        }
-                    }
-                    else if (elasticQueueProcessor != null)
+                    if (elasticQueueProcessor != null)
                     {
                         Debug.Assert(!runningBatches.SelectMany(b => b.ScoreStatisticsItems).Any());
 
@@ -321,7 +229,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if (batch.Count == 0)
                             return;
 
-                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: !watchMode || SkipScoreProcessor));
+                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: true));
                         batch.Clear();
                     }
                 }
