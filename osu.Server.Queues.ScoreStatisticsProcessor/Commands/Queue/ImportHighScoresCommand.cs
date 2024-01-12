@@ -243,7 +243,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 startupTimestamp = lastCommitTimestamp;
 
             double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
-            double processingRate = BatchInserter.TotalInsertCount / secondsSinceStart;
+            double processingRate = (BatchInserter.TotalInsertCount - InsertBatchSize * ThreadCount) / secondsSinceStart;
 
             double secondsLeft = (maxProcessableId - lastProcessedId) / processingRate;
 
