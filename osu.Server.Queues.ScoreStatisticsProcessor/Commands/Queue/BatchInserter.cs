@@ -145,6 +145,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                             insertBuilder.Append(",");
                         first = false;
 
+                        if (referenceScore.TotalScore > 4294967295)
+                            referenceScore.TotalScore = 0;
+
+                        if (referenceScore.LegacyTotalScore > 4294967295)
+                            referenceScore.LegacyTotalScore = 0;
+
                         insertBuilder.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, 1, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()})");
                     }
                 }
