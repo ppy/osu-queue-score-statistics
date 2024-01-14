@@ -293,12 +293,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 // state before resuming operations.
                 latency = db.QueryFirstOrDefault<int?>("SELECT `count` FROM `osu_counts` WHERE NAME = 'slave_latency'");
 
-                if (latency == null)
+                if (latency == null || latency < maximum_slave_latency_seconds)
                     return;
 
                 Console.WriteLine($"Current slave latency of {latency} seconds exceeded maximum of {maximum_slave_latency_seconds} seconds.");
-                Console.WriteLine($"Sleeping for {latency} seconds to allow catch-up.");
-                await Task.Delay(latency.Value * 1000, cancellationToken);
+                Console.WriteLine($"Sleeping to allow catch-up.");
+
+                await Task.Delay(maximum_slave_latency_seconds * 1000, cancellationToken);
             } while (latency > maximum_slave_latency_seconds);
         }
     }
