@@ -71,11 +71,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private ElasticQueuePusher? elasticQueueProcessor;
 
         /// <summary>
-        /// The number of seconds between console progress reports.
-        /// </summary>
-        private const double seconds_between_report = 2;
-
-        /// <summary>
         /// The number of seconds between checks for slave latency.
         /// </summary>
         private const int seconds_between_latency_checks = 60;
@@ -297,7 +292,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     return;
 
                 Console.WriteLine($"Current slave latency of {latency} seconds exceeded maximum of {maximum_slave_latency_seconds} seconds.");
-                Console.WriteLine($"Sleeping to allow catch-up.");
+                Console.WriteLine("Sleeping to allow catch-up.");
 
                 await Task.Delay(maximum_slave_latency_seconds * 1000, cancellationToken);
             } while (latency > maximum_slave_latency_seconds);
