@@ -165,7 +165,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             insertBuilder.Append("; SELECT LAST_INSERT_ID()");
 
-            string sql = insertBuilder.ToString().Trim(',', ' ') + "; SELECT LAST_INSERT_ID()";
+            string sql = insertBuilder.ToString();
 
             Console.WriteLine($" Running insert command with {sql.Length:#,0} bytes");
             sw.Restart();
