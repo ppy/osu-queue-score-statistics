@@ -83,7 +83,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// <summary>
         /// The latency a slave is allowed to fall behind before we start to panic.
         /// </summary>
-        private const int maximum_slave_latency_seconds = 60;
+        private const int maximum_slave_latency_seconds = 120;
 
         private ulong maxProcessableId;
         private ulong lastProcessedId;
@@ -118,7 +118,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     if (CheckSlaveLatency)
-                        checkSlaveLatency(db);
+                        await checkSlaveLatency(db, cancellationToken);
 
                     Console.WriteLine($"Fetching next scores from {lastProcessedId}...");
                     var highScores = await db.QueryAsync<HighScore>($"SELECT h.*, s.id as new_id FROM {highScoreTable} h "
@@ -275,7 +275,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             }
         }
 
-        private void checkSlaveLatency(MySqlConnection db)
+        private async Task checkSlaveLatency(MySqlConnection db, CancellationToken cancellationToken)
         {
             long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
 
@@ -298,7 +298,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                 Console.WriteLine($"Current slave latency of {latency} seconds exceeded maximum of {maximum_slave_latency_seconds} seconds.");
                 Console.WriteLine($"Sleeping for {latency} seconds to allow catch-up.");
-                Thread.Sleep(latency.Value * 1000);
+                await Task.Delay(latency.Value * 1000, cancellationToken);
             } while (latency > maximum_slave_latency_seconds);
         }
     }
