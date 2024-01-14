@@ -34,6 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public uint? queue_id { get; set; }
         public byte? status { get; set; }
 
+        // ID of this score in the `scores` table. Used in join context.
         public ulong? new_id { get; set; }
     }
 }
