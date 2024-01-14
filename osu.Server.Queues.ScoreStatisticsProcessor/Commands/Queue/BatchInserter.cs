@@ -172,6 +172,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             using (var db = DatabaseAccess.GetConnection())
             {
+                // https://dev.mysql.com/doc/refman/8.0/en/information-functions.html#function_last-insert-id
+                // If you insert multiple rows using a single INSERT statement, LAST_INSERT_ID() returns the value generated for the first inserted row only.
                 ulong firstInsertId = db.ExecuteScalar<ulong>(sql, commandTimeout: 120);
                 ulong lastInsertId = firstInsertId + (ulong)scores.Length - 1;
                 Console.WriteLine($" Command completed in {sw.Elapsed.TotalSeconds:N1} seconds");
