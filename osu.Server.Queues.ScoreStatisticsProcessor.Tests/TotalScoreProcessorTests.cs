@@ -28,6 +28,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestTotalScoreIncreasesOnUnrankedBeatmaps()
+        {
+            AddBeatmap(b =>
+            {
+                b.approved = BeatmapOnlineStatus.Graveyard;
+                b.total_length = 60; // seconds
+            });
+
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 10081, CancellationToken);
+
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 20162, CancellationToken);
+        }
+
+        [Fact]
         public void TestLevelIncrease()
         {
             AddBeatmap();
