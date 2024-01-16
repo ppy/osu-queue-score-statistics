@@ -33,5 +33,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         // These come from score_process_queue. Used in join context.
         public uint? queue_id { get; set; }
         public byte? status { get; set; }
+
+        // ID of this score in the `scores` table. Used in join context.
+        public ulong? new_id { get; set; }
     }
 }
