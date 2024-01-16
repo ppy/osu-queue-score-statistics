@@ -270,12 +270,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
             int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
-            var scoreAttributes = getScoringAttributes(rulesetId, highScore.beatmap_id).Result;
+            var scoreAttributes = getScoringAttributes(rulesetId, highScore.beatmap_id);
 
             if (scoreAttributes == null)
             {
                 // TODO: LOG
-                Console.Error.WriteLineAsync($"{highScore.score_id}: Scoring attribs entry missing for beatmap {highScore.beatmap_id}.");
+                Console.Error.WriteLine($"{highScore.score_id}: Scoring attribs entry missing for beatmap {highScore.beatmap_id}.");
                 return scoreInfo;
             }
 
@@ -314,7 +314,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
 #pragma warning restore CS0618
 
-            var difficulty = getDificultyInfo(highScore.beatmap_id).Result;
+            var difficulty = getDificultyInfo(highScore.beatmap_id);
 
             StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, difficulty, scoreAttributes.ToAttributes());
 
@@ -324,14 +324,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private static readonly ConcurrentDictionary<int, BeatmapScoringAttributes?> scoring_attributes_cache =
             new ConcurrentDictionary<int, BeatmapScoringAttributes?>();
 
-        private static async Task<BeatmapScoringAttributes?> getScoringAttributes(int rulesetId, int beatmapId)
+        private static BeatmapScoringAttributes? getScoringAttributes(int rulesetId, int beatmapId)
         {
             if (scoring_attributes_cache.TryGetValue(beatmapId, out var existing))
                 return existing;
 
             using (var connection = DatabaseAccess.GetConnection())
             {
-                BeatmapScoringAttributes? scoreAttributes = await connection.QuerySingleOrDefaultAsync<BeatmapScoringAttributes>(
+                BeatmapScoringAttributes? scoreAttributes = connection.QuerySingleOrDefault<BeatmapScoringAttributes>(
                     "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
                     {
                         BeatmapId = beatmapId,
@@ -345,14 +345,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private static readonly ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo> difficulty_info_cache =
             new ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo>();
 
-        private static async Task<LegacyBeatmapConversionDifficultyInfo> getDificultyInfo(int beatmapId)
+        private static LegacyBeatmapConversionDifficultyInfo getDificultyInfo(int beatmapId)
         {
             if (difficulty_info_cache.TryGetValue(beatmapId, out var existing))
                 return existing;
 
             using (var connection = DatabaseAccess.GetConnection())
             {
-                Beatmap beatmap = await connection.QuerySingleAsync<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                Beatmap beatmap = connection.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
                 {
                     BeatmapId = beatmapId
                 });
