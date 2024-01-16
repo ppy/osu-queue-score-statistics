@@ -33,8 +33,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// version 8: switched total score processor from standardised score to classic score
         /// version 9: added ranked score processor
         /// version 10: modified play count and time processors to only track valid scores
+        /// version 11: modified total score processor to only count valid scores
         /// </summary>
-        public const int VERSION = 10;
+        public const int VERSION = 11;
 
         public static readonly List<Ruleset> AVAILABLE_RULESETS = getRulesets();
 
