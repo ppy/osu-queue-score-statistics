@@ -34,6 +34,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                        && totalObjectsJudged >= Math.Min(0.1f * totalObjects, 20));
         }
 
+        /// <summary>
+        /// Returns the length of play in the given <paramref name="score"/> in seconds.
+        /// </summary>
         public static int GetPlayLength(SoloScoreInfo score)
         {
             // to ensure sanity, first get the maximum time feasible from the beatmap's length
