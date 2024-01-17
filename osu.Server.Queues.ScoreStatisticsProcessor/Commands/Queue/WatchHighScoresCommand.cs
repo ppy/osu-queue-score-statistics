@@ -240,7 +240,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine();
             Console.WriteLine();
             Console.WriteLine($"Cancelled after {(DateTimeOffset.Now - startedAt).TotalSeconds} seconds.");
-            Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted, {BatchInserter.TotalSkipCount} skipped");
+            Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted, {BatchInserter.TotalSkipCount} skipped, {BatchInserter.TotalDeleteCount} deleted");
             Console.WriteLine($"Resume from start id {lastQueueId}");
             Console.WriteLine();
             Console.WriteLine();
