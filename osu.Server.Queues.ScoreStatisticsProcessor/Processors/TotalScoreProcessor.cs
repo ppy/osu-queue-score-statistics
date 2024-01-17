@@ -4,9 +4,11 @@
 using System;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring.Legacy;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
@@ -33,18 +35,37 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 return;
             }
 
-            userStats.total_score -= score.GetDisplayScore(ScoringMode.Classic);
+            var classicTotalScore = score.GetDisplayScore(ScoringMode.Classic);
+
+            if (previousVersion >= 11 && !shouldIncludePlayInTotalScore(score, classicTotalScore))
+                return;
+
+            userStats.total_score -= classicTotalScore;
             userStats.level = calculateLevel(userStats.total_score);
         }
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            userStats.total_score += score.GetDisplayScore(ScoringMode.Classic);
+            var classicTotalScore = score.GetDisplayScore(ScoringMode.Classic);
+
+            if (!shouldIncludePlayInTotalScore(score, classicTotalScore))
+                return;
+
+            userStats.total_score += classicTotalScore;
             userStats.level = calculateLevel(userStats.total_score);
         }
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
+        }
+
+        private static bool shouldIncludePlayInTotalScore(SoloScoreInfo score, long classicScore)
+        {
+            if (score.Beatmap?.Status >= BeatmapOnlineStatus.Ranked)
+                return true;
+
+            int playLength = PlayValidityHelper.GetPlayLength(score);
+            return classicScore <= playLength * 500_000;
         }
 
         private static float calculateLevel(long totalScore)
