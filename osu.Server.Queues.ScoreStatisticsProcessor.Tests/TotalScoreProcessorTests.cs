@@ -1,6 +1,10 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Dapper.Contrib.Extensions;
+using osu.Game.Beatmaps;
+using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
@@ -13,6 +17,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void TestTotalScoreIncrease()
         {
             AddBeatmap();
+
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 10081, CancellationToken);
+
+            PushToQueueAndWaitForProcess(CreateTestScore());
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 20162, CancellationToken);
+        }
+
+        [Fact]
+        public void TestTotalScoreIncreasesOnUnrankedBeatmaps()
+        {
+            AddBeatmap(b =>
+            {
+                b.approved = BeatmapOnlineStatus.Graveyard;
+                b.total_length = 60; // seconds
+            });
 
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
@@ -116,6 +138,58 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 10081, CancellationToken);
+        }
+
+        [Fact]
+        public void TestTotalScoreNotIncreasedOnBrokenUnrankedBeatmap()
+        {
+            AddBeatmap(b =>
+            {
+                b.approved = BeatmapOnlineStatus.Graveyard;
+                b.total_length = 1; // seconds
+            });
+
+            var score = CreateTestScore();
+            score.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
+            {
+                [HitResult.LargeBonus] = int.MaxValue
+            };
+            score.Score.ScoreData.MaximumStatistics = new Dictionary<HitResult, int>
+            {
+                [HitResult.LargeBonus] = int.MaxValue
+            };
+            score.Score.total_score = 5_000_010;
+            score.Score.started_at = DateTimeOffset.Now;
+            score.Score.ended_at = score.Score.started_at.Value.AddSeconds(1);
+
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
+        }
+
+        [Fact]
+        public void TestTotalScoreIncreasedOnBrokenRankedBeatmap()
+        {
+            AddBeatmap();
+
+            var score = CreateTestScore();
+            score.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
+            {
+                [HitResult.LargeBonus] = int.MaxValue
+            };
+            score.Score.ScoreData.MaximumStatistics = new Dictionary<HitResult, int>
+            {
+                [HitResult.LargeBonus] = int.MaxValue
+            };
+            score.Score.total_score = 5_000_010;
+            score.Score.started_at = DateTimeOffset.Now;
+            score.Score.ended_at = score.Score.started_at.Value.AddSeconds(1);
+
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 500_001, CancellationToken);
         }
     }
 }
