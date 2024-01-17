@@ -125,7 +125,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     HighScore[] highScores = (await dbMainQuery.QueryAsync<HighScore>(
                                                  "SELECT q.*, h.*, s.id as new_id FROM osu.score_process_queue q "
                                                  + $"LEFT JOIN {highScoreTable} h USING (score_id) "
-                                                 + $"LEFT JOIN scores s ON h.score_id = s.legacy_score_id AND s.ruleset_id = {RulesetId} "
+                                                 + $"LEFT JOIN scores s ON q.score_id = s.legacy_score_id AND s.ruleset_id = {RulesetId} "
                                                  + $"WHERE queue_id >= @lastQueueId AND mode = {RulesetId} ORDER BY queue_id LIMIT 50", new
                                                  {
                                                      lastQueueId,
