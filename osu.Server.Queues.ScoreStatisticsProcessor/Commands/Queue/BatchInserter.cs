@@ -112,7 +112,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         }
 
                         using (var conn = DatabaseAccess.GetConnection())
-                            conn.Execute("DELETE FROM scores WHERE id = @id", new { highScore.new_id });
+                            conn.Execute("DELETE FROM scores WHERE id = @new_id", new { highScore.new_id });
                         ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)highScore.new_id });
 
                         Interlocked.Increment(ref TotalDeleteCount);
