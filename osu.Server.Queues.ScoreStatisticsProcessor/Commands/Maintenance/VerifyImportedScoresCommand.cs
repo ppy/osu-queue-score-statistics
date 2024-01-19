@@ -84,28 +84,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 {
                     if (importedScore.legacy_score_id == null) continue;
 
+                    // Score was deleted in legacy table.
                     if (importedScore.HighScore == null)
                     {
                         if (!DryRun)
                         {
-                            await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
-                            {
-                                id = importedScore.id,
-                            });
+                            await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", importedScore);
                         }
 
                         Interlocked.Increment(ref deleted);
-                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
-                        continue;
-                    }
-
-                    if (importedScore.pp == null && importedScore.HighScore.pp != null)
-                    {
-                        Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
-                        Interlocked.Increment(ref fail);
-
-                        if (!DryRun)
-                            await conn.ExecuteAsync($"UPDATE scores SET pp = {importedScore.HighScore.pp} WHERE id = {importedScore.id}");
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         continue;
                     }
@@ -117,10 +104,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         {
                             if (!DryRun)
                             {
-                                await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
-                                {
-                                    id = importedScore.id,
-                                });
+                                await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", importedScore);
                             }
                         }
                         // PP doesn't match.
