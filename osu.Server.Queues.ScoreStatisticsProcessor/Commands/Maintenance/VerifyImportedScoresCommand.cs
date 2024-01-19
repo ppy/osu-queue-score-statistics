@@ -116,7 +116,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     {
                         if (!DryRun)
                         {
-                            await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", importedScore);
+                            await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
+                            {
+                                id = importedScore.id
+                            });
                         }
 
                         Interlocked.Increment(ref deleted);
@@ -133,7 +136,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         {
                             if (!DryRun)
                             {
-                                await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", importedScore);
+                                await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
+                                {
+                                    id = importedScore.id
+                                });
                             }
                         }
                         // PP doesn't match.
