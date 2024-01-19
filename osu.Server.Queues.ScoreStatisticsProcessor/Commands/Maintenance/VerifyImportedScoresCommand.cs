@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Game.Scoring;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -80,6 +81,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 elasticItems.Clear();
 
+                Parallel.ForEach(importedScores, new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = Environment.ProcessorCount,
+                }, importedScore =>
+                {
+                    if (importedScore.legacy_score_id == null) return;
+
+                    if (importedScore.HighScore == null) return;
+
+                    importedScore.ReferenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
+                });
+
                 foreach (var importedScore in importedScores)
                 {
                     if (importedScore.legacy_score_id == null) continue;
@@ -96,6 +109,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         continue;
                     }
+
+                    var referenceScore = importedScore.ReferenceScore!;
 
                     if (!check(importedScore.id, "performance", importedScore.pp ?? 0, importedScore.HighScore.pp ?? 0))
                     {
@@ -123,9 +138,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         Interlocked.Increment(ref fail);
                     }
-
-                    // TODO: check data. will be slow unless we cache beatmap attribs lookups
-                    var referenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
 
                     if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore))
                     {
@@ -198,6 +210,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             public float? pp;
 
             public HighScore? HighScore { get; set; }
+            public ScoreInfo? ReferenceScore { get; set; }
         }
     }
 }
