@@ -179,6 +179,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             if (imported?.Equals(original) != true)
             {
+                Console.WriteLine();
                 Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
                 return false;
             }
