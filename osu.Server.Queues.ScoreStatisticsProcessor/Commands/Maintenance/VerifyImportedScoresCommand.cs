@@ -81,7 +81,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         .ToDictionary(s => s.score_id, s => s);
 
                     foreach (var score in rulesetScores)
-                        score.HighScore = highScores[score.legacy_score_id!.Value];
+                    {
+                        if (highScores.TryGetValue(score.legacy_score_id!.Value, out var highScore))
+                            score.HighScore = highScore;
+                    }
                 }
 
                 if (!importedScores.Any())
