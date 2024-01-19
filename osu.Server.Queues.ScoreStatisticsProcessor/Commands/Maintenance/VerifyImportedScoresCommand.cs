@@ -43,7 +43,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
+                HashSet<ElasticQueuePusher.ElasticScoreItem> elasticItems = new HashSet<ElasticQueuePusher.ElasticScoreItem>();
 
                 IEnumerable<ComparableScore> importedScores = await conn.QueryAsync<ComparableScore>(
                     "SELECT id, "
@@ -123,15 +123,33 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     // TODO: check data. will be slow unless we cache beatmap attribs lookups
                     var referenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
-                    if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore)) Interlocked.Increment(ref fail);
-                    if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore)) Interlocked.Increment(ref fail);
 
-                    elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
+                    if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore))
+                    {
+                        Interlocked.Increment(ref fail);
+
+                        await conn.ExecuteAsync("UPDATE scores SET total_score = @score WHERE id = @id", new
+                        {
+                            score = referenceScore.TotalScore,
+                            id = importedScore.id,
+                        });
+                    }
+
+                    if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
+                    {
+                        Interlocked.Increment(ref fail);
+
+                        await conn.ExecuteAsync("UPDATE scores SET legacy_total_score = @score WHERE id = @id", new
+                        {
+                            score = referenceScore.LegacyTotalScore,
+                            id = importedScore.id,
+                        });
+                    }
                 }
 
                 if (elasticItems.Count > 0)
                 {
-                    elasticQueueProcessor.PushToQueue(elasticItems);
+                    elasticQueueProcessor.PushToQueue(elasticItems.ToList());
                     Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                 }
 
