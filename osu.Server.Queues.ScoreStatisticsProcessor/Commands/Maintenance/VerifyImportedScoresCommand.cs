@@ -22,8 +22,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         /// <summary>
         /// The high score ID to start deleting imported high scores from.
         /// </summary>
-        [Argument(0)]
-        public ulong StartId { get; set; }
+        [Option(CommandOptionType.SingleValue, Template = "--start-id")]
+        public ulong? StartId { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
         public bool DryRun { get; set; }
@@ -32,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            ulong lastId = StartId;
+            ulong lastId = StartId ?? 0;
             int deleted = 0;
             int fail = 0;
 
