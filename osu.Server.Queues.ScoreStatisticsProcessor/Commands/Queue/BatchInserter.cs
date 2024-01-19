@@ -270,7 +270,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
             int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
-            var scoreAttributes = getScoringAttributes(rulesetId, highScore.beatmap_id);
+            var scoreAttributes = getScoringAttributes(new BeatmapLookup(highScore.beatmap_id, rulesetId));
 
             if (scoreAttributes == null)
             {
@@ -293,7 +293,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 // Since we're dealing with high scores, we assume that the database mod values have already been validated for mania-specific beatmaps that don't allow key mods.
                 int difficultyMods = (int)LegacyModsHelper.MaskRelevantMods((LegacyMods)highScore.enabled_mods, true, rulesetId);
 
-                Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = queryAttributes(
+                Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = getAttributes(
                     new DifficultyAttributesLookup(highScore.beatmap_id, rulesetId, difficultyMods));
 
                 if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
@@ -321,12 +321,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             return scoreInfo;
         }
 
-        private static readonly ConcurrentDictionary<int, BeatmapScoringAttributes?> scoring_attributes_cache =
-            new ConcurrentDictionary<int, BeatmapScoringAttributes?>();
+        private static readonly ConcurrentDictionary<BeatmapLookup, BeatmapScoringAttributes?> scoring_attributes_cache =
+            new ConcurrentDictionary<BeatmapLookup, BeatmapScoringAttributes?>();
 
-        private static BeatmapScoringAttributes? getScoringAttributes(int rulesetId, int beatmapId)
+        private static BeatmapScoringAttributes? getScoringAttributes(BeatmapLookup lookup)
         {
-            if (scoring_attributes_cache.TryGetValue(beatmapId, out var existing))
+            if (scoring_attributes_cache.TryGetValue(lookup, out var existing))
                 return existing;
 
             using (var connection = DatabaseAccess.GetConnection())
@@ -334,11 +334,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 BeatmapScoringAttributes? scoreAttributes = connection.QuerySingleOrDefault<BeatmapScoringAttributes>(
                     "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
                     {
-                        BeatmapId = beatmapId,
-                        RulesetId = rulesetId,
+                        BeatmapId = lookup.BeatmapId,
+                        RulesetId = lookup.RulesetId,
                     });
 
-                return scoring_attributes_cache[beatmapId] = scoreAttributes;
+                return scoring_attributes_cache[lookup] = scoreAttributes;
             }
         }
 
@@ -364,7 +364,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private static readonly ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>> attributes_cache =
             new ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>>();
 
-        private static Dictionary<int, BeatmapDifficultyAttribute> queryAttributes(DifficultyAttributesLookup lookup)
+        private static Dictionary<int, BeatmapDifficultyAttribute> getAttributes(DifficultyAttributesLookup lookup)
         {
             if (attributes_cache.TryGetValue(lookup, out Dictionary<int, BeatmapDifficultyAttribute>? existing))
                 return existing;
@@ -376,6 +376,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
 
                 return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
+            }
+        }
+
+        private record BeatmapLookup(int BeatmapId, int RulesetId)
+        {
+            public override string ToString()
+            {
+                return $"{{ BeatmapId = {BeatmapId}, RulesetId = {RulesetId} }}";
             }
         }
 
