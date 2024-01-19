@@ -46,8 +46,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public static int TotalSkipCount;
 
         private readonly Ruleset ruleset;
-        private readonly HitResult maxBasicResult;
-        private readonly ModClassic classicMod;
 
         private readonly bool importLegacyPP;
         private readonly bool dryRun;
@@ -65,10 +63,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             this.ruleset = ruleset;
             this.importLegacyPP = importLegacyPP;
             this.dryRun = dryRun;
-
-            using (var scoreProcessor = ruleset.CreateScoreProcessor())
-                maxBasicResult = ruleset.GetHitResults().Where(h => h.result.IsBasic()).Select(h => h.result).MaxBy(scoreProcessor.GetBaseScoreForResult);
-            classicMod = ruleset.CreateMod<ModClassic>()!;
 
             Scores = scores;
             Task = Task.Run(() => run(scores));
@@ -134,7 +128,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         highScore.date = DateTimeOffset.UnixEpoch;
                     }
 
-                    ScoreInfo referenceScore = CreateReferenceScore(highScore);
+                    ScoreInfo referenceScore = CreateReferenceScore(ruleset.RulesetInfo.OnlineID, highScore);
                     string serialisedScore = SerialiseScoreData(referenceScore);
 
                     Interlocked.Increment(ref insertCount);
@@ -212,14 +206,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// <item><term><see cref="ScoreInfo.MaximumStatistics"/></term></item>
         /// </list>
         /// </summary>
-        public ScoreInfo CreateReferenceScore(HighScore highScore)
+        public static ScoreInfo CreateReferenceScore(int rulesetId, HighScore highScore)
         {
-            int rulesetId = ruleset.RulesetInfo.OnlineID;
+            var rulesetCache = getRulesetCache(rulesetId);
 
             var scoreInfo = new ScoreInfo
             {
-                Ruleset = ruleset.RulesetInfo,
-                Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Append(classicMod).ToArray(),
+                Ruleset = rulesetCache.Ruleset.RulesetInfo,
+                Mods = rulesetCache.Ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Append(rulesetCache.ClassicMod).ToArray(),
                 Statistics = new Dictionary<HitResult, int>(),
                 MaximumStatistics = new Dictionary<HitResult, int>(),
                 MaxCombo = highScore.maxcombo,
@@ -261,7 +255,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         break;
 
                     default:
-                        scoreInfo.MaximumStatistics[maxBasicResult] = scoreInfo.MaximumStatistics.GetValueOrDefault(maxBasicResult) + count;
+                        scoreInfo.MaximumStatistics[rulesetCache.MaxBasicResult] = scoreInfo.MaximumStatistics.GetValueOrDefault(rulesetCache.MaxBasicResult) + count;
                         break;
                 }
             }
@@ -378,6 +372,28 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
             }
         }
+
+        private static readonly ConcurrentDictionary<int, RulesetCache> ruleset_cache = new ConcurrentDictionary<int, RulesetCache>();
+
+        private static RulesetCache getRulesetCache(int rulesetId)
+        {
+            if (ruleset_cache.TryGetValue(rulesetId, out var cache))
+                return cache;
+
+            var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(rulesetId);
+
+            HitResult maxBasicResult;
+            using (var scoreProcessor = ruleset.CreateScoreProcessor())
+                maxBasicResult = ruleset.GetHitResults().Where(h => h.result.IsBasic()).Select(h => h.result).MaxBy(scoreProcessor.GetBaseScoreForResult);
+
+            cache = new RulesetCache(ruleset, maxBasicResult, ruleset.CreateMod<ModClassic>()!);
+
+            ruleset_cache[rulesetId] = cache;
+
+            return cache;
+        }
+
+        private record RulesetCache(Ruleset Ruleset, HitResult MaxBasicResult, Mod ClassicMod);
 
         private record BeatmapLookup(int BeatmapId, int RulesetId)
         {

@@ -122,13 +122,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     }
 
                     // TODO: check data. will be slow unless we cache beatmap attribs lookups
-                    // Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(importedScore.ruleset_id);
-                    // var referenceScore = await BatchInserter.CreateReferenceScore(ruleset, importedScore.HighScore, conn, null);
-                    // if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore)) Interlocked.Increment(ref fail);
-                    // if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore)) Interlocked.Increment(ref fail);
-                    //
-                    // elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
-                    // Interlocked.Increment(ref deleted);
+                    var referenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
+                    if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore)) Interlocked.Increment(ref fail);
+                    if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore)) Interlocked.Increment(ref fail);
+
+                    elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                 }
 
                 if (elasticItems.Count > 0)
