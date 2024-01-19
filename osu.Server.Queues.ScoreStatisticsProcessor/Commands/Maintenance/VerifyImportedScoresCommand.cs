@@ -26,6 +26,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleValue, Template = "--start-id")]
         public ulong? StartId { get; set; }
 
+        /// <summary>
+        /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--batch-size")]
+        public int BatchSize { get; set; } = 5000;
+
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
         public bool DryRun { get; set; }
 
@@ -60,7 +66,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     + "total_score, "
                     + "pp "
                     + "FROM scores "
-                    + "WHERE id >= @lastId ORDER BY id LIMIT 2000", new { lastId });
+                    + "WHERE id >= @lastId ORDER BY id LIMIT @batchSize", new
+                    {
+                        lastId,
+                        batchSize = BatchSize
+                    });
 
                 // gather high scores for each ruleset
                 foreach (var rulesetScores in importedScores.GroupBy(s => s.ruleset_id))
