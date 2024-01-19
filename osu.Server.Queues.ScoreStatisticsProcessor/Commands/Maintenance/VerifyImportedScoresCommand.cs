@@ -25,6 +25,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Argument(0)]
         public ulong StartId { get; set; }
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
+        public bool DryRun { get; set; }
+
         private ElasticQueuePusher? elasticQueueProcessor;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
@@ -38,6 +41,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             elasticQueueProcessor = new ElasticQueuePusher();
             Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
+
+            if (DryRun)
+                Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
             using var conn = DatabaseAccess.GetConnection();
 
@@ -80,12 +86,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (importedScore.HighScore == null)
                     {
-                        await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
+                        if (!DryRun)
                         {
-                            id = importedScore.id,
-                        });
+                            await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
+                            {
+                                id = importedScore.id,
+                            });
+                        }
 
                         Interlocked.Increment(ref deleted);
+                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         continue;
                     }
 
@@ -94,27 +104,36 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
                         Interlocked.Increment(ref fail);
 
-                        await conn.ExecuteAsync($"UPDATE scores SET pp = {importedScore.HighScore.pp} WHERE id = {importedScore.id}");
+                        if (!DryRun)
+                            await conn.ExecuteAsync($"UPDATE scores SET pp = {importedScore.HighScore.pp} WHERE id = {importedScore.id}");
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                         continue;
                     }
 
                     if (!check(importedScore.id, "performance", importedScore.pp ?? 0, importedScore.HighScore.pp ?? 0))
                     {
+                        // PP was reset (had a value in new table but no value in old).
                         if (importedScore.HighScore.pp == null)
                         {
-                            await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
+                            if (!DryRun)
                             {
-                                id = importedScore.id,
-                            });
+                                await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
+                                {
+                                    id = importedScore.id,
+                                });
+                            }
                         }
+                        // PP doesn't match.
                         else
                         {
-                            await conn.ExecuteAsync("UPDATE scores SET pp = @pp WHERE id = @id", new
+                            if (!DryRun)
                             {
-                                pp = importedScore.HighScore.pp,
-                                id = importedScore.id,
-                            });
+                                await conn.ExecuteAsync("UPDATE scores SET pp = @pp WHERE id = @id", new
+                                {
+                                    pp = importedScore.HighScore.pp,
+                                    id = importedScore.id,
+                                });
+                            }
                         }
 
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
@@ -128,28 +147,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     {
                         Interlocked.Increment(ref fail);
 
-                        await conn.ExecuteAsync("UPDATE scores SET total_score = @score WHERE id = @id", new
+                        if (!DryRun)
                         {
-                            score = referenceScore.TotalScore,
-                            id = importedScore.id,
-                        });
+                            await conn.ExecuteAsync("UPDATE scores SET total_score = @score WHERE id = @id", new
+                            {
+                                score = referenceScore.TotalScore,
+                                id = importedScore.id,
+                            });
+                        }
                     }
 
                     if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
                     {
                         Interlocked.Increment(ref fail);
 
-                        await conn.ExecuteAsync("UPDATE scores SET legacy_total_score = @score WHERE id = @id", new
+                        if (!DryRun)
                         {
-                            score = referenceScore.LegacyTotalScore,
-                            id = importedScore.id,
-                        });
+                            await conn.ExecuteAsync("UPDATE scores SET legacy_total_score = @score WHERE id = @id", new
+                            {
+                                score = referenceScore.LegacyTotalScore,
+                                id = importedScore.id,
+                            });
+                        }
                     }
                 }
 
                 if (elasticItems.Count > 0)
                 {
-                    elasticQueueProcessor.PushToQueue(elasticItems.ToList());
+                    if (!DryRun)
+                        elasticQueueProcessor.PushToQueue(elasticItems.ToList());
                     Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                 }
 
