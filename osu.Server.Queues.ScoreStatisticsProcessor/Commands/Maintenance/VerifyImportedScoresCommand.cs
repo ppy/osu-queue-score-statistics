@@ -163,6 +163,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     {
                         Interlocked.Increment(ref fail);
 
+                        if (referenceScore.TotalScore > 4294967295)
+                        {
+                            Console.WriteLine($"Score out of range ({referenceScore.TotalScore})!");
+                            continue;
+                        }
+
                         if (!DryRun)
                         {
                             await conn.ExecuteAsync("UPDATE scores SET total_score = @score WHERE id = @id", new
@@ -176,6 +182,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
                     {
                         Interlocked.Increment(ref fail);
+
+                        if (referenceScore.LegacyTotalScore > 4294967295)
+                        {
+                            Console.WriteLine($"Score out of range ({referenceScore.LegacyTotalScore})!");
+                            continue;
+                        }
 
                         if (!DryRun)
                         {
