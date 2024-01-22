@@ -46,8 +46,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public static int TotalSkipCount;
 
         private readonly Ruleset ruleset;
-        private readonly HitResult maxBasicResult;
-        private readonly ModClassic classicMod;
 
         private readonly bool importLegacyPP;
         private readonly bool dryRun;
@@ -65,10 +63,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             this.ruleset = ruleset;
             this.importLegacyPP = importLegacyPP;
             this.dryRun = dryRun;
-
-            using (var scoreProcessor = ruleset.CreateScoreProcessor())
-                maxBasicResult = ruleset.GetHitResults().Where(h => h.result.IsBasic()).Select(h => h.result).MaxBy(scoreProcessor.GetBaseScoreForResult);
-            classicMod = ruleset.CreateMod<ModClassic>()!;
 
             Scores = scores;
             Task = Task.Run(() => run(scores));
@@ -134,7 +128,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         highScore.date = DateTimeOffset.UnixEpoch;
                     }
 
-                    ScoreInfo referenceScore = CreateReferenceScore(highScore);
+                    ScoreInfo referenceScore = CreateReferenceScore(ruleset.RulesetInfo.OnlineID, highScore);
                     string serialisedScore = SerialiseScoreData(referenceScore);
 
                     Interlocked.Increment(ref insertCount);
@@ -212,14 +206,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         /// <item><term><see cref="ScoreInfo.MaximumStatistics"/></term></item>
         /// </list>
         /// </summary>
-        public ScoreInfo CreateReferenceScore(HighScore highScore)
+        public static ScoreInfo CreateReferenceScore(int rulesetId, HighScore highScore)
         {
-            int rulesetId = ruleset.RulesetInfo.OnlineID;
+            var rulesetCache = getRulesetCache(rulesetId);
 
             var scoreInfo = new ScoreInfo
             {
-                Ruleset = ruleset.RulesetInfo,
-                Mods = ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Append(classicMod).ToArray(),
+                Ruleset = rulesetCache.Ruleset.RulesetInfo,
+                Mods = rulesetCache.Ruleset.ConvertFromLegacyMods((LegacyMods)highScore.enabled_mods).Append(rulesetCache.ClassicMod).ToArray(),
                 Statistics = new Dictionary<HitResult, int>(),
                 MaximumStatistics = new Dictionary<HitResult, int>(),
                 MaxCombo = highScore.maxcombo,
@@ -261,7 +255,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         break;
 
                     default:
-                        scoreInfo.MaximumStatistics[maxBasicResult] = scoreInfo.MaximumStatistics.GetValueOrDefault(maxBasicResult) + count;
+                        scoreInfo.MaximumStatistics[rulesetCache.MaxBasicResult] = scoreInfo.MaximumStatistics.GetValueOrDefault(rulesetCache.MaxBasicResult) + count;
                         break;
                 }
             }
@@ -270,7 +264,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
             int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
-            var scoreAttributes = getScoringAttributes(rulesetId, highScore.beatmap_id);
+            var scoreAttributes = getScoringAttributes(new BeatmapLookup(highScore.beatmap_id, rulesetId));
 
             if (scoreAttributes == null)
             {
@@ -293,7 +287,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 // Since we're dealing with high scores, we assume that the database mod values have already been validated for mania-specific beatmaps that don't allow key mods.
                 int difficultyMods = (int)LegacyModsHelper.MaskRelevantMods((LegacyMods)highScore.enabled_mods, true, rulesetId);
 
-                Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = queryAttributes(
+                Dictionary<int, BeatmapDifficultyAttribute> dbAttributes = getAttributes(
                     new DifficultyAttributesLookup(highScore.beatmap_id, rulesetId, difficultyMods));
 
                 if (!dbAttributes.TryGetValue(9, out BeatmapDifficultyAttribute? maxComboAttribute))
@@ -321,12 +315,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             return scoreInfo;
         }
 
-        private static readonly ConcurrentDictionary<int, BeatmapScoringAttributes?> scoring_attributes_cache =
-            new ConcurrentDictionary<int, BeatmapScoringAttributes?>();
+        private static readonly ConcurrentDictionary<BeatmapLookup, BeatmapScoringAttributes?> scoring_attributes_cache =
+            new ConcurrentDictionary<BeatmapLookup, BeatmapScoringAttributes?>();
 
-        private static BeatmapScoringAttributes? getScoringAttributes(int rulesetId, int beatmapId)
+        private static BeatmapScoringAttributes? getScoringAttributes(BeatmapLookup lookup)
         {
-            if (scoring_attributes_cache.TryGetValue(beatmapId, out var existing))
+            if (scoring_attributes_cache.TryGetValue(lookup, out var existing))
                 return existing;
 
             using (var connection = DatabaseAccess.GetConnection())
@@ -334,11 +328,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 BeatmapScoringAttributes? scoreAttributes = connection.QuerySingleOrDefault<BeatmapScoringAttributes>(
                     "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
                     {
-                        BeatmapId = beatmapId,
-                        RulesetId = rulesetId,
+                        BeatmapId = lookup.BeatmapId,
+                        RulesetId = lookup.RulesetId,
                     });
 
-                return scoring_attributes_cache[beatmapId] = scoreAttributes;
+                return scoring_attributes_cache[lookup] = scoreAttributes;
             }
         }
 
@@ -364,7 +358,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private static readonly ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>> attributes_cache =
             new ConcurrentDictionary<DifficultyAttributesLookup, Dictionary<int, BeatmapDifficultyAttribute>>();
 
-        private static Dictionary<int, BeatmapDifficultyAttribute> queryAttributes(DifficultyAttributesLookup lookup)
+        private static Dictionary<int, BeatmapDifficultyAttribute> getAttributes(DifficultyAttributesLookup lookup)
         {
             if (attributes_cache.TryGetValue(lookup, out Dictionary<int, BeatmapDifficultyAttribute>? existing))
                 return existing;
@@ -376,6 +370,36 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
 
                 return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
+            }
+        }
+
+        private static readonly ConcurrentDictionary<int, RulesetCache> ruleset_cache = new ConcurrentDictionary<int, RulesetCache>();
+
+        private static RulesetCache getRulesetCache(int rulesetId)
+        {
+            if (ruleset_cache.TryGetValue(rulesetId, out var cache))
+                return cache;
+
+            var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(rulesetId);
+
+            HitResult maxBasicResult;
+            using (var scoreProcessor = ruleset.CreateScoreProcessor())
+                maxBasicResult = ruleset.GetHitResults().Where(h => h.result.IsBasic()).Select(h => h.result).MaxBy(scoreProcessor.GetBaseScoreForResult);
+
+            cache = new RulesetCache(ruleset, maxBasicResult, ruleset.CreateMod<ModClassic>()!);
+
+            ruleset_cache[rulesetId] = cache;
+
+            return cache;
+        }
+
+        private record RulesetCache(Ruleset Ruleset, HitResult MaxBasicResult, Mod ClassicMod);
+
+        private record BeatmapLookup(int BeatmapId, int RulesetId)
+        {
+            public override string ToString()
+            {
+                return $"{{ BeatmapId = {BeatmapId}, RulesetId = {RulesetId} }}";
             }
         }
 
