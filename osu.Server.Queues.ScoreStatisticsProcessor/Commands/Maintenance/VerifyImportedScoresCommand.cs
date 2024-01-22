@@ -77,7 +77,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 {
                     var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetScores.Key);
 
-                    var highScores = (await conn.QueryAsync<HighScore>($"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id IN ({string.Join(',', rulesetScores.Select(s => s.legacy_score_id))})"))
+                    var highScores = (await conn.QueryAsync<HighScore>(
+                            $"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id IN ({string.Join(',', rulesetScores.Select(s => s.legacy_score_id))})"))
                         .ToDictionary(s => s.score_id, s => s);
 
                     foreach (var score in rulesetScores)
@@ -109,94 +110,107 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 foreach (var importedScore in importedScores)
                 {
-                    if (importedScore.legacy_score_id == null) continue;
+                    bool requiresIndexing = false;
 
-                    // Score was deleted in legacy table.
-                    if (importedScore.HighScore == null)
+                    try
                     {
-                        if (!DryRun)
+                        if (importedScore.legacy_score_id == null) continue;
+
+                        // Score was deleted in legacy table.
+                        if (importedScore.HighScore == null)
                         {
-                            await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
-                            {
-                                id = importedScore.id
-                            });
-                        }
+                            Interlocked.Increment(ref deleted);
+                            requiresIndexing = true;
 
-                        Interlocked.Increment(ref deleted);
-                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
-                        continue;
-                    }
-
-                    var referenceScore = importedScore.ReferenceScore!;
-
-                    if (!check(importedScore.id, "performance", importedScore.pp ?? 0, importedScore.HighScore.pp ?? 0))
-                    {
-                        // PP was reset (had a value in new table but no value in old).
-                        if (importedScore.HighScore.pp == null)
-                        {
                             if (!DryRun)
                             {
-                                await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
+                                await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
                                 {
                                     id = importedScore.id
                                 });
                             }
+
+                            continue;
                         }
-                        // PP doesn't match.
-                        else
+
+                        var referenceScore = importedScore.ReferenceScore!;
+
+                        if (!check(importedScore.id, "performance", importedScore.pp ?? 0, importedScore.HighScore.pp ?? 0))
                         {
+                            Interlocked.Increment(ref fail);
+                            requiresIndexing = true;
+
+                            // PP was reset (had a value in new table but no value in old).
+                            if (importedScore.HighScore.pp == null)
+                            {
+                                if (!DryRun)
+                                {
+                                    await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
+                                    {
+                                        id = importedScore.id
+                                    });
+                                }
+                            }
+                            // PP doesn't match.
+                            else
+                            {
+                                if (!DryRun)
+                                {
+                                    await conn.ExecuteAsync("UPDATE scores SET pp = @pp WHERE id = @id", new
+                                    {
+                                        pp = importedScore.HighScore.pp,
+                                        id = importedScore.id,
+                                    });
+                                }
+                            }
+                        }
+
+                        if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore))
+                        {
+                            Interlocked.Increment(ref fail);
+                            requiresIndexing = true;
+
+                            if (referenceScore.TotalScore > 4294967295)
+                            {
+                                Console.WriteLine($"Score out of range ({referenceScore.TotalScore})!");
+                                continue;
+                            }
+
                             if (!DryRun)
                             {
-                                await conn.ExecuteAsync("UPDATE scores SET pp = @pp WHERE id = @id", new
+                                await conn.ExecuteAsync("UPDATE scores SET total_score = @score WHERE id = @id", new
                                 {
-                                    pp = importedScore.HighScore.pp,
+                                    score = referenceScore.TotalScore,
                                     id = importedScore.id,
                                 });
                             }
                         }
 
-                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
-                        Interlocked.Increment(ref fail);
-                    }
-
-                    if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore))
-                    {
-                        Interlocked.Increment(ref fail);
-
-                        if (referenceScore.TotalScore > 4294967295)
+                        if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
                         {
-                            Console.WriteLine($"Score out of range ({referenceScore.TotalScore})!");
-                            continue;
-                        }
+                            Interlocked.Increment(ref fail);
+                            requiresIndexing = true;
 
-                        if (!DryRun)
-                        {
-                            await conn.ExecuteAsync("UPDATE scores SET total_score = @score WHERE id = @id", new
+                            if (referenceScore.LegacyTotalScore > 4294967295)
                             {
-                                score = referenceScore.TotalScore,
-                                id = importedScore.id,
-                            });
+                                Console.WriteLine($"Score out of range ({referenceScore.LegacyTotalScore})!");
+                                continue;
+                            }
+
+                            if (!DryRun)
+                            {
+                                await conn.ExecuteAsync("UPDATE scores SET legacy_total_score = @score WHERE id = @id", new
+                                {
+                                    score = referenceScore.LegacyTotalScore,
+                                    id = importedScore.id,
+                                });
+                            }
                         }
                     }
-
-                    if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
+                    finally
                     {
-                        Interlocked.Increment(ref fail);
-
-                        if (referenceScore.LegacyTotalScore > 4294967295)
-                        {
-                            Console.WriteLine($"Score out of range ({referenceScore.LegacyTotalScore})!");
-                            continue;
-                        }
-
-                        if (!DryRun)
-                        {
-                            await conn.ExecuteAsync("UPDATE scores SET legacy_total_score = @score WHERE id = @id", new
-                            {
-                                score = referenceScore.LegacyTotalScore,
-                                id = importedScore.id,
-                            });
-                        }
+                        if (requiresIndexing)
+                            elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
                     }
                 }
 
