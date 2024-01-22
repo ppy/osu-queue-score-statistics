@@ -66,7 +66,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     + "total_score, "
                     + "pp "
                     + "FROM scores "
-                    + "WHERE id >= @lastId ORDER BY id LIMIT @batchSize", new
+                    + "WHERE id >= @lastId AND legacy_score_id IS NOT NULL ORDER BY id LIMIT @batchSize", new
                     {
                         lastId,
                         batchSize = BatchSize
