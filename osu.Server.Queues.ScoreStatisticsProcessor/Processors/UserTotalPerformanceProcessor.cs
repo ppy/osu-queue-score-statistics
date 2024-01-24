@@ -160,8 +160,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, groupedItems.Length)));
             }
 
-            userStats.rank_score_exp = (float)totalPp;
-            userStats.rank_score_index_exp = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score_exp > {totalPp}", transaction: transaction)) + 1;
+            userStats.rank_score = (float)totalPp;
+            userStats.rank_score_index = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > {totalPp}", transaction: transaction)) + 1;
             userStats.accuracy_new = (float)totalAccuracy;
         }
     }
