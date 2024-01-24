@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using osu.Game.Scoring;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -22,14 +23,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         /// <summary>
         /// The high score ID to start deleting imported high scores from.
         /// </summary>
-        [Argument(0)]
-        public ulong StartId { get; set; }
+        [Option(CommandOptionType.SingleValue, Template = "--start-id")]
+        public ulong? StartId { get; set; }
+
+        /// <summary>
+        /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--batch-size")]
+        public int BatchSize { get; set; } = 5000;
+
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
+        public bool DryRun { get; set; }
 
         private ElasticQueuePusher? elasticQueueProcessor;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            ulong lastId = StartId;
+            ulong lastId = StartId ?? 0;
             int deleted = 0;
             int fail = 0;
 
@@ -39,11 +49,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             elasticQueueProcessor = new ElasticQueuePusher();
             Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
 
+            if (DryRun)
+                Console.WriteLine("RUNNING IN DRY RUN MODE.");
+
             using var conn = DatabaseAccess.GetConnection();
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
+                HashSet<ElasticQueuePusher.ElasticScoreItem> elasticItems = new HashSet<ElasticQueuePusher.ElasticScoreItem>();
 
                 IEnumerable<ComparableScore> importedScores = await conn.QueryAsync<ComparableScore>(
                     "SELECT id, "
@@ -53,17 +66,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     + "total_score, "
                     + "pp "
                     + "FROM scores "
-                    + "WHERE id >= @lastId ORDER BY id LIMIT 2000", new { lastId });
+                    + "WHERE id >= @lastId AND legacy_score_id IS NOT NULL ORDER BY id LIMIT @batchSize", new
+                    {
+                        lastId,
+                        batchSize = BatchSize
+                    });
 
                 // gather high scores for each ruleset
                 foreach (var rulesetScores in importedScores.GroupBy(s => s.ruleset_id))
                 {
                     var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetScores.Key);
 
-                    var highScores = await conn.QueryAsync<HighScore>($"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id IN ({string.Join(',', rulesetScores.Select(s => s.legacy_score_id))})");
+                    var highScores = (await conn.QueryAsync<HighScore>(
+                            $"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id IN ({string.Join(',', rulesetScores.Select(s => s.legacy_score_id))})"))
+                        .ToDictionary(s => s.score_id, s => s);
 
                     foreach (var score in rulesetScores)
-                        score.HighScore = highScores.SingleOrDefault(s => s.score_id == score.legacy_score_id!.Value);
+                    {
+                        if (highScores.TryGetValue(score.legacy_score_id!.Value, out var highScore))
+                            score.HighScore = highScore;
+                    }
                 }
 
                 if (!importedScores.Any())
@@ -74,66 +96,128 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 elasticItems.Clear();
 
+                Parallel.ForEach(importedScores, new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = Environment.ProcessorCount,
+                }, importedScore =>
+                {
+                    if (importedScore.legacy_score_id == null) return;
+
+                    if (importedScore.HighScore == null) return;
+
+                    importedScore.ReferenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
+                });
+
                 foreach (var importedScore in importedScores)
                 {
-                    if (importedScore.legacy_score_id == null) continue;
+                    bool requiresIndexing = false;
 
-                    if (importedScore.HighScore == null)
+                    try
                     {
-                        await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
+                        if (importedScore.legacy_score_id == null) continue;
+
+                        // Score was deleted in legacy table.
+                        if (importedScore.HighScore == null)
                         {
-                            id = importedScore.id,
-                        });
+                            Interlocked.Increment(ref deleted);
+                            requiresIndexing = true;
 
-                        Interlocked.Increment(ref deleted);
-                        continue;
-                    }
-
-                    if (importedScore.pp == null && importedScore.HighScore.pp != null)
-                    {
-                        Console.WriteLine($"{importedScore.id}: Performance entry missing!!");
-                        Interlocked.Increment(ref fail);
-
-                        await conn.ExecuteAsync($"UPDATE scores SET pp = {importedScore.HighScore.pp} WHERE id = {importedScore.id}");
-                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
-                        continue;
-                    }
-
-                    if (!check(importedScore.id, "performance", importedScore.pp ?? 0, importedScore.HighScore.pp ?? 0))
-                    {
-                        if (importedScore.HighScore.pp == null)
-                        {
-                            await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
+                            if (!DryRun)
                             {
-                                id = importedScore.id,
-                            });
-                        }
-                        else
-                        {
-                            await conn.ExecuteAsync("UPDATE scores SET pp = @pp WHERE id = @id", new
-                            {
-                                pp = importedScore.HighScore.pp,
-                                id = importedScore.id,
-                            });
+                                await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
+                                {
+                                    id = importedScore.id
+                                });
+                            }
+
+                            continue;
                         }
 
-                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
-                        Interlocked.Increment(ref fail);
-                    }
+                        var referenceScore = importedScore.ReferenceScore!;
 
-                    // TODO: check data. will be slow unless we cache beatmap attribs lookups
-                    // Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(importedScore.ruleset_id);
-                    // var referenceScore = await BatchInserter.CreateReferenceScore(ruleset, importedScore.HighScore, conn, null);
-                    // if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore)) Interlocked.Increment(ref fail);
-                    // if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore)) Interlocked.Increment(ref fail);
-                    //
-                    // elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
-                    // Interlocked.Increment(ref deleted);
+                        if (!check(importedScore.id, "performance", importedScore.pp ?? 0, importedScore.HighScore.pp ?? 0))
+                        {
+                            Interlocked.Increment(ref fail);
+                            requiresIndexing = true;
+
+                            // PP was reset (had a value in new table but no value in old).
+                            if (importedScore.HighScore.pp == null)
+                            {
+                                if (!DryRun)
+                                {
+                                    await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
+                                    {
+                                        id = importedScore.id
+                                    });
+                                }
+                            }
+                            // PP doesn't match.
+                            else
+                            {
+                                if (!DryRun)
+                                {
+                                    await conn.ExecuteAsync("UPDATE scores SET pp = @pp WHERE id = @id", new
+                                    {
+                                        pp = importedScore.HighScore.pp,
+                                        id = importedScore.id,
+                                    });
+                                }
+                            }
+                        }
+
+                        if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore))
+                        {
+                            Interlocked.Increment(ref fail);
+                            requiresIndexing = true;
+
+                            if (referenceScore.TotalScore > 4294967295)
+                            {
+                                Console.WriteLine($"Score out of range ({referenceScore.TotalScore})!");
+                                continue;
+                            }
+
+                            if (!DryRun)
+                            {
+                                await conn.ExecuteAsync("UPDATE scores SET total_score = @score WHERE id = @id", new
+                                {
+                                    score = referenceScore.TotalScore,
+                                    id = importedScore.id,
+                                });
+                            }
+                        }
+
+                        if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
+                        {
+                            Interlocked.Increment(ref fail);
+                            requiresIndexing = true;
+
+                            if (referenceScore.LegacyTotalScore > 4294967295)
+                            {
+                                Console.WriteLine($"Score out of range ({referenceScore.LegacyTotalScore})!");
+                                continue;
+                            }
+
+                            if (!DryRun)
+                            {
+                                await conn.ExecuteAsync("UPDATE scores SET legacy_total_score = @score WHERE id = @id", new
+                                {
+                                    score = referenceScore.LegacyTotalScore,
+                                    id = importedScore.id,
+                                });
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        if (requiresIndexing)
+                            elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)importedScore.id });
+                    }
                 }
 
                 if (elasticItems.Count > 0)
                 {
-                    elasticQueueProcessor.PushToQueue(elasticItems);
+                    if (!DryRun)
+                        elasticQueueProcessor.PushToQueue(elasticItems.ToList());
                     Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                 }
 
@@ -153,6 +237,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             if (imported?.Equals(original) != true)
             {
+                Console.WriteLine();
                 Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
                 return false;
             }
@@ -171,6 +256,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             public float? pp;
 
             public HighScore? HighScore { get; set; }
+            public ScoreInfo? ReferenceScore { get; set; }
         }
     }
 }

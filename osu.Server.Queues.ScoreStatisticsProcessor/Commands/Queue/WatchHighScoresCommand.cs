@@ -80,14 +80,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 if (entry != null)
                 {
                     lastQueueId = entry.queue_id;
-                    Console.WriteLine($"Continuing watch mode from last processed legacy score (score_id: {entry.score_id} queue_id: {entry.queue_id})");
+                    Console.WriteLine($"Continuing watch mode for {ruleset.ShortName} from last processed legacy score (score_id: {entry.score_id} queue_id: {entry.queue_id})");
                 }
                 else
                 {
                     // There may have been no new scores since the last run.
                     entry = db.QuerySingle<ScoreProcessQueue>($"SELECT * FROM score_process_queue WHERE mode = {RulesetId} AND score_id = {lastImportedLegacyScoreId}");
                     lastQueueId = entry.queue_id;
-                    Console.WriteLine($"Continuing watch mode from last processed legacy score (queue_id: {entry.queue_id})");
+                    Console.WriteLine($"Continuing watch mode for {ruleset.ShortName} from last processed legacy score (queue_id: {entry.queue_id})");
                 }
             }
             else
