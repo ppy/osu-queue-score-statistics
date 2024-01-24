@@ -63,7 +63,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
 
             // for simplicity, let's ensure the row already exists as a separate step.
-            var userStats = await db.QuerySingleOrDefaultAsync<T>($"SELECT * FROM {dbInfo.UserStatsTable} WHERE user_id = @UserId FOR UPDATE", new
+            var userStats = await db.QuerySingleOrDefaultAsync<T>($"SELECT * FROM {dbInfo.UserStatsTable} WHERE user_id = @UserId", new
             {
                 UserId = userId
             }, transaction);
