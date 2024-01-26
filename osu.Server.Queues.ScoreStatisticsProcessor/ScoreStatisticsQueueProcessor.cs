@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -123,7 +124,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         BeatmapId = score.BeatmapID
                     })?.ToAPIBeatmap();
 
-                    using (var transaction = conn.BeginTransaction())
+                    using (var transaction = conn.BeginTransaction(IsolationLevel.ReadCommitted))
                     {
                         var userStats = DatabaseHelper.GetUserStatsAsync(score, conn, transaction).Result;
 
