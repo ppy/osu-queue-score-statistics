@@ -86,7 +86,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 + "`ruleset_id` = @RulesetId AND"
                 + " `pp` IS NOT NULL AND "
                 + "`preserve` = 1 AND "
-                + "`pass` = 1 AND "
+                + "`passed` = 1 AND "
                 + "`ranked` = 1", new
                 {
                     UserId = userStats.user_id,
