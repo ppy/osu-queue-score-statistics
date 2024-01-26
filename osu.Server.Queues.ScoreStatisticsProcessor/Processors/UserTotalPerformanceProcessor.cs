@@ -79,7 +79,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
 
             List<SoloScore> scores = (await connection.QueryAsync<SoloScore>(
-                "SELECT * FROM scores WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId AND `preserve` = 1", new
+                "SELECT beatmap_id, pp, accuracy FROM scores WHERE "
+                + "`user_id` = @UserId AND "
+                + "`ruleset_id` = @RulesetId AND"
+                + " `pp` IS NOT NULL AND "
+                + "`preserve` = 1 AND "
+                + "`pass` = 1 AND "
+                + "`ranked` = 1", new
                 {
                     UserId = userStats.user_id,
                     RulesetId = rulesetId
@@ -129,35 +135,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 return !ScorePerformanceProcessor.AllModsValidForPerformance(s.ToScoreInfo(), s.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray());
             });
 
-            SoloScore[] groupedItems = scores
-                                                      // Group by beatmap ID.
-                                                      .GroupBy(i => i.beatmap_id)
-                                                      // Extract the maximum PP for each beatmap.
-                                                      .Select(g => g.OrderByDescending(i => i.pp).First())
-                                                      // And order the beatmaps by decreasing value.
-                                                      .OrderByDescending(i => i.pp)
-                                                      .ToArray();
+            SoloScore[] groupedScores = scores
+                                        // Group by beatmap ID.
+                                        .GroupBy(i => i.beatmap_id)
+                                        // Extract the maximum PP for each beatmap.
+                                        .Select(g => g.OrderByDescending(i => i.pp).First())
+                                        // And order the beatmaps by decreasing value.
+                                        .OrderByDescending(i => i.pp)
+                                        .ToArray();
 
             // Build the diminishing sum
             double factor = 1;
             double totalPp = 0;
             double totalAccuracy = 0;
 
-            foreach (var item in groupedItems)
+            foreach (var score in groupedScores)
             {
-                totalPp += item.pp!.Value * factor;
-                totalAccuracy += item.accuracy * factor;
+                totalPp += score.pp!.Value * factor;
+                totalAccuracy += score.accuracy * factor;
                 factor *= 0.95;
             }
 
             // This weird factor is to keep legacy compatibility with the diminishing bonus of 0.25 by 0.9994 each score.
-            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.9994, groupedItems.Length));
+            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.9994, groupedScores.Length));
 
             // We want our accuracy to be normalized.
-            if (groupedItems.Length > 0)
+            if (groupedScores.Length > 0)
             {
                 // We want the percentage, not a factor in [0, 1], hence we divide 20 by 100.
-                totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, groupedItems.Length)));
+                totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, groupedScores.Length)));
             }
 
             userStats.rank_score = (float)totalPp;
