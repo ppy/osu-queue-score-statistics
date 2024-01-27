@@ -13,6 +13,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(MarkNonPreservedScoresCommand))]
     [Subcommand(typeof(MigratePlaylistScoresToSoloScoresCommand))]
     [Subcommand(typeof(VerifyImportedScoresCommand))]
+    [Subcommand(typeof(RecalculateTotalUserPerformanceCommand))]
     [Subcommand(typeof(DeleteImportedHighScoresCommand))]
     public sealed class MaintenanceCommands
     {
