@@ -65,19 +65,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             List<SoloScore> scores = (await connection.QueryAsync<SoloScore>(
                 "SELECT beatmap_id, pp, accuracy FROM scores s "
                 + "JOIN osu_beatmaps USING (beatmap_id) WHERE "
-                // TODO: This adds a small amount of overhead to the query.
-                // Replace this with a cached lookup once we have a good system in place.
                 + "`approved` in (1,2) AND "
                 + "s.`user_id` = @UserId AND "
-                + "`ruleset_id` = @RulesetId AND"
-                + " `pp` IS NOT NULL AND "
+                + "`ruleset_id` = @RulesetId AND "
+                + "`pp` IS NOT NULL AND "
                 + "`preserve` = 1 AND "
                 + "`passed` = 1 AND "
-                + "`ranked` = 1", new
+                + "`ranked` = 1 "
+                + "ORDER BY pp DESC LIMIT 400", new
                 {
                     UserId = userStats.user_id,
                     RulesetId = rulesetId
                 }, transaction: transaction)).ToList();
+
+            int totalScoresForBonus = await connection.QuerySingleAsync<int>(
+                "SELECT COUNT(*) FROM scores WHERE "
+                + "`user_id` = @UserId AND "
+                + "`ruleset_id` = @RulesetId AND "
+                + "`preserve` = 1 AND "
+                + "`pp` IS NOT NULL", new
+                {
+                    UserId = userStats.user_id,
+                    RulesetId = rulesetId
+                }, transaction);
 
             SoloScore[] groupedScores = scores
                                         // Group by beatmap ID.
@@ -101,7 +111,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
 
             // This weird factor is to keep legacy compatibility with the diminishing bonus of 0.25 by 0.9994 each score.
-            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.9994, groupedScores.Length));
+            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.9994, totalScoresForBonus));
 
             // We want our accuracy to be normalized.
             if (groupedScores.Length > 0)
