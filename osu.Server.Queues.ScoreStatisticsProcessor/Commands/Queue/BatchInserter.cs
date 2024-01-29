@@ -164,7 +164,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 }
                 catch (Exception e)
                 {
-                    throw new AggregateException($"Processing legacy score {highScore.score_id} failed.", e);
+                    Console.WriteLine($"Processing legacy score {highScore.score_id} failed.", e);
                 }
             });
 
