@@ -98,7 +98,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             // This weird factor is to keep legacy compatibility with the diminishing bonus of 0.25 by 0.9994 each score.
             // Of note, this is using de-duped scores which may be below 1,000 depending on how the user plays.
-            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.9994, scores.Count));
+            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.995, scores.Count));
 
             // We want our accuracy to be normalized.
             if (groupedScores.Length > 0)
