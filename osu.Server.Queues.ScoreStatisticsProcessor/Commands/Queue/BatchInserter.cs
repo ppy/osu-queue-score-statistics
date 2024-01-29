@@ -75,7 +75,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             int rulesetId = ruleset.RulesetInfo.OnlineID;
 
-            StringBuilder insertBuilder = new StringBuilder("INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
+            StringBuilder insertBuilder =
+                new StringBuilder(
+                    "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
             Console.WriteLine($" Processing scores {scores.First().score_id} to {scores.Last().score_id}");
             Stopwatch sw = new Stopwatch();
@@ -87,12 +89,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 try
                 {
-                    if (highScore.score_id == 0)
-                    {
-                        // Something really bad probably happened, abort for safety.
-                        throw new InvalidOperationException("Score arrived with no ID");
-                    }
-
                     // Yes this is a weird way of determining whether it's a deletion.
                     // Look away please.
                     bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
@@ -145,7 +141,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if (referenceScore.LegacyTotalScore > 4294967295)
                             referenceScore.LegacyTotalScore = 0;
 
-                        insertBuilder.Append($"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, {(highScore.ShouldPreserve ? "1" : "0")}, '{referenceScore.Rank.ToString()}', 1, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()})");
+                        // All preserved scores should be passes.
+                        Debug.Assert(!highScore.ShouldPreserve || highScore.pass);
+
+                        // All scores with replays should be preserved.
+                        Debug.Assert(!highScore.ShouldPreserve || highScore.replay);
+
+                        // For non-preserved flags, we zero the score_id.
+                        // This is because they come from a different table with a different range and it would be hard to track.
+                        Debug.Assert(highScore.ShouldPreserve || highScore.score_id == 0);
+
+                        insertBuilder.Append(
+                            $"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, {(highScore.ShouldPreserve ? "1" : "0")}, '{referenceScore.Rank.ToString()}', {(highScore.pass ? "1" : "0")}, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()})");
                     }
                 }
                 catch (Exception e)
