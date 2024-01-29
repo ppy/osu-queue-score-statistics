@@ -32,8 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public int RulesetId { get; set; }
 
         /// <summary>
-        /// When set to <c>true</c>, scores will not be queued to the score statistics processor,
-        /// instead being sent straight to the elasticsearch indexing queue.
+        /// When set to <c>true</c>, scores will not be queued to the score statistics processor.
         /// </summary>
         [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-score-processor")]
         public bool SkipScoreProcessor { get; set; }
@@ -130,18 +129,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         private void pushCompletedScoreToQueue(BatchInserter inserter)
         {
-            if (scoreStatisticsQueueProcessor != null)
+            if (scoreStatisticsQueueProcessor == null) return;
+
+            var scoreStatisticsItems = inserter.ScoreStatisticsItems.ToList();
+
+            if (scoreStatisticsItems.Any())
             {
-                Debug.Assert(inserter.ElasticScoreItems.Any());
-
-                var scoreStatisticsItems = inserter.ScoreStatisticsItems.ToList();
-
-                if (scoreStatisticsItems.Any())
-                {
-                    if (!DryRun)
-                        scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
-                    Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
-                }
+                if (!DryRun)
+                    scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
+                Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
             }
         }
 
