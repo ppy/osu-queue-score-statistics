@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
-using osu.Game.Rulesets;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
