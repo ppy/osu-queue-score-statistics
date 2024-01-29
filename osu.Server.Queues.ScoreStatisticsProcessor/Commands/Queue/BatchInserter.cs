@@ -89,6 +89,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 try
                 {
+                    if (highScore.score_id == 0)
+                    {
+                        // Something really bad probably happened, abort for safety.
+                        throw new InvalidOperationException("Score arrived with no ID");
+                    }
+
                     // Yes this is a weird way of determining whether it's a deletion.
                     // Look away please.
                     bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
