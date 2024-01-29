@@ -149,7 +149,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         // For non-preserved flags, we zero the score_id.
                         // This is because they come from a different table with a different range and it would be hard to track.
-                        Debug.Assert(highScore.ShouldPreserve || highScore.score_id == 0);
+                        if (!highScore.ShouldPreserve)
+                            highScore.score_id = 0;
 
                         insertBuilder.Append(
                             $"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, {(highScore.ShouldPreserve ? "1" : "0")}, '{referenceScore.Rank.ToString()}', {(highScore.pass ? "1" : "0")}, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()})");

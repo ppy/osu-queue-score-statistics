@@ -100,14 +100,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     // Need to obtain score_id before zeroing them out.
                     lastScoreId = scores.Last().score_id;
 
-                    foreach (var score in scores)
-                    {
-                        // For non-preserved flags, we zero the score_id.
-                        // This is because they come from a different table with a different range and it would be hard to track.
-                        if (!score.ShouldPreserve)
-                            score.score_id = 0;
-                    }
-
                     var inserter = new BatchInserter(ruleset, scores, importLegacyPP: SkipScoreProcessor, dryRun: DryRun);
 
                     while (!inserter.Task.IsCompleted)
