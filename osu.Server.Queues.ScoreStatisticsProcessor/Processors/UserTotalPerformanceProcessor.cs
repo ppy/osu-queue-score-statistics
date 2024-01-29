@@ -62,8 +62,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
-            long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(rulesetId);
 
             List<SoloScore> scores = (await connection.QueryAsync<SoloScore>(
                 "SELECT beatmap_id, pp, accuracy FROM scores s "
