@@ -60,6 +60,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             using var db = DatabaseAccess.GetConnection();
 
+            lastScoreId = await db.QuerySingleAsync<ulong>($"SELECT MAX(score_id) FROM {scoreTable}");
+
             if (!SkipScoreProcessor)
             {
                 scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
