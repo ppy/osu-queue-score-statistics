@@ -59,12 +59,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 HashSet<ElasticQueuePusher.ElasticScoreItem> elasticItems = new HashSet<ElasticQueuePusher.ElasticScoreItem>();
 
                 IEnumerable<ComparableScore> importedScores = await conn.QueryAsync<ComparableScore>(
-                    "SELECT id, "
-                    + "ruleset_id, "
-                    + "legacy_score_id, "
-                    + "legacy_total_score, "
-                    + "total_score, "
-                    + "pp "
+                    "SELECT `id`, "
+                    + "`ruleset_id`, "
+                    + "`legacy_score_id`, "
+                    + "`legacy_total_score`, "
+                    + "`total_score`, "
+                    + "`rank`, "
+                    + "`pp` "
                     + "FROM scores "
                     + "WHERE id >= @lastId AND legacy_score_id IS NOT NULL ORDER BY id LIMIT @batchSize", new
                     {
@@ -206,6 +207,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 });
                             }
                         }
+
+                        if (!check(importedScore.id, "rank", importedScore.rank, referenceScore.Rank))
+                        {
+                            Interlocked.Increment(ref fail);
+                            requiresIndexing = true;
+
+                            if (!DryRun)
+                            {
+                                await conn.ExecuteAsync("UPDATE scores SET `rank` = @rank WHERE `id` = @id", new
+                                {
+                                    rank = referenceScore.Rank,
+                                    id = importedScore.id,
+                                });
+                            }
+                        }
                     }
                     finally
                     {
@@ -253,6 +269,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             public ulong? legacy_score_id;
             public long? legacy_total_score;
             public long? total_score;
+            public ScoreRank rank;
             public float? pp;
 
             public HighScore? HighScore { get; set; }
