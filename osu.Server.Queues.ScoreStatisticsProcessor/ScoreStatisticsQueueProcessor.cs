@@ -101,19 +101,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         protected override void ProcessResult(ScoreItem item)
         {
+            var stopwatch = new Stopwatch();
             var tags = new List<string>();
-
-            if (item.Score.legacy_score_id != null)
-                tags.Add("type:legacy");
-
-            if (item.ProcessHistory?.processed_version == VERSION)
-            {
-                item.Tags = tags.Append("type:skipped").ToArray();
-                return;
-            }
 
             try
             {
+                tags.Add($"ruleset:{item.Score.ruleset_id}");
+
+                if (item.Score.legacy_score_id != null)
+                    tags.Add("type:legacy");
+
+                if (item.ProcessHistory?.processed_version == VERSION)
+                {
+                    tags.Add("type:skipped");
+                    return;
+                }
+
                 using (var conn = GetDatabaseConnection())
                 {
                     var scoreRow = item.Score;
@@ -132,14 +135,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         {
                             // ruleset could be invalid
                             // TODO: add check in client and server to not submit unsupported rulesets
-                            item.Tags = tags.Append("type:no-stats").ToArray();
+                            tags.Add("type:no-stats");
                             return;
                         }
 
                         // if required, we can rollback any previous version of processing then reapply with the latest.
                         if (item.ProcessHistory != null)
                         {
-                            item.Tags = tags.Append("type:upgraded").ToArray();
+                            tags.Add("type:upgraded");
                             byte version = item.ProcessHistory.processed_version;
 
                             foreach (var p in enumerateValidProcessors(score))
@@ -147,11 +150,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         }
                         else
                         {
-                            item.Tags = tags.Append("type:new").ToArray();
+                            tags.Add("type:new");
                         }
 
-                        foreach (var p in enumerateValidProcessors(score))
+                        item.Tags = tags.ToArray();
+
+                        foreach (IProcessor p in enumerateValidProcessors(score))
+                        {
+                            stopwatch.Restart();
                             p.ApplyToUserStats(score, userStats, conn, transaction);
+                            DogStatsd.Timer($"apply-{p.GetType().ReadableName()}", stopwatch.ElapsedMilliseconds, tags: item.Tags);
+                        }
 
                         DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
 
@@ -182,6 +191,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             {
                 Console.WriteLine(e.ToString());
                 throw;
+            }
+            finally
+            {
+                item.Tags = tags.ToArray();
             }
         }
 
