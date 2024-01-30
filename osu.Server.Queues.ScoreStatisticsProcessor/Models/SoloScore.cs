@@ -54,7 +54,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public double? pp { get; set; }
 
         public ulong? legacy_score_id { get; set; }
-        public uint? legacy_total_score { get; set; }
+        public uint legacy_total_score { get; set; }
 
         public DateTimeOffset? started_at { get; set; }
         public DateTimeOffset ended_at { get; set; }
