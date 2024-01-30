@@ -242,7 +242,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             scoreInfo.SetCountMiss(highScore.countmiss);
             scoreInfo.SetCountGeki(highScore.countgeki);
             scoreInfo.SetCountKatu(highScore.countkatu);
-            LegacyScoreDecoder.PopulateAccuracy(scoreInfo);
 
             // Trim zero values from statistics.
             scoreInfo.Statistics = scoreInfo.Statistics.Where(kvp => kvp.Value != 0).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
@@ -324,7 +323,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             var difficulty = getDificultyInfo(highScore.beatmap_id);
 
-            StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, difficulty, scoreAttributes.ToAttributes());
+            StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, rulesetCache.Ruleset, difficulty, scoreAttributes.ToAttributes());
 
             return scoreInfo;
         }
