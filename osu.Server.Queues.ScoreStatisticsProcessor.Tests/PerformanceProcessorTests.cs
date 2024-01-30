@@ -51,49 +51,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void PerformanceIndexDoesNotUpdateForNonLegacyScoreWithNoBuildId()
-        {
-            AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
-
-            SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
-            {
-                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
-                score.Score.max_combo = 100;
-                score.Score.accuracy = 1;
-                score.Score.preserve = true;
-            });
-
-            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_stats WHERE rank_score > 0 AND user_id = 2", 0, CancellationToken);
-        }
-
-        [Fact]
-        public void PerformanceIndexDoesNotUpdateForScoresThatHavePpButInvalidMods()
-        {
-            AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
-
-            using (MySqlConnection conn = Processor.GetDatabaseConnection())
-            {
-                var score = CreateTestScore(beatmapId: TEST_BEATMAP_ID);
-
-                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
-                score.Score.max_combo = 100;
-                score.Score.accuracy = 1;
-                score.Score.build_id = TestBuildID;
-                score.Score.ScoreData.Mods = new[] { new APIMod(new InvalidMod()) };
-                score.Score.pp = 1;
-                score.Score.preserve = true;
-
-                conn.Insert(score.Score);
-
-                PushToQueueAndWaitForProcess(score);
-            }
-
-            WaitForDatabaseState("SELECT COUNT(*) FROM osu_user_stats WHERE rank_score > 0 AND user_id = 2", 0, CancellationToken);
-        }
-
-        [Fact]
         public void LegacyModsThatGivePpAreAllowed()
         {
             var mods = new Mod[]
@@ -247,6 +204,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void ModsWithSettingsAreDisallowed()
+        {
+            var mods = new Mod[]
+            {
+                new OsuModDoubleTime { SpeedChange = { Value = 1.1 } },
+                new OsuModClassic { NoSliderHeadAccuracy = { Value = false } },
+                new OsuModFlashlight { SizeMultiplier = { Value = 2 } }
+            };
+
+            foreach (var mod in mods)
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
+        }
+
+        [Fact]
         public void FailedScoreDoesNotProcess()
         {
             AddBeatmap();
@@ -260,7 +231,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.passed = false;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL AND ranked = 1 AND preserve = 1", 0, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL", 0, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });
@@ -281,24 +252,61 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL", 1, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL AND ranked = 1 AND preserve = 1", 1, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });
         }
 
         [Fact]
-        public void ModsWithSettingsAreDisallowed()
+        public void NonLegacyScoreWithNoBuildIdIsNotRanked()
         {
-            var mods = new Mod[]
-            {
-                new OsuModDoubleTime { SpeedChange = { Value = 1.1 } },
-                new OsuModClassic { NoSliderHeadAccuracy = { Value = false } },
-                new OsuModFlashlight { SizeMultiplier = { Value = 2 } }
-            };
+            AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
-            foreach (var mod in mods)
-                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
+            ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.preserve = true;
+            });
+
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND ranked = 0", 1, CancellationToken, new
+            {
+                ScoreId = score.Score.id
+            });
+        }
+
+        [Fact]
+        public void ScoresThatHavePpButInvalidModsIsNotRanked()
+        {
+            AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>();
+
+            ScoreItem score;
+
+            using (MySqlConnection conn = Processor.GetDatabaseConnection())
+            {
+                score = CreateTestScore(beatmapId: TEST_BEATMAP_ID);
+
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.ScoreData.Mods = new[] { new APIMod(new InvalidMod()) };
+                score.Score.pp = 1;
+                score.Score.preserve = true;
+
+                conn.Insert(score.Score);
+
+                PushToQueueAndWaitForProcess(score);
+            }
+
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND ranked = 0", 1, CancellationToken, new
+            {
+                ScoreId = score.Score.id
+            });
         }
 
         private class InvalidMod : Mod
