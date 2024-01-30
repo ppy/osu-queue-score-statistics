@@ -49,6 +49,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         private readonly bool importLegacyPP;
         private readonly bool dryRun;
+        private readonly bool throwOnFailure;
 
         public HighScore[] Scores { get; }
 
@@ -58,11 +59,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public List<ScoreItem> ScoreStatisticsItems { get; } = new List<ScoreItem>();
 
-        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool dryRun = false)
+        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool dryRun = false, bool throwOnFailure = true)
         {
             this.ruleset = ruleset;
             this.importLegacyPP = importLegacyPP;
             this.dryRun = dryRun;
+            this.throwOnFailure = throwOnFailure;
 
             Scores = scores;
             Task = Task.Run(() => run(scores));
@@ -164,7 +166,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 }
                 catch (Exception e)
                 {
-                    throw new AggregateException($"Processing legacy score {highScore.score_id} failed.", e);
+                    if (throwOnFailure)
+                        throw new AggregateException($"Processing legacy score {highScore.score_id} failed.", e);
+
+                    Console.WriteLine($"Processing legacy score {highScore.score_id} failed.", e);
                 }
             });
 
