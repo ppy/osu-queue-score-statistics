@@ -64,8 +64,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_beatmaps");
                 db.Execute("TRUNCATE TABLE osu_beatmapsets");
 
-                db.Execute("TRUNCATE TABLE scores");
-                db.Execute("TRUNCATE TABLE score_process_history");
+                // These tables are still views for now (todo osu-web plz).
+                db.Execute("DELETE FROM scores");
+                db.Execute("DELETE FROM score_process_history");
 
                 db.Execute("TRUNCATE TABLE osu_builds");
                 db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");
