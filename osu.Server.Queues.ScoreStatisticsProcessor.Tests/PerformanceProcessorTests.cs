@@ -260,7 +260,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.passed = false;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL", 0, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL AND ranked = 1 AND preserve = 1", 0, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });
