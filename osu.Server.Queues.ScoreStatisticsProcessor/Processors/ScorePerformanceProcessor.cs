@@ -113,7 +113,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            if (buildStore == null || beatmapStore == null || currentTimestamp - lastStoreRefresh > 60)
+            if (buildStore == null || beatmapStore == null || currentTimestamp - lastStoreRefresh > 60_000)
             {
                 buildStore = await BuildStore.CreateAsync(connection, transaction);
                 beatmapStore = await BeatmapStore.CreateAsync(connection, transaction);
