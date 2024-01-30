@@ -223,7 +223,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             {
                                 await conn.ExecuteAsync("UPDATE scores SET `rank` = @rank WHERE `id` = @id", new
                                 {
-                                    rank = referenceScore.Rank,
+                                    rank = referenceScore.Rank.ToString(),
                                     id = importedScore.id,
                                 });
                             }
