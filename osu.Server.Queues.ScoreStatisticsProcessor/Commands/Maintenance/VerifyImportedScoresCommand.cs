@@ -202,7 +202,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             {
                                 await conn.ExecuteAsync("UPDATE scores SET legacy_total_score = @score WHERE id = @id", new
                                 {
-                                    score = referenceScore.LegacyTotalScore,
+                                    score = referenceScore.LegacyTotalScore ?? 0,
                                     id = importedScore.id,
                                 });
                             }
@@ -267,7 +267,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             public ulong id;
             public int ruleset_id;
             public ulong? legacy_score_id;
-            public long? legacy_total_score;
+            public long legacy_total_score;
             public long? total_score;
             public ScoreRank rank;
             public float? pp;
