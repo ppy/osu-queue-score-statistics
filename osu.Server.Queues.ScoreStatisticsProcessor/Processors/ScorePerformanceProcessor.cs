@@ -115,7 +115,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             if (buildStore == null || currentTimestamp - lastStoreRefresh > 60)
             {
-                buildStore ??= await BuildStore.CreateAsync(connection, transaction);
+                buildStore = await BuildStore.CreateAsync(connection, transaction);
                 lastStoreRefresh = currentTimestamp;
             }
 
