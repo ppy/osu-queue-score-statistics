@@ -27,6 +27,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public const int ORDER = 0;
 
         private BeatmapStore? beatmapStore;
+        private BuildStore? buildStore;
+
+        private long lastStoreRefresh;
 
         public int Order => ORDER;
 
@@ -108,6 +111,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (!score.Passed)
                 return;
 
+            long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            if (buildStore == null || currentTimestamp - lastStoreRefresh > 60)
+            {
+                buildStore ??= await BuildStore.CreateAsync(connection, transaction);
+                lastStoreRefresh = currentTimestamp;
+            }
+
             beatmapStore ??= await BeatmapStore.CreateAsync(connection, transaction);
 
             try
@@ -138,6 +149,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                 APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
                 DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, connection, transaction);
+
+                // Performance needs to be allowed for the build.
+                // Null build id signifies a legacy score.
+                if (score.BuildID != null && buildStore.GetBuild(score.BuildID.Value)?.allow_performance != true)
+                {
+                    await markNonRanked();
+                    return;
+                }
 
                 if (difficultyAttributes == null)
                 {
