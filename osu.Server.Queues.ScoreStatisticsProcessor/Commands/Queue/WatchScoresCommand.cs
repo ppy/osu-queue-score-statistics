@@ -100,7 +100,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     // Need to obtain score_id before zeroing them out.
                     lastScoreId = scores.Last().score_id;
 
-                    var inserter = new BatchInserter(ruleset, scores, importLegacyPP: SkipScoreProcessor, dryRun: DryRun);
+                    var inserter = new BatchInserter(ruleset, scores, importLegacyPP: SkipScoreProcessor, dryRun: DryRun, throwOnFailure: false);
 
                     while (!inserter.Task.IsCompleted)
                     {
