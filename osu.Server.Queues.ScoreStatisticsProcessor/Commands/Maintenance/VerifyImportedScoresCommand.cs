@@ -35,6 +35,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
         public bool DryRun { get; set; }
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--delete-only")]
+        public bool DeleteOnly { get; set; }
+
         private ElasticQueuePusher? elasticQueueProcessor;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
@@ -133,6 +136,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                             continue;
                         }
+
+                        if (DeleteOnly)
+                            continue;
 
                         var referenceScore = importedScore.ReferenceScore!;
 
