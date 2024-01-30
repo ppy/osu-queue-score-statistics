@@ -45,7 +45,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
 
         public ScoreStatisticsQueueProcessor(string[]? disabledProcessors = null)
-            : base(new QueueConfiguration { InputQueueName = "score-statistics" })
+            : base(new QueueConfiguration { InputQueueName = Environment.GetEnvironmentVariable("SCORES_PROCESSING_QUEUE") ?? "score-statistics" })
         {
             DapperExtensions.InstallDateTimeOffsetMapper();
 
