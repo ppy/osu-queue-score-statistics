@@ -151,8 +151,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, connection, transaction);
 
                 // Performance needs to be allowed for the build.
-                // Null build id signifies a legacy score.
-                if (score.BuildID != null && buildStore.GetBuild(score.BuildID.Value)?.allow_performance != true)
+                // legacy scores don't need a build id
+                if (score.LegacyScoreId == null && (score.BuildID == null || buildStore.GetBuild(score.BuildID.Value)?.allow_performance != true))
                 {
                     await markNonRanked();
                     return;
