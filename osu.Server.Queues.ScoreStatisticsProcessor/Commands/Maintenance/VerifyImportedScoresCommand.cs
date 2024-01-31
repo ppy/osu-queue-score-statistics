@@ -134,7 +134,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         if (importedScore.legacy_score_id == null) continue;
 
                         // Score was deleted in legacy table.
-                        if (importedScore.HighScore == null)
+                        //
+                        // Importantly, `legacy_score_id` of 0 implies a non-high-score (which doesn't have a matching entry).
+                        // We should leave these.
+                        if (importedScore.HighScore == null && importedScore.legacy_score_id > 0)
                         {
                             Interlocked.Increment(ref deleted);
                             requiresIndexing = true;
