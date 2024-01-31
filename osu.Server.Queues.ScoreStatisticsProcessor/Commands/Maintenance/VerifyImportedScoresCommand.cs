@@ -27,6 +27,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public ulong? StartId { get; set; }
 
         /// <summary>
+        /// The ruleset to run this verify job for.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--ruleset-id")]
+        public int RulesetId { get; set; }
+
+        /// <summary>
         /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
         /// </summary>
         [Option(CommandOptionType.SingleValue, Template = "--batch-size")]
@@ -42,12 +48,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
+            var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
+
             ulong lastId = StartId ?? 0;
             int deleted = 0;
             int fail = 0;
 
             Console.WriteLine();
-            Console.WriteLine($"Verifying scores starting from {lastId}");
+            Console.WriteLine($"Verifying scores starting from {lastId} for ruleset {RulesetId}");
 
             elasticQueueProcessor = new ElasticQueuePusher();
             Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
@@ -61,41 +69,43 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             {
                 HashSet<ElasticQueuePusher.ElasticScoreItem> elasticItems = new HashSet<ElasticQueuePusher.ElasticScoreItem>();
 
-                IEnumerable<ComparableScore> importedScores = await conn.QueryAsync<ComparableScore>(
+                IEnumerable<ComparableScore> importedScores = await conn.QueryAsync(
                     "SELECT `id`, "
                     + "`ruleset_id`, "
                     + "`legacy_score_id`, "
                     + "`legacy_total_score`, "
                     + "`total_score`, "
-                    + "`rank`, "
-                    + "`pp` "
-                    + "FROM scores "
-                    + "WHERE id >= @lastId AND legacy_score_id IS NOT NULL ORDER BY id LIMIT @batchSize", new
+                    + "s.`rank`, "
+                    + "s.`pp`, "
+                    + "h.* "
+                    + "FROM scores s "
+                    + $"LEFT JOIN {rulesetSpecifics.HighScoreTable} h ON (legacy_score_id = score_id)"
+                    + "WHERE id BETWEEN @lastId AND (@lastId + @batchSize - 1) AND legacy_score_id IS NOT NULL AND ruleset_id = @rulesetId ORDER BY id",
+                    (ComparableScore score, HighScore highScore) =>
+                    {
+                        score.HighScore = highScore;
+                        return score;
+                    },
+                    new
                     {
                         lastId,
+                        rulesetId = RulesetId,
                         batchSize = BatchSize
-                    });
-
-                // gather high scores for each ruleset
-                foreach (var rulesetScores in importedScores.GroupBy(s => s.ruleset_id))
-                {
-                    var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetScores.Key);
-
-                    var highScores = (await conn.QueryAsync<HighScore>(
-                            $"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id IN ({string.Join(',', rulesetScores.Select(s => s.legacy_score_id))})"))
-                        .ToDictionary(s => s.score_id, s => s);
-
-                    foreach (var score in rulesetScores)
-                    {
-                        if (highScores.TryGetValue(score.legacy_score_id!.Value, out var highScore))
-                            score.HighScore = highScore;
-                    }
-                }
+                    }, splitOn: "score_id");
 
                 if (!importedScores.Any())
                 {
-                    Console.WriteLine("All done!");
-                    break;
+                    if (lastId > await conn.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores"))
+                    {
+                        Console.WriteLine("All done!");
+                        break;
+                    }
+
+                    lastId += (ulong)BatchSize;
+
+                    if (lastId % (ulong)BatchSize * 100 == 0)
+                        Console.Write(".");
+                    continue;
                 }
 
                 elasticItems.Clear();
@@ -246,10 +256,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                 }
 
-                lastId = importedScores.Max(s => s.id) + 1;
-
                 Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
-                Console.Write($"Processed up to {lastId} ({deleted} deleted {fail} failed)");
+                Console.Write($"Processed up to {importedScores.Max(s => s.id)} ({deleted} deleted {fail} failed)");
+
+                lastId += (ulong)BatchSize;
             }
 
             return 0;
