@@ -135,6 +135,12 @@ Defaults to `localhost`
 
 Schema version for the queue; see [Schema](https://github.com/ppy/osu-elastic-indexer#schema).
 
+### WRITE_LEGACY_SCORE_PP
+
+Whether to write a legacy score's PP to `osu_scores_high` if applicable to the score. Set to `0` to disable writing.
+
+Default is unset (writing enabled).
+
 ## BYO
 
 To setup a testing environment, the minimum requirements are having a MySQL instance available at `localhost:3306` and a redis instance available at `localhost:6379`.
