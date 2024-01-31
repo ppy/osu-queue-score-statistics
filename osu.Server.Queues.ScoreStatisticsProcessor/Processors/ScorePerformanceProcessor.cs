@@ -173,10 +173,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     return;
                 }
 
+                score.PP = performanceAttributes.Total;
+
                 await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
                 {
                     ScoreId = score.ID,
-                    Pp = performanceAttributes.Total
+                    Pp = score.PP
                 }, transaction: transaction);
             }
             catch (Exception ex)
