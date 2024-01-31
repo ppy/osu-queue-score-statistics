@@ -44,8 +44,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
 
-        private static readonly bool write_legacy_score_pp = Environment.GetEnvironmentVariable("WRITE_LEGACY_SCORE_PP") != "0";
-
         public ScoreStatisticsQueueProcessor(string[]? disabledProcessors = null)
             : base(new QueueConfiguration { InputQueueName = Environment.GetEnvironmentVariable("SCORES_PROCESSING_QUEUE") ?? "score-statistics" })
         {
@@ -168,13 +166,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                         updateHistoryEntry(item, conn, transaction);
 
-                        // osu-web-10 polls `osu_high_scores` to wait for the `pp` column to be processed.
-                        // if we're processing a legacy score, we should update the column if desired.
-                        if (score.IsLegacyScore && score.Passed && write_legacy_score_pp)
-                        {
-                            updateLegacyScorePerformance(score, conn, transaction);
-                        }
-
                         transaction.Commit();
                     }
 
@@ -218,16 +209,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 result = result.Where(p => p.RunOnLegacyScores);
 
             return result;
-        }
-
-        private static void updateLegacyScorePerformance(SoloScoreInfo score, MySqlConnection db, MySqlTransaction transaction)
-        {
-            string highScoresTable = LegacyDatabaseHelper.GetRulesetSpecifics(score.RulesetID).HighScoreTable;
-            db.Execute($"UPDATE {highScoresTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
-            {
-                Pp = score.PP,
-                LegacyScoreId = score.LegacyScoreId,
-            }, transaction: transaction);
         }
 
         private static void updateHistoryEntry(ScoreItem item, MySqlConnection db, MySqlTransaction transaction)

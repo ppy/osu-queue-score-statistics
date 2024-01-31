@@ -19,7 +19,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     public class UserTotalPerformanceProcessor : IProcessor
     {
         // This processor needs to run after the score's PP value has been processed.
-        public int Order => ScorePerformanceProcessor.ORDER + 1;
+        public int Order => LegacyScorePerformanceProcessor.ORDER + 1;
 
         public bool RunOnFailedScores => false;
 
