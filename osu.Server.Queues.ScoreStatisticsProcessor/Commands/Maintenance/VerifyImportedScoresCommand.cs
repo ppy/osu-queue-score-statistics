@@ -46,6 +46,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private ElasticQueuePusher? elasticQueueProcessor;
 
+        private int skipOutput;
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
@@ -103,8 +105,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     lastId += (ulong)BatchSize;
 
-                    if (lastId % (ulong)BatchSize * 100 == 0)
-                        Console.Write(".");
+                    if (++skipOutput % 100 == 0)
+                        Console.WriteLine($"Skipped up to {lastId}...");
                     continue;
                 }
 
