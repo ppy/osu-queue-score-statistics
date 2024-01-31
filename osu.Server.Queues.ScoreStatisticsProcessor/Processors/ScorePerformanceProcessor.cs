@@ -57,7 +57,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="rulesetId">The ruleset for which scores should be processed.</param>
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
-        public async Task ProcessUserScoresAsync(int userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
+        public async Task<SoloScore[]> ProcessUserScoresAsync(int userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             var scores = (await connection.QueryAsync<SoloScore>("SELECT * FROM scores WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
             {
@@ -67,6 +67,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             foreach (SoloScore score in scores)
                 await ProcessScoreAsync(score, connection, transaction);
+
+            return scores;
         }
 
         /// <summary>
