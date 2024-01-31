@@ -133,26 +133,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     try
                     {
+                        // Score was set via lazer, we have nothing to verify.
                         if (importedScore.legacy_score_id == null) continue;
 
                         // Score was deleted in legacy table.
                         //
                         // Importantly, `legacy_score_id` of 0 implies a non-high-score (which doesn't have a matching entry).
                         // We should leave these.
-                        if (importedScore.HighScore == null && importedScore.legacy_score_id > 0)
+                        if (importedScore.HighScore == null)
                         {
-                            Interlocked.Increment(ref deleted);
-                            requiresIndexing = true;
-
-                            if (!DryRun)
+                            if (importedScore.legacy_score_id > 0)
                             {
-                                await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
-                                {
-                                    id = importedScore.id
-                                });
-                            }
+                                Interlocked.Increment(ref deleted);
+                                requiresIndexing = true;
 
-                            continue;
+                                if (!DryRun)
+                                {
+                                    await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
+                                    {
+                                        id = importedScore.id
+                                    });
+                                }
+
+                                continue;
+                            }
+                            else
+                            {
+                                // Score was sourced from the osu_scores table, and we don't really care about verifying these.
+                                continue;
+                            }
                         }
 
                         if (DeleteOnly)
