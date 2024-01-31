@@ -56,6 +56,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             int deleted = 0;
             int fail = 0;
 
+            using var conn = DatabaseAccess.GetConnection();
+
+            lastId = await conn.QuerySingleAsync<ulong?>(
+                "SELECT id FROM scores WHERE ruleset_id = @rulesetId AND legacy_score_id = (SELECT MIN(legacy_score_id) FROM scores WHERE ruleset_id = @rulesetId AND id >= @lastId AND legacy_score_id > 0)", new
+                {
+                    lastId,
+                    rulesetId = RulesetId,
+                }) ?? lastId;
+
             Console.WriteLine();
             Console.WriteLine($"Verifying scores starting from {lastId} for ruleset {RulesetId}");
 
@@ -64,8 +73,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
-
-            using var conn = DatabaseAccess.GetConnection();
 
             while (!cancellationToken.IsCancellationRequested)
             {
