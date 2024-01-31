@@ -100,17 +100,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 elasticItems.Clear();
 
-                Parallel.ForEach(importedScores, new ParallelOptions
+                if (!DeleteOnly)
                 {
-                    MaxDegreeOfParallelism = Environment.ProcessorCount,
-                }, importedScore =>
-                {
-                    if (importedScore.legacy_score_id == null) return;
+                    Parallel.ForEach(importedScores, new ParallelOptions
+                    {
+                        MaxDegreeOfParallelism = Environment.ProcessorCount,
+                    }, importedScore =>
+                    {
+                        if (importedScore.legacy_score_id == null) return;
 
-                    if (importedScore.HighScore == null) return;
+                        if (importedScore.HighScore == null) return;
 
-                    importedScore.ReferenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
-                });
+                        importedScore.ReferenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
+                    });
+                }
 
                 foreach (var importedScore in importedScores)
                 {
