@@ -133,7 +133,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                                                  }))
                                              // there might be multiple queue entries for the same insert. this can cause issues due to how we do the mapping lookup so let's fix that.
                                              .DistinctBy(s => s.score_id)
-                                             .OrderBy(s => s.score)
+                                             .OrderBy(s => s.score_id)
                                              .ToArray();
 
                     var pendingProcessing = highScores.FirstOrDefault(s => s.status == 0);
