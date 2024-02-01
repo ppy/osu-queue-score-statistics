@@ -51,6 +51,43 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void PerformanceDoesNotDoubleAfterScoreSetOnSameMap()
+        {
+            AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>(setup: attr =>
+            {
+                attr.AimDifficulty = 3;
+                attr.SpeedDifficulty = 3;
+                attr.OverallDifficulty = 3;
+            });
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.preserve = true;
+            });
+
+            // 165pp from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 167, CancellationToken);
+
+            // purposefully identical to score above, to confirm that you don't get pp for two scores on the same map twice
+            SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.preserve = true;
+            });
+
+            // 165pp from the single score above + 4pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 169, CancellationToken);
+        }
+
+        [Fact]
         public void LegacyModsThatGivePpAreAllowed()
         {
             var mods = new Mod[]
