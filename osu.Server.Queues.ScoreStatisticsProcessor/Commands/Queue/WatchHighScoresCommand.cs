@@ -203,10 +203,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     pushCompletedScoreToQueue(inserter);
 
-                    var lastScore = highScores.Last();
-
-                    lastQueueId = lastScore.queue_id!.Value;
-                    Console.WriteLine($"Workers processed up to (score_id: {lastScore.score_id} queue_id: {lastQueueId})");
+                    var lastScoreId = highScores.Last().score_id;
+                    lastQueueId = highScores.Max(score => score.queue_id!.Value);
+                    Console.WriteLine($"Workers processed up to (score_id: {lastScoreId} queue_id: {lastQueueId})");
                     lastQueueId++;
                 }
             }
