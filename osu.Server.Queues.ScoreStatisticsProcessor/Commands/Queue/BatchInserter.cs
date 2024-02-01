@@ -81,7 +81,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 new StringBuilder(
                     "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
-            Console.WriteLine($" Processing scores {scores.First().score_id} to {scores.Last().score_id}");
+            Console.WriteLine($" Processing scores {scores.Min(s => s.score_id)} to {scores.Max(s => s.score_id)}");
             Stopwatch sw = new Stopwatch();
             sw.Start();
             Parallel.ForEach(scores, new ParallelOptions
