@@ -75,7 +75,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             if (lastImportedLegacyScoreId >= firstEntry.score_id)
             {
-                var entry = db.QuerySingleOrDefault<ScoreProcessQueue>($"SELECT * FROM score_process_queue WHERE mode = {RulesetId} AND score_id = {lastImportedLegacyScoreId + 1} ORDER BY queue_id LIMIT 1");
+                var entry = db.QuerySingleOrDefault<ScoreProcessQueue>(
+                    $"SELECT * FROM score_process_queue WHERE mode = {RulesetId} AND score_id = {lastImportedLegacyScoreId + 1} ORDER BY queue_id LIMIT 1");
 
                 if (entry != null)
                 {
@@ -118,6 +119,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine("Starting processing in 5 seconds...");
             await Task.Delay(5000, cancellationToken);
 
+            HighScore? pendingProcessing = null;
+            int pendingProcessingWaitTime = 0;
+
             using (var dbMainQuery = DatabaseAccess.GetConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
@@ -136,18 +140,47 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                                              .OrderBy(s => s.score_id)
                                              .ToArray();
 
-                    var pendingProcessing = highScores.FirstOrDefault(s => s.status == 0);
+                    var lastPending = pendingProcessing;
+                    pendingProcessing = highScores.FirstOrDefault(s => s.status == 0);
+
+                    const int sleep = 500;
 
                     if (pendingProcessing != null)
                     {
-                        Console.WriteLine($"Waiting on processing of (score_id: {pendingProcessing.score_id} queue_id: {pendingProcessing.queue_id})");
-                        Thread.Sleep(500);
-                        continue;
+                        // the pending score may have changed, so reset the wait time at this point.
+                        if (pendingProcessing.score_id != lastPending?.score_id)
+                        {
+                            pendingProcessingWaitTime = sleep;
+
+                            Console.WriteLine($"Waiting on processing of (score_id: {pendingProcessing.score_id} queue_id: {pendingProcessing.queue_id})");
+                            Thread.Sleep(sleep);
+                            continue;
+                        }
+
+                        // 5 minute timeout
+                        if (pendingProcessingWaitTime > 300000)
+                        {
+                            Console.WriteLine($"Importing score which was not processed due to timeout (score_id: {pendingProcessing.score_id} queue_id: {pendingProcessing.queue_id})");
+
+                            // only process up to the timed-out entry.
+                            highScores = highScores.Where(s => s.queue_id <= pendingProcessing.queue_id).ToArray();
+                        }
+                        else
+                        {
+                            pendingProcessingWaitTime += sleep;
+
+                            Console.WriteLine($"Waiting on processing of (score_id: {pendingProcessing.score_id} queue_id: {pendingProcessing.queue_id})");
+                            Thread.Sleep(sleep);
+                            continue;
+                        }
                     }
+
+                    pendingProcessing = null;
+                    pendingProcessingWaitTime = 0;
 
                     if (highScores.Length == 0)
                     {
-                        Thread.Sleep(500);
+                        Thread.Sleep(sleep);
                         continue;
                     }
 
