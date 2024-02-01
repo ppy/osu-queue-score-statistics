@@ -169,6 +169,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         transaction.Commit();
                     }
 
+                    // TODO: this can be removed after https://github.com/ppy/osu-web/issues/10942 is closed out.
                     // Intentionally not part of the transaction to avoid deadlocks.
                     // See https://discord.com/channels/90072389919997952/983550677794050108/1199725169573380136
                     if (score.Passed)
