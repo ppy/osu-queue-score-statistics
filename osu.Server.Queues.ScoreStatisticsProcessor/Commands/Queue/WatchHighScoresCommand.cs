@@ -161,6 +161,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if (pendingProcessingWaitTime > 300000)
                         {
                             Console.WriteLine($"Importing score which was not processed due to timeout (score_id: {pendingProcessing.score_id} queue_id: {pendingProcessing.queue_id})");
+
+                            // only process up to the timed-out entry.
+                            highScores = highScores.Where(s => s.queue_id <= pendingProcessing.score_id).ToArray();
                         }
                         else
                         {
