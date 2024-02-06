@@ -59,7 +59,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             using var conn = DatabaseAccess.GetConnection();
 
             lastId = await conn.QuerySingleAsync<ulong?>(
-                "SELECT id FROM scores WHERE ruleset_id = @rulesetId AND legacy_score_id = (SELECT MIN(legacy_score_id) FROM scores WHERE ruleset_id = @rulesetId AND id >= @lastId AND legacy_score_id > 0)", new
+                "SELECT id FROM scores WHERE ruleset_id = @rulesetId AND legacy_score_id = (SELECT MIN(legacy_score_id) FROM scores WHERE ruleset_id = @rulesetId AND id >= @lastId AND legacy_score_id > 0)",
+                new
                 {
                     lastId,
                     rulesetId = RulesetId,
@@ -84,6 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     + "`legacy_score_id`, "
                     + "`legacy_total_score`, "
                     + "`total_score`, "
+                    + "`has_replay`, "
                     + "s.`rank`, "
                     + "s.`pp`, "
                     + "h.* "
@@ -206,6 +208,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             }
                         }
 
+                        if (!check(importedScore.id, "replay", importedScore.has_replay, importedScore.HighScore.replay))
+                        {
+                            Interlocked.Increment(ref fail);
+
+                            if (!DryRun)
+                            {
+                                await conn.ExecuteAsync("UPDATE scores SET has_replay = @hasReplay WHERE id = @id", new
+                                {
+                                    hasReplay = importedScore.HighScore.replay,
+                                    id = importedScore.id,
+                                });
+                            }
+                        }
+
                         if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore))
                         {
                             Interlocked.Increment(ref fail);
@@ -309,6 +325,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             public ulong? legacy_score_id;
             public long legacy_total_score;
             public long? total_score;
+            public bool has_replay;
             public ScoreRank rank;
             public float? pp;
 
