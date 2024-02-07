@@ -10,10 +10,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using MySqlConnector;
 using osu.Game.Scoring;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using StringBuilder = System.Text.StringBuilder;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -46,6 +48,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private ElasticQueuePusher? elasticQueueProcessor;
 
+        private StringBuilder sqlBuffer = null!;
+
         private int skipOutput;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
@@ -77,6 +81,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
+
+            sqlBuffer = new StringBuilder();
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -159,13 +165,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 Interlocked.Increment(ref deleted);
                                 requiresIndexing = true;
 
-                                if (!DryRun)
-                                {
-                                    await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
-                                    {
-                                        id = importedScore.id
-                                    });
-                                }
+                                sqlBuffer.Append($"DELETE FROM scores WHERE id = {importedScore.id};");
 
                                 continue;
                             }
@@ -188,41 +188,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                             // PP was reset (had a value in new table but no value in old).
                             if (importedScore.HighScore.pp == null)
-                            {
-                                if (!DryRun)
-                                {
-                                    await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
-                                    {
-                                        id = importedScore.id
-                                    });
-                                }
-                            }
+                                sqlBuffer.Append($"UPDATE scores SET pp = NULL WHERE id = {importedScore.id};");
                             // PP doesn't match.
                             else
-                            {
-                                if (!DryRun)
-                                {
-                                    await conn.ExecuteAsync("UPDATE scores SET pp = @pp WHERE id = @id", new
-                                    {
-                                        pp = importedScore.HighScore.pp,
-                                        id = importedScore.id,
-                                    });
-                                }
-                            }
+                                sqlBuffer.Append($"UPDATE scores SET pp = {importedScore.HighScore.pp} WHERE id = {importedScore.id};");
                         }
 
                         if (!check(importedScore.id, "replay", importedScore.has_replay, importedScore.HighScore.replay))
                         {
                             Interlocked.Increment(ref fail);
-
-                            if (!DryRun)
-                            {
-                                await conn.ExecuteAsync("UPDATE scores SET has_replay = @hasReplay WHERE id = @id", new
-                                {
-                                    hasReplay = importedScore.HighScore.replay,
-                                    id = importedScore.id,
-                                });
-                            }
+                            sqlBuffer.Append($"UPDATE scores SET has_replay = {importedScore.HighScore.replay} WHERE id = {importedScore.id};");
                         }
 
                         if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore))
@@ -236,14 +211,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 continue;
                             }
 
-                            if (!DryRun)
-                            {
-                                await conn.ExecuteAsync("UPDATE scores SET total_score = @score WHERE id = @id", new
-                                {
-                                    score = referenceScore.TotalScore,
-                                    id = importedScore.id,
-                                });
-                            }
+                            sqlBuffer.Append($"UPDATE scores SET total_score = {referenceScore.TotalScore} WHERE id = {importedScore.id};");
                         }
 
                         if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
@@ -257,29 +225,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 continue;
                             }
 
-                            if (!DryRun)
-                            {
-                                await conn.ExecuteAsync("UPDATE scores SET legacy_total_score = @score WHERE id = @id", new
-                                {
-                                    score = referenceScore.LegacyTotalScore ?? 0,
-                                    id = importedScore.id,
-                                });
-                            }
+                            sqlBuffer.Append($"UPDATE scores SET legacy_total_score = {referenceScore.LegacyTotalScore ?? 0} WHERE id = {importedScore.id};");
                         }
 
                         if (!check(importedScore.id, "rank", importedScore.rank, referenceScore.Rank))
                         {
                             Interlocked.Increment(ref fail);
                             requiresIndexing = true;
-
-                            if (!DryRun)
-                            {
-                                await conn.ExecuteAsync("UPDATE scores SET `rank` = @rank WHERE `id` = @id", new
-                                {
-                                    rank = referenceScore.Rank.ToString(),
-                                    id = importedScore.id,
-                                });
-                            }
+                            sqlBuffer.Append($"UPDATE scores SET `rank` = '{referenceScore.Rank.ToString()}' WHERE `id` = {importedScore.id};");
                         }
                     }
                     finally
@@ -300,9 +253,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 Console.Write($"Processed up to {importedScores.Max(s => s.id)} ({deleted} deleted {fail} failed)");
 
                 lastId += (ulong)BatchSize;
+                flush(conn);
             }
 
+            flush(conn, true);
+
             return 0;
+        }
+
+        private void flush(MySqlConnection conn, bool force = false)
+        {
+            if (sqlBuffer.Length > 1024 || force)
+            {
+                if (!DryRun)
+                {
+                    Console.WriteLine($"Flushing sql batch ({sqlBuffer.Length:N0} bytes)");
+                    conn.Execute(sqlBuffer.ToString());
+                }
+
+                sqlBuffer.Clear();
+            }
         }
 
         private bool check<T>(ulong scoreId, string name, T imported, T original)
