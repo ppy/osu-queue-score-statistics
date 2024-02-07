@@ -58,13 +58,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             using var conn = DatabaseAccess.GetConnection();
 
-            lastId = await conn.QuerySingleAsync<ulong?>(
-                "SELECT id FROM scores WHERE ruleset_id = @rulesetId AND legacy_score_id = (SELECT MIN(legacy_score_id) FROM scores WHERE ruleset_id = @rulesetId AND id >= @lastId AND legacy_score_id > 0)",
-                new
-                {
-                    lastId,
-                    rulesetId = RulesetId,
-                }) ?? lastId;
+            if (lastId == 0)
+            {
+                lastId = await conn.QuerySingleAsync<ulong?>(
+                    "SELECT id FROM scores WHERE ruleset_id = @rulesetId AND legacy_score_id = (SELECT MIN(legacy_score_id) FROM scores WHERE ruleset_id = @rulesetId AND id >= @lastId AND legacy_score_id > 0)",
+                    new
+                    {
+                        lastId,
+                        rulesetId = RulesetId,
+                    }) ?? lastId;
+            }
 
             Console.WriteLine();
             Console.WriteLine($"Verifying scores starting from {lastId} for ruleset {RulesetId}");
