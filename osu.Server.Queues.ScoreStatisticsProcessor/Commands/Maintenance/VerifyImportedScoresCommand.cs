@@ -46,9 +46,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "--delete-only")]
         public bool DeleteOnly { get; set; }
 
-        private ElasticQueuePusher? elasticQueueProcessor;
+        private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
 
-        private StringBuilder sqlBuffer = null!;
+        private readonly StringBuilder sqlBuffer = new StringBuilder();
+
+        private readonly HashSet<ElasticQueuePusher.ElasticScoreItem> elasticItems = new HashSet<ElasticQueuePusher.ElasticScoreItem>();
 
         private int skipOutput;
 
@@ -76,18 +78,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             Console.WriteLine();
             Console.WriteLine($"Verifying scores starting from {lastId} for ruleset {RulesetId}");
 
-            elasticQueueProcessor = new ElasticQueuePusher();
             Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
-            sqlBuffer = new StringBuilder();
-
             while (!cancellationToken.IsCancellationRequested)
             {
-                HashSet<ElasticQueuePusher.ElasticScoreItem> elasticItems = new HashSet<ElasticQueuePusher.ElasticScoreItem>();
-
                 IEnumerable<ComparableScore> importedScores = await conn.QueryAsync(
                     "SELECT `id`, "
                     + "`ruleset_id`, "
@@ -242,13 +239,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     }
                 }
 
-                if (elasticItems.Count > 0)
-                {
-                    if (!DryRun)
-                        elasticQueueProcessor.PushToQueue(elasticItems.ToList());
-                    Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
-                }
-
                 Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
                 Console.Write($"Processed up to {importedScores.Max(s => s.id)} ({deleted} deleted {fail} failed)");
 
@@ -274,6 +264,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 {
                     Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
                     conn.Execute(sqlBuffer.ToString());
+
+                    if (elasticItems.Count > 0)
+                    {
+                        if (!DryRun)
+                            elasticQueueProcessor.PushToQueue(elasticItems.ToList());
+                        Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+                    }
                 }
 
                 sqlBuffer.Clear();
