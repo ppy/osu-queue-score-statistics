@@ -34,6 +34,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleValue, Template = "--ruleset-id")]
         public int RulesetId { get; set; }
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
+        public bool Verbose { get; set; }
+
         /// <summary>
         /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
         /// </summary>
@@ -285,7 +288,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             if (imported?.Equals(original) != true)
             {
-                Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
+                if (Verbose)
+                    Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
                 return false;
             }
 
