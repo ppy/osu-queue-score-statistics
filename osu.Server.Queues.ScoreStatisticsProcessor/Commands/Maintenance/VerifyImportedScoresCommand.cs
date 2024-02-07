@@ -263,11 +263,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private void flush(MySqlConnection conn, bool force = false)
         {
-            if (sqlBuffer.Length > 1024 || force)
+            int bufferLength = sqlBuffer.Length;
+
+            if (bufferLength == 0)
+                return;
+
+            if (bufferLength > 1024 || force)
             {
                 if (!DryRun)
                 {
-                    Console.WriteLine($"Flushing sql batch ({sqlBuffer.Length:N0} bytes)");
+                    Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
                     conn.Execute(sqlBuffer.ToString());
                 }
 
