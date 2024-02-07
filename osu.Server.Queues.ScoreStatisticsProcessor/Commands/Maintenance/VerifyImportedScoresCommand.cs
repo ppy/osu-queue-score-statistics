@@ -239,8 +239,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     }
                 }
 
-                Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
                 Console.Write($"Processed up to {importedScores.Max(s => s.id)} ({deleted} deleted {fail} failed)");
+                Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
 
                 lastId += (ulong)BatchSize;
                 flush(conn);
@@ -262,6 +262,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             {
                 if (!DryRun)
                 {
+                    Console.WriteLine();
                     Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
                     conn.Execute(sqlBuffer.ToString());
 
@@ -284,7 +285,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             if (imported?.Equals(original) != true)
             {
-                Console.WriteLine();
                 Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
                 return false;
             }
