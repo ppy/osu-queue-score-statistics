@@ -186,12 +186,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             Interlocked.Increment(ref fail);
                             requiresIndexing = true;
 
-                            // PP was reset (had a value in new table but no value in old).
-                            if (importedScore.HighScore.pp == null)
-                                sqlBuffer.Append($"UPDATE scores SET pp = NULL WHERE id = {importedScore.id};");
-                            // PP doesn't match.
-                            else
-                                sqlBuffer.Append($"UPDATE scores SET pp = {importedScore.HighScore.pp} WHERE id = {importedScore.id};");
+                            // PP was reset (had a value in new table but no value in old) or doesn't match.
+                            sqlBuffer.Append($"UPDATE scores SET pp = {importedScore.HighScore.pp.ToString() ?? "NULL"} WHERE id = {importedScore.id};");
                         }
 
                         if (!check(importedScore.id, "replay", importedScore.has_replay, importedScore.HighScore.replay))
