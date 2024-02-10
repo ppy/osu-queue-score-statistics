@@ -99,7 +99,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     + "s.`pp`, "
                     + "h.* "
                     + "FROM scores s "
-                    + $"LEFT JOIN {rulesetSpecifics.HighScoreTable} h ON (legacy_score_id = score_id)"
+                    + $"LEFT JOIN {rulesetSpecifics.HighScoreTable} h ON (legacy_score_id = score_id) "
                     + "WHERE id BETWEEN @lastId AND (@lastId + @batchSize - 1) AND legacy_score_id IS NOT NULL AND ruleset_id = @rulesetId ORDER BY id",
                     (ComparableScore score, HighScore highScore) =>
                     {
@@ -127,8 +127,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         Console.WriteLine($"Skipped up to {lastId}...");
                     continue;
                 }
-
-                elasticItems.Clear();
 
                 if (!DeleteOnly)
                 {
@@ -270,6 +268,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         if (!DryRun)
                             elasticQueueProcessor.PushToQueue(elasticItems.ToList());
                         Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+                        elasticItems.Clear();
                     }
                 }
 
