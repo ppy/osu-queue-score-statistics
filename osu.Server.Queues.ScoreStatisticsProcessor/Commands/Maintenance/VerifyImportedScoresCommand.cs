@@ -265,8 +265,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (elasticItems.Count > 0)
                     {
-                        if (!DryRun)
-                            elasticQueueProcessor.PushToQueue(elasticItems.ToList());
+                        elasticQueueProcessor.PushToQueue(elasticItems.ToList());
                         Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                         elasticItems.Clear();
                     }
