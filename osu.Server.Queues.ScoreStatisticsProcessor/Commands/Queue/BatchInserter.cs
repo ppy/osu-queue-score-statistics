@@ -77,17 +77,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             int rulesetId = ruleset.RulesetInfo.OnlineID;
 
-            StringBuilder insertBuilder =
-                new StringBuilder(
-                    "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
-
             Console.WriteLine($" Processing scores {scores.Min(s => s.score_id)} to {scores.Max(s => s.score_id)}");
             Stopwatch sw = new Stopwatch();
             sw.Start();
-            Parallel.ForEach(scores, new ParallelOptions
-            {
-                MaxDegreeOfParallelism = Environment.ProcessorCount,
-            }, highScore =>
+
+            Parallel.ForEach(scores, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, highScore =>
             {
                 try
                 {
@@ -137,36 +131,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     Interlocked.Increment(ref insertCount);
 
-                    lock (insertBuilder)
-                    {
-                        if (!first)
-                            insertBuilder.Append(",");
-                        first = false;
+                    if (referenceScore.TotalScore > 4294967295)
+                        referenceScore.TotalScore = 0;
 
-                        if (referenceScore.TotalScore > 4294967295)
-                            referenceScore.TotalScore = 0;
+                    if (referenceScore.LegacyTotalScore > 4294967295)
+                        referenceScore.LegacyTotalScore = 0;
 
-                        if (referenceScore.LegacyTotalScore > 4294967295)
-                            referenceScore.LegacyTotalScore = 0;
+                    // All preserved scores should be passes.
+                    Debug.Assert(!highScore.ShouldPreserve || highScore.pass);
 
-                        // All preserved scores should be passes.
-                        Debug.Assert(!highScore.ShouldPreserve || highScore.pass);
+                    // All scores with replays should be preserved.
+                    Debug.Assert(!highScore.ShouldPreserve || highScore.replay);
 
-                        // All scores with replays should be preserved.
-                        Debug.Assert(!highScore.ShouldPreserve || highScore.replay);
+                    // For non-preserved flags, we zero the score_id.
+                    // This is because they come from a different table with a different range and it would be hard to track.
+                    if (!highScore.ShouldPreserve)
+                        highScore.score_id = 0;
 
-                        // For non-preserved flags, we zero the score_id.
-                        // This is because they come from a different table with a different range and it would be hard to track.
-                        if (!highScore.ShouldPreserve)
-                            highScore.score_id = 0;
+                    // For now, mark all non-preserved scores as not ranked.
+                    // In theory, this should be the only case of non-ranked scores when importing from old tables.
+                    bool isRanked = highScore.ShouldPreserve;
 
-                        // For now, mark all non-preserved scores as not ranked.
-                        // In theory, this should be the only case of non-ranked scores when importing from old tables.
-                        bool isRanked = highScore.ShouldPreserve;
-
-                        insertBuilder.Append(
-                            $"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, {(highScore.ShouldPreserve ? "1" : "0")}, {(isRanked ? "1" : "0")}, '{referenceScore.Rank.ToString()}', {(highScore.pass ? "1" : "0")}, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()})");
-                    }
+                    highScore.InsertSql =
+                        $"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, {(highScore.ShouldPreserve ? "1" : "0")}, {(isRanked ? "1" : "0")}, '{referenceScore.Rank.ToString()}', {(highScore.pass ? "1" : "0")}, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date:yyyy-MM-dd HH:mm:ss}', {highScore.date.ToUnixTimeSeconds()})";
                 }
                 catch (Exception e)
                 {
@@ -182,8 +169,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             if (insertCount == 0)
             {
                 Console.WriteLine($" Skipped all {scores.Length} scores");
-
                 return;
+            }
+
+            StringBuilder insertBuilder = new StringBuilder(
+                "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
+
+            foreach (var score in scores)
+            {
+                if (string.IsNullOrEmpty(score.InsertSql))
+                    continue;
+
+                if (!first)
+                    insertBuilder.Append(",");
+                first = false;
+
+                insertBuilder.Append(score.InsertSql);
             }
 
             insertBuilder.Append("; SELECT LAST_INSERT_ID()");
