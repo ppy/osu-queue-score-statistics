@@ -79,7 +79,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             StringBuilder insertBuilder =
                 new StringBuilder(
-                    "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
+                    "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
             Console.WriteLine($" Processing scores {scores.Min(s => s.score_id)} to {scores.Max(s => s.score_id)}");
             Stopwatch sw = new Stopwatch();
@@ -160,8 +160,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         if (!highScore.ShouldPreserve)
                             highScore.score_id = 0;
 
+                        // For now, mark all non-preserved scores as not ranked.
+                        // In theory, this should be the only case of non-ranked scores when importing from old tables.
+                        bool isRanked = highScore.ShouldPreserve;
+
                         insertBuilder.Append(
-                            $"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, {(highScore.ShouldPreserve ? "1" : "0")}, '{referenceScore.Rank.ToString()}', {(highScore.pass ? "1" : "0")}, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()})");
+                            $"({highScore.user_id}, {rulesetId}, {highScore.beatmap_id}, {(highScore.replay ? "1" : "0")}, {(highScore.ShouldPreserve ? "1" : "0")}, {(isRanked ? "1" : "0")}, '{referenceScore.Rank.ToString()}', {(highScore.pass ? "1" : "0")}, {referenceScore.Accuracy}, {referenceScore.MaxCombo}, {referenceScore.TotalScore}, '{serialisedScore}', {highScore.pp?.ToString() ?? "null"}, {highScore.score_id}, {referenceScore.LegacyTotalScore}, '{highScore.date.ToString("yyyy-MM-dd HH:mm:ss")}', {highScore.date.ToUnixTimeSeconds()})");
                     }
                 }
                 catch (Exception e)
