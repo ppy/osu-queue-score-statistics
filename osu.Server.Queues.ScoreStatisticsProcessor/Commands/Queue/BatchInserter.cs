@@ -73,7 +73,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private async Task run(HighScore[] scores)
         {
             int insertCount = 0;
-            bool first = true;
 
             int rulesetId = ruleset.RulesetInfo.OnlineID;
 
@@ -172,6 +171,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 return;
             }
 
+            bool first = true;
             StringBuilder insertBuilder = new StringBuilder(
                 "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
