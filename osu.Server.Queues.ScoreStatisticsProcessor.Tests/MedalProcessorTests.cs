@@ -268,11 +268,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertAwarded(medal_id);
         }
 
+        public static readonly object[][] MOD_INTRODUCTION_COMBINATIONS =
+        {
+            [new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModClassic()) }],
+            [new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModTouchDevice()) }]
+        };
+
         /// <summary>
-        /// This tests whether Mod Introduction medals are properly awarded when classic mod is enabled.
+        /// This tests whether Mod Introduction medals are properly awarded in combination with selected mods.
         /// </summary>
-        [Fact]
-        public void TestModIntroductionWithClassic()
+        [Theory]
+        [MemberData(nameof(MOD_INTRODUCTION_COMBINATIONS))]
+        public void TestModIntroductionAllowedWithSelectedMods(APIMod[] mods)
         {
             const int medal_id = 122;
 
@@ -282,7 +289,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             assertNoneAwarded();
 
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModClassic()) });
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = mods);
 
             // When the beatmap is completed with double time and classic, the medal should be awarded.
             assertAwarded(medal_id);
