@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using osu.Game.Beatmaps;
@@ -24,6 +25,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
     public class MedalProcessorTests : DatabaseTest
     {
         private readonly List<MedalProcessor.AwardedMedal> awardedMedals = new List<MedalProcessor.AwardedMedal>();
+        private static int lastBeatmapId = 2;
 
         public MedalProcessorTests()
         {
@@ -38,6 +40,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_beatmappacks_items");
             }
         }
+
+        /// <summary>
+        /// BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
+        /// in order to avoid using stale data, we use unique incrementing beatmap IDs.
+        /// </summary>
+        private static uint getNextBeatmapId() => (uint)Interlocked.Increment(ref lastBeatmapId);
 
         /// <summary>
         /// The medal processor should skip medals which have already been awarded.
@@ -298,15 +306,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// <summary>
         /// This tests the star rating medals, both pass and FC.
         /// </summary>
-        [Fact]
-        public void TestStarRatingMedals()
+        [Theory]
+        [InlineData(BeatmapOnlineStatus.Ranked)]
+        [InlineData(BeatmapOnlineStatus.Approved)]
+        public void TestStarRatingMedals(BeatmapOnlineStatus onlineStatus)
         {
             const int medal_id_pass = 59;
             const int medal_id_fc = 67;
 
-            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
-            // in order to avoid using stale data, we use beatmap ID 2
-            var beatmap = AddBeatmap(b => b.beatmap_id = 2);
+            var beatmap = AddBeatmap(b =>
+            {
+                b.beatmap_id = getNextBeatmapId();
+                b.approved = onlineStatus;
+            });
             AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             addMedal(medal_id_pass);
@@ -362,9 +374,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_pass = 59;
             const int medal_id_fc = 67;
 
-            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
-            // in order to avoid using stale data, we use beatmap ID 2
-            var beatmap = AddBeatmap(b => b.beatmap_id = 2);
+            var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
             AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             addMedal(medal_id_pass);
@@ -401,9 +411,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_5_star = 59;
             const int medal_id_4_star = 58;
 
-            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
-            // in order to avoid using stale data, we use beatmap ID 2
-            var beatmap = AddBeatmap(b => b.beatmap_id = 2);
+            var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
             AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             addMedal(medal_id_5_star);
@@ -433,9 +441,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [MemberData(nameof(STAR_RATING_MEDAL_DISALLOWED_MOD_COMBINATIONS))]
         public void TestStarRatingMedalsNotAwardedWhenDifficultyReductionOrUnrankedModsAreActive(APIMod[] mods)
         {
-            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
-            // in order to avoid using stale data, we use beatmap ID 2
-            var beatmap = AddBeatmap(b => b.beatmap_id = 2);
+            var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
             AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             var passMedalIds = new[] { 55, 56, 57, 58, 59, 60, 61, 62, 242, 244 };
@@ -497,9 +503,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             const int medal_id_5_star = 91;
 
-            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
-            // in order to avoid using stale data, we use beatmap ID 2
-            var beatmap = AddBeatmap(b => b.beatmap_id = 2);
+            var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
             AddBeatmapAttributes<ManiaDifficultyAttributes>(beatmap.beatmap_id, mode: 3);
 
             addMedal(medal_id_5_star);
@@ -532,19 +536,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         /// <summary>
-        /// This tests the star rating medals, to make sure loved maps don't trigger medals.
+        /// This tests the star rating medals, to make sure maps that aren't ranked/approved don't trigger medals.
         /// </summary>
-        [Fact]
-        public void TestStarRatingMedalLovedMaps()
+        [Theory]
+        [InlineData(BeatmapOnlineStatus.Graveyard)]
+        [InlineData(BeatmapOnlineStatus.WIP)]
+        [InlineData(BeatmapOnlineStatus.Pending)]
+        [InlineData(BeatmapOnlineStatus.Qualified)]
+        [InlineData(BeatmapOnlineStatus.Loved)]
+        public void TestStarRatingMedalNotGrantedOnInvalidStatuses(BeatmapOnlineStatus onlineStatus)
         {
             const int medal_id_5_star = 59;
 
-            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
-            // in order to avoid using stale data, we use beatmap ID 3 (ID 2 may have a cached ranked status)
             var beatmap = AddBeatmap(b =>
             {
-                b.beatmap_id = 3;
-                b.approved = BeatmapOnlineStatus.Loved;
+                b.beatmap_id = getNextBeatmapId();
+                b.approved = onlineStatus;
             });
             AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
@@ -552,7 +559,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             assertNoneAwarded();
 
-            // Set a score on the loved map, which shouldn't trigger a medal
+            // Set a score on the map, which shouldn't trigger a medal
             SetScoreForBeatmap(beatmap.beatmap_id);
 
             assertNoneAwarded();
@@ -561,12 +568,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// <summary>
         /// This tests the osu!standard combo-based medals.
         /// </summary>
-        [Fact]
-        public void TestStandardComboMedal()
+        [Theory]
+        [InlineData(BeatmapOnlineStatus.Ranked)]
+        [InlineData(BeatmapOnlineStatus.Approved)]
+        [InlineData(BeatmapOnlineStatus.Qualified)]
+        [InlineData(BeatmapOnlineStatus.Loved)]
+        public void TestStandardComboMedal(BeatmapOnlineStatus onlineStatus)
         {
             const int medal_id = 1;
 
-            var beatmap = AddBeatmap();
+            var beatmap = AddBeatmap(b => b.approved = onlineStatus);
 
             addMedal(medal_id);
 
@@ -580,6 +591,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             // Once the beatmap is passed with 500 combo, the medal may be awarded.
             assertAwarded(medal_id);
+        }
+
+        /// <summary>
+        /// This tests the osu!standard combo-based medals.
+        /// </summary>
+        [Theory]
+        [InlineData(BeatmapOnlineStatus.Graveyard)]
+        [InlineData(BeatmapOnlineStatus.WIP)]
+        [InlineData(BeatmapOnlineStatus.Pending)]
+        public void TestComboMedalsNotGivenOnUnrankedBeatmaps(BeatmapOnlineStatus onlineStatus)
+        {
+            const int medal_id = 1;
+
+            var beatmap = AddBeatmap(b => b.approved = onlineStatus);
+
+            addMedal(medal_id);
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.max_combo = 500);
+            assertNoneAwarded();
         }
 
         /// <summary>
