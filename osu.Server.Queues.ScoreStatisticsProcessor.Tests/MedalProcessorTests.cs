@@ -417,6 +417,56 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertNotAwarded(medal_id_4_star);
         }
 
+        public static readonly object[][] STAR_RATING_MEDAL_DISALLOWED_MOD_COMBINATIONS =
+        {
+            [new[] { new APIMod(new OsuModEasy()) }],
+            [new[] { new APIMod(new OsuModSpunOut()) }],
+            [new[] { new APIMod(new OsuModRelax()), new APIMod(new OsuModHardRock()) }],
+            [new[] { new APIMod(new OsuModDifficultyAdjust { ApproachRate = { Value = 2 } }) }]
+        };
+
+        /// <summary>
+        /// Unranked mods should not grant star rating medals, because we are currently not able to calculate accurate star rating for unranked mods.
+        /// Difficulty reduction mods also should not grant star rating medals, regardless of ranked status.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(STAR_RATING_MEDAL_DISALLOWED_MOD_COMBINATIONS))]
+        public void TestStarRatingMedalsNotAwardedWhenDifficultyReductionOrUnrankedModsAreActive(APIMod[] mods)
+        {
+            // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
+            // in order to avoid using stale data, we use beatmap ID 2
+            var beatmap = AddBeatmap(b => b.beatmap_id = 2);
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
+
+            var passMedalIds = new[] { 55, 56, 57, 58, 59, 60, 61, 62, 242, 244 };
+            var fcMedalIds = new[] { 63, 64, 65, 66, 67, 68, 69, 70, 243, 245 };
+
+            foreach (int passMedal in passMedalIds)
+                addMedal(passMedal);
+            foreach (int fcMedal in fcMedalIds)
+                addMedal(fcMedal);
+
+            assertNoneAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.ScoreData.Statistics = new()
+                {
+                    { HitResult.Perfect, 3 },
+                    { HitResult.Miss, 2 },
+                    { HitResult.LargeBonus, 0 }
+                };
+                s.Score.ScoreData.MaximumStatistics = new()
+                {
+                    { HitResult.Perfect, 5 },
+                    { HitResult.LargeBonus, 2 }
+                };
+                s.Score.ScoreData.Mods = mods;
+                s.Score.max_combo = 3;
+            });
+
+            assertNoneAwarded();
+        }
+
         /// <summary>
         /// This tests the taiko star rating medals, to make sure a special exception beatmap doesn't trigger it.
         /// </summary>
