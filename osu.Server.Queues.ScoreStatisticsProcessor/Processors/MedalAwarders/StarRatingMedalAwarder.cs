@@ -49,7 +49,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             {
                 beatmapStore ??= await BeatmapStore.CreateAsync(conn, transaction);
 
-                Beatmap? beatmap = await beatmapStore.GetBeatmapAsync(score.BeatmapID, conn, transaction);
+                Beatmap? beatmap = await beatmapStore.GetBeatmapAsync((uint)score.BeatmapID, conn, transaction);
                 if (beatmap == null)
                     return Enumerable.Empty<Medal>();
 

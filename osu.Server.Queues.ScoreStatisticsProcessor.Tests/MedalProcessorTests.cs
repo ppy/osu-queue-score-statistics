@@ -76,7 +76,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addPackMedal(medal_id, pack_id, new[] { beatmap });
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Passed = false);
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.passed = false);
 
             assertNoneAwarded();
         }
@@ -118,7 +118,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.created_at = DateTimeOffset.Now.AddMinutes(minutesOffset++));
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ended_at = DateTimeOffset.Now.AddMinutes(minutesOffset++));
             }
 
             assertAwarded(medal_id);
@@ -224,7 +224,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModEasy()) });
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModEasy()) });
             }
 
             // Even after completing all beatmaps with easy mod, the pack medal is not awarded.
@@ -233,7 +233,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
             }
 
             // Only after completing each beatmap again without easy mod (double time arbitrarily added to mix things up)
@@ -257,12 +257,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addMedal(medal_id);
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModEasy()) });
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModEasy()) });
 
             // After completing the beatmaps with double time combined with easy, the medal is not awarded.
             assertNoneAwarded();
 
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
 
             // Once the beatmap is completed with only double time, the medal should be awarded.
             assertAwarded(medal_id);
@@ -282,7 +282,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             assertNoneAwarded();
 
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.Mods = new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModClassic()) });
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModClassic()) });
 
             // When the beatmap is completed with double time and classic, the medal should be awarded.
             assertAwarded(medal_id);
@@ -300,7 +300,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
             // in order to avoid using stale data, we use beatmap ID 2
             var beatmap = AddBeatmap(b => b.beatmap_id = 2);
-            AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             addMedal(medal_id_pass);
             addMedal(medal_id_fc);
@@ -308,18 +308,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreInfo.Statistics = new()
+                s.Score.ScoreData.Statistics = new()
                 {
                     { HitResult.Perfect, 3 },
                     { HitResult.Miss, 2 },
                     { HitResult.LargeBonus, 0 }
                 };
-                s.Score.ScoreInfo.MaximumStatistics = new()
+                s.Score.ScoreData.MaximumStatistics = new()
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
                 };
-                s.Score.ScoreInfo.MaxCombo = 3;
+                s.Score.max_combo = 3;
             });
 
             // After passing the beatmaps without an FC, the pass medal is awarded, but the FC one is not.
@@ -328,17 +328,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreInfo.Statistics = new()
+                s.Score.ScoreData.Statistics = new()
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
                 };
-                s.Score.ScoreInfo.MaximumStatistics = new()
+                s.Score.ScoreData.MaximumStatistics = new()
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
                 };
-                s.Score.ScoreInfo.MaxCombo = 5;
+                s.Score.max_combo = 5;
             });
 
             // Once the beatmap is FC'd, both medals should be awarded.
@@ -358,7 +358,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
             // in order to avoid using stale data, we use beatmap ID 2
             var beatmap = AddBeatmap(b => b.beatmap_id = 2);
-            AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             addMedal(medal_id_pass);
             addMedal(medal_id_fc);
@@ -366,17 +366,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreInfo.Statistics = new()
+                s.Score.ScoreData.Statistics = new()
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
                 };
-                s.Score.ScoreInfo.MaximumStatistics = new()
+                s.Score.ScoreData.MaximumStatistics = new()
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
                 };
-                s.Score.ScoreInfo.MaxCombo = 5;
+                s.Score.max_combo = 5;
                 s.Score.ruleset_id = 0;
             });
 
@@ -397,7 +397,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
             // in order to avoid using stale data, we use beatmap ID 2
             var beatmap = AddBeatmap(b => b.beatmap_id = 2);
-            AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             addMedal(medal_id_5_star);
             addMedal(medal_id_4_star);
@@ -420,7 +420,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             // Taiko medals have an exception for https://osu.ppy.sh/beatmapsets/2626#taiko/19990
             var beatmap = AddBeatmap(b => b.beatmap_id = 19990);
-            AddBeatmapAttributes<TaikoDifficultyAttributes>((uint)beatmap.beatmap_id, mode: 1);
+            AddBeatmapAttributes<TaikoDifficultyAttributes>(beatmap.beatmap_id, mode: 1);
 
             addMedal(medal_id_5_star);
 
@@ -443,7 +443,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // BeatmapStore (used in StarRatingMedalAwarder) may cache beatmap and difficulty information,
             // in order to avoid using stale data, we use beatmap ID 2
             var beatmap = AddBeatmap(b => b.beatmap_id = 2);
-            AddBeatmapAttributes<ManiaDifficultyAttributes>((uint)beatmap.beatmap_id, mode: 3);
+            AddBeatmapAttributes<ManiaDifficultyAttributes>(beatmap.beatmap_id, mode: 3);
 
             addMedal(medal_id_5_star);
 
@@ -453,7 +453,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.ruleset_id = 3;
-                s.Score.ScoreInfo.Mods = new[] { new APIMod(new ManiaModDualStages()) };
+                s.Score.ScoreData.Mods = new[] { new APIMod(new ManiaModDualStages()) };
             });
 
             // This shouldn't award a medal
@@ -463,7 +463,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.ruleset_id = 3;
-                s.Score.ScoreInfo.Mods = new[] { new APIMod(new ManiaModKey7()) };
+                s.Score.ScoreData.Mods = new[] { new APIMod(new ManiaModKey7()) };
             });
 
             assertNoneAwarded();
@@ -489,7 +489,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 b.beatmap_id = 3;
                 b.approved = BeatmapOnlineStatus.Loved;
             });
-            AddBeatmapAttributes<OsuDifficultyAttributes>((uint)beatmap.beatmap_id);
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             addMedal(medal_id_5_star);
 
@@ -514,12 +514,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addMedal(medal_id);
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.MaxCombo = 499);
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.max_combo = 499);
 
             // After passing the beatmap without getting 500 combo, the medal shouldn't be awarded.
             assertNoneAwarded();
 
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreInfo.MaxCombo = 500);
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.max_combo = 500);
 
             // Once the beatmap is passed with 500 combo, the medal may be awarded.
             assertAwarded(medal_id);
@@ -589,7 +589,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreInfo.Statistics = new() { { HitResult.Perfect, 1 } };
+                s.Score.ScoreData.Statistics = new() { { HitResult.Perfect, 1 } };
                 s.Score.ruleset_id = 3;
             });
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats_mania WHERE user_id = 2", 39999, CancellationToken);
@@ -600,7 +600,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreInfo.Statistics = new() { { HitResult.Perfect, 1 } };
+                s.Score.ScoreData.Statistics = new() { { HitResult.Perfect, 1 } };
                 s.Score.ruleset_id = 3;
             });
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats_mania WHERE user_id = 2", 40000, CancellationToken);

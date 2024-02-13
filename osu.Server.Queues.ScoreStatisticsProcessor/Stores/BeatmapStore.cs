@@ -29,7 +29,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
 
-        private readonly ConcurrentDictionary<int, Beatmap?> beatmapCache = new ConcurrentDictionary<int, Beatmap?>();
+        private readonly ConcurrentDictionary<uint, Beatmap?> beatmapCache = new ConcurrentDictionary<uint, Beatmap?>();
         private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
         private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
 
@@ -86,7 +86,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
 
             LegacyMods legacyModValue = getLegacyModsForAttributeLookup(beatmap, ruleset, mods);
-            DifficultyAttributeKey key = new DifficultyAttributeKey((uint)beatmap.OnlineID, ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
+            DifficultyAttributeKey key = new DifficultyAttributeKey((uint)beatmap.OnlineID, (uint)ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
 
             if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
             {
@@ -133,7 +133,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The retrieved beatmap, or <c>null</c> if not existing.</returns>
-        public async Task<Beatmap?> GetBeatmapAsync(int beatmapId, MySqlConnection connection, MySqlTransaction? transaction = null)
+        public async Task<Beatmap?> GetBeatmapAsync(uint beatmapId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             if (beatmapCache.TryGetValue(beatmapId, out var beatmap))
                 return beatmap;
@@ -149,7 +149,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// </summary>
         /// <param name="beatmap">The beatmap.</param>
         /// <param name="rulesetId">The ruleset.</param>
-        public bool IsBeatmapValidForPerformance(Beatmap beatmap, int rulesetId)
+        public bool IsBeatmapValidForPerformance(Beatmap beatmap, uint rulesetId)
         {
             if (blacklist.ContainsKey(new BlacklistEntry(beatmap.beatmap_id, rulesetId)))
                 return false;
@@ -165,8 +165,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             }
         }
 
-        private record struct DifficultyAttributeKey(uint BeatmapId, int RulesetId, uint ModValue);
+        private record struct DifficultyAttributeKey(uint BeatmapId, uint RulesetId, uint ModValue);
 
-        private record struct BlacklistEntry(int BeatmapId, int RulesetId);
+        private record struct BlacklistEntry(uint BeatmapId, uint RulesetId);
     }
 }

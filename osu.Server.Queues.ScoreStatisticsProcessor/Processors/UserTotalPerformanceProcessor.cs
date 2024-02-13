@@ -3,16 +3,13 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
-using osu.Game.Rulesets;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -21,11 +18,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     /// </summary>
     public class UserTotalPerformanceProcessor : IProcessor
     {
-        private BeatmapStore? beatmapStore;
-        private BuildStore? buildStore;
-
-        private long lastStoreRefresh;
-
         // This processor needs to run after the score's PP value has been processed.
         public int Order => ScorePerformanceProcessor.ORDER + 1;
 
@@ -69,112 +61,55 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
-            long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(rulesetId);
 
-            if (beatmapStore == null || buildStore == null || currentTimestamp - lastStoreRefresh > 60)
-            {
-                beatmapStore = await BeatmapStore.CreateAsync(connection, transaction);
-                buildStore = await BuildStore.CreateAsync(connection, transaction);
-                lastStoreRefresh = currentTimestamp;
-            }
-
-            List<SoloScoreWithPerformance> scores = (await connection.QueryAsync<SoloScoreWithPerformance>(
-                "SELECT `s`.*, `p`.`pp` FROM scores `s` "
-                + "JOIN score_performance `p` ON `s`.`id` = `p`.`score_id` "
-                + "WHERE `s`.`user_id` = @UserId "
-                + "AND `s`.`ruleset_id` = @RulesetId "
-                + "AND `s`.`preserve` = 1", new
+            List<SoloScore> scores = (await connection.QueryAsync<SoloScore>(
+                "SELECT beatmap_id, pp, accuracy FROM scores WHERE "
+                + "`user_id` = @UserId AND "
+                + "`ruleset_id` = @RulesetId AND "
+                + "`pp` IS NOT NULL AND "
+                + "`preserve` = 1 AND "
+                + "`ranked` = 1 "
+                + "ORDER BY pp DESC LIMIT 1000", new
                 {
                     UserId = userStats.user_id,
                     RulesetId = rulesetId
                 }, transaction: transaction)).ToList();
 
-            Dictionary<int, Beatmap?> beatmaps = new Dictionary<int, Beatmap?>();
-
-            foreach (var score in scores)
-            {
-                if (beatmaps.ContainsKey(score.beatmap_id))
-                    continue;
-
-                beatmaps[score.beatmap_id] = await beatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction);
-            }
-
-            // Filter out invalid scores.
-            scores.RemoveAll(s =>
-            {
-                // Score must have a valid pp.
-                if (s.pp == null)
-                    return true;
-
-                // Score must be a pass (safeguard - should be redundant with preserve flag).
-                if (!s.ScoreInfo.Passed)
-                    return true;
-
-                // Beatmap must exist.
-                if (!beatmaps.TryGetValue(s.beatmap_id, out var beatmap) || beatmap == null)
-                    return true;
-
-                // Given beatmap needs to be allowed to give performance.
-                if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, s.ruleset_id))
-                    return true;
-
-                // Legacy scores are always valid.
-                if (s.ScoreInfo.IsLegacyScore)
-                    return false;
-
-                // Some older lazer scores don't have build IDs.
-                if (s.ScoreInfo.BuildID == null)
-                    return true;
-
-                // Performance needs to be allowed for the build.
-                if (buildStore.GetBuild(s.ScoreInfo.BuildID.Value)?.allow_performance != true)
-                    return true;
-
-                return !ScorePerformanceProcessor.AllModsValidForPerformance(s.ScoreInfo, s.ScoreInfo.Mods.Select(m => m.ToMod(ruleset)).ToArray());
-            });
-
-            SoloScoreWithPerformance[] groupedItems = scores
-                                                      // Group by beatmap ID.
-                                                      .GroupBy(i => i.beatmap_id)
-                                                      // Extract the maximum PP for each beatmap.
-                                                      .Select(g => g.OrderByDescending(i => i.pp).First())
-                                                      // And order the beatmaps by decreasing value.
-                                                      .OrderByDescending(i => i.pp)
-                                                      .ToArray();
+            SoloScore[] groupedScores = scores
+                                        // Group by beatmap ID.
+                                        .GroupBy(i => i.beatmap_id)
+                                        // Extract the maximum PP for each beatmap.
+                                        .Select(g => g.OrderByDescending(i => i.pp).First())
+                                        // And order the beatmaps by decreasing value.
+                                        .OrderByDescending(i => i.pp)
+                                        .ToArray();
 
             // Build the diminishing sum
             double factor = 1;
             double totalPp = 0;
             double totalAccuracy = 0;
 
-            foreach (var item in groupedItems)
+            foreach (var score in groupedScores)
             {
-                totalPp += item.pp!.Value * factor;
-                totalAccuracy += item.ScoreInfo.Accuracy * factor;
+                totalPp += score.pp!.Value * factor;
+                totalAccuracy += score.accuracy * factor;
                 factor *= 0.95;
             }
 
             // This weird factor is to keep legacy compatibility with the diminishing bonus of 0.25 by 0.9994 each score.
-            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.9994, groupedItems.Length));
+            // Of note, this is using de-duped scores which may be below 1,000 depending on how the user plays.
+            totalPp += (417.0 - 1.0 / 3.0) * (1.0 - Math.Pow(0.995, scores.Count));
 
             // We want our accuracy to be normalized.
-            if (groupedItems.Length > 0)
+            if (groupedScores.Length > 0)
             {
                 // We want the percentage, not a factor in [0, 1], hence we divide 20 by 100.
-                totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, groupedItems.Length)));
+                totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, groupedScores.Length)));
             }
 
-            userStats.rank_score_exp = (float)totalPp;
-            userStats.rank_score_index_exp = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score_exp > {totalPp}", transaction: transaction)) + 1;
+            userStats.rank_score = (float)totalPp;
+            userStats.rank_score_index = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > {totalPp}", transaction: transaction)) + 1;
             userStats.accuracy_new = (float)totalAccuracy;
-        }
-
-        [SuppressMessage("ReSharper", "InconsistentNaming")]
-        [Serializable]
-        private class SoloScoreWithPerformance : SoloScore
-        {
-            public double? pp { get; set; }
         }
     }
 }

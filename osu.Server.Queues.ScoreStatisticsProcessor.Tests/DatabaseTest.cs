@@ -10,7 +10,6 @@ using Dapper.Contrib.Extensions;
 using MySqlConnector;
 using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Beatmaps;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
@@ -32,7 +31,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         protected const int TEST_BEATMAP_ID = 1;
         protected const int TEST_BEATMAP_SET_ID = 1;
-        protected int TestBuildID;
+        protected ushort TestBuildID;
 
         private readonly CancellationTokenSource cancellationSource;
 
@@ -66,20 +65,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_beatmapsets");
                 db.Execute("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
 
+                // These tables are still views for now (todo osu-web plz).
                 db.Execute("DELETE FROM scores");
                 db.Execute("DELETE FROM score_process_history");
-                db.Execute("DELETE FROM score_performance");
 
                 db.Execute("TRUNCATE TABLE osu_builds");
                 db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");
 
-                TestBuildID = db.QuerySingle<int>("INSERT INTO osu_builds (version, allow_performance) VALUES ('1.0.0', 1); SELECT LAST_INSERT_ID();");
+                TestBuildID = db.QuerySingle<ushort>("INSERT INTO osu_builds (version, allow_performance) VALUES ('1.0.0', 1); SELECT LAST_INSERT_ID();");
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
         }
 
-        protected ScoreItem SetScoreForBeatmap(int beatmapId, Action<ScoreItem>? scoreSetup = null)
+        protected ScoreItem SetScoreForBeatmap(uint beatmapId, Action<ScoreItem>? scoreSetup = null)
         {
             using (MySqlConnection conn = Processor.GetDatabaseConnection())
             {
@@ -110,7 +109,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForTotalProcessed(processedBefore + 1, CancellationToken);
         }
 
-        public static ScoreItem CreateTestScore(int? rulesetId = null, int? beatmapId = null)
+        public static ScoreItem CreateTestScore(uint? rulesetId = null, uint? beatmapId = null)
         {
             var row = new SoloScore
             {
@@ -118,21 +117,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 user_id = 2,
                 beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
                 ruleset_id = (ushort)(rulesetId ?? 0),
-                created_at = DateTimeOffset.Now,
+                started_at = DateTimeOffset.UtcNow - TimeSpan.FromSeconds(180),
+                ended_at = DateTimeOffset.UtcNow,
+                max_combo = MAX_COMBO,
+                total_score = 100000,
+                rank = ScoreRank.S,
+                passed = true
             };
 
-            var startTime = new DateTimeOffset(new DateTime(2020, 02, 05));
-            var scoreInfo = new SoloScoreInfo
+            var scoreData = new SoloScoreData
             {
-                ID = row.id,
-                UserID = row.user_id,
-                BeatmapID = row.beatmap_id,
-                RulesetID = row.ruleset_id,
-                StartedAt = startTime,
-                EndedAt = startTime + TimeSpan.FromSeconds(180),
-                MaxCombo = MAX_COMBO,
-                TotalScore = 100000,
-                Rank = ScoreRank.S,
                 Statistics =
                 {
                     { HitResult.Perfect, 5 },
@@ -143,10 +137,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
                 },
-                Passed = true
             };
 
-            row.ScoreInfo = scoreInfo;
+            row.ScoreData = scoreData;
 
             return new ScoreItem(row);
         }
@@ -171,7 +164,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 throw new ArgumentException($"{nameof(beatmapSetup)} method specified different {nameof(beatmap.beatmapset_id)} from the one specified in the {nameof(beatmapSetSetup)} method.");
 
             // Copy over set ID for cases where the setup steps only set it on the beatmapSet.
-            beatmap.beatmapset_id = beatmapSet.beatmapset_id;
+            beatmap.beatmapset_id = (uint)beatmapSet.beatmapset_id;
 
             using (var db = Processor.GetDatabaseConnection())
             {

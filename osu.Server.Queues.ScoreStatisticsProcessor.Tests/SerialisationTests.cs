@@ -36,7 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Debug.Assert(deserialised != null);
 
             // ignore time values for now until we can figure how to test without precision issues.
-            deserialised.created_at = score.created_at;
+            deserialised.ended_at = score.ended_at;
 
             deserialised.ShouldDeepEqual(score);
         }
@@ -53,7 +53,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 var retrieved = db.QueryFirst<SoloScore>("SELECT * FROM scores");
 
                 // ignore time values for now until we can figure how to test without precision issues.
-                retrieved.created_at = score.created_at;
+                retrieved.ended_at = score.ended_at;
+                retrieved.started_at = score.started_at;
 
                 retrieved.ShouldDeepEqual(score);
             }

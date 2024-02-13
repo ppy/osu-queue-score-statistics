@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -33,8 +34,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// version 8: switched total score processor from standardised score to classic score
         /// version 9: added ranked score processor
         /// version 10: modified play count and time processors to only track valid scores
+        /// version 11: modified total score processor to only count valid scores
         /// </summary>
-        public const int VERSION = 10;
+        public const int VERSION = 11;
 
         public static readonly List<Ruleset> AVAILABLE_RULESETS = getRulesets();
 
@@ -43,7 +45,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
 
         public ScoreStatisticsQueueProcessor(string[]? disabledProcessors = null)
-            : base(new QueueConfiguration { InputQueueName = "score-statistics" })
+            : base(new QueueConfiguration { InputQueueName = Environment.GetEnvironmentVariable("SCORES_PROCESSING_QUEUE") ?? "score-statistics" })
         {
             DapperExtensions.InstallDateTimeOffsetMapper();
 
@@ -99,30 +101,33 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         protected override void ProcessResult(ScoreItem item)
         {
+            var stopwatch = new Stopwatch();
             var tags = new List<string>();
-
-            if (item.Score.ScoreInfo.IsLegacyScore)
-                tags.Add("type:legacy");
-
-            if (item.ProcessHistory?.processed_version == VERSION)
-            {
-                item.Tags = tags.Append("type:skipped").ToArray();
-                return;
-            }
 
             try
             {
+                tags.Add($"ruleset:{item.Score.ruleset_id}");
+
+                if (item.Score.legacy_score_id != null)
+                    tags.Add("type:legacy");
+
+                if (item.ProcessHistory?.processed_version == VERSION)
+                {
+                    tags.Add("type:skipped");
+                    return;
+                }
+
                 using (var conn = GetDatabaseConnection())
                 {
                     var scoreRow = item.Score;
-                    var score = scoreRow.ScoreInfo;
+                    var score = scoreRow.ToScoreInfo();
 
                     score.Beatmap = conn.QuerySingleOrDefault<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
                     {
                         BeatmapId = score.BeatmapID
                     })?.ToAPIBeatmap();
 
-                    using (var transaction = conn.BeginTransaction())
+                    using (var transaction = conn.BeginTransaction(IsolationLevel.ReadCommitted))
                     {
                         var userStats = DatabaseHelper.GetUserStatsAsync(score, conn, transaction).Result;
 
@@ -130,14 +135,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         {
                             // ruleset could be invalid
                             // TODO: add check in client and server to not submit unsupported rulesets
-                            item.Tags = tags.Append("type:no-stats").ToArray();
+                            tags.Add("type:no-stats");
                             return;
                         }
 
                         // if required, we can rollback any previous version of processing then reapply with the latest.
                         if (item.ProcessHistory != null)
                         {
-                            item.Tags = tags.Append("type:upgraded").ToArray();
+                            tags.Add("type:upgraded");
                             byte version = item.ProcessHistory.processed_version;
 
                             foreach (var p in enumerateValidProcessors(score))
@@ -145,23 +150,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         }
                         else
                         {
-                            item.Tags = tags.Append("type:new").ToArray();
+                            tags.Add("type:new");
                         }
 
-                        foreach (var p in enumerateValidProcessors(score))
+                        item.Tags = tags.ToArray();
+
+                        foreach (IProcessor p in enumerateValidProcessors(score))
+                        {
+                            stopwatch.Restart();
                             p.ApplyToUserStats(score, userStats, conn, transaction);
+                            DogStatsd.Timer($"apply-{p.GetType().ReadableName()}", stopwatch.ElapsedMilliseconds, tags: item.Tags);
+                        }
 
                         DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
 
                         updateHistoryEntry(item, conn, transaction);
 
-                        if (score.Passed)
-                        {
-                            // For now, just assume all passing scores are to be preserved.
-                            conn.Execute("UPDATE scores SET preserve = 1 WHERE id = @Id", new { Id = score.ID }, transaction);
-                        }
-
                         transaction.Commit();
+                    }
+
+                    // TODO: this can be removed after https://github.com/ppy/osu-web/issues/10942 is closed out.
+                    // Intentionally not part of the transaction to avoid deadlocks.
+                    // See https://discord.com/channels/90072389919997952/983550677794050108/1199725169573380136
+                    if (score.Passed)
+                    {
+                        // For now, just assume all passing scores are to be preserved.
+                        conn.Execute("UPDATE scores SET preserve = 1 WHERE id = @Id", new { Id = score.ID });
                     }
 
                     foreach (var p in enumerateValidProcessors(score))
@@ -178,6 +192,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             {
                 Console.WriteLine(e.ToString());
                 throw;
+            }
+            finally
+            {
+                item.Tags = tags.ToArray();
             }
         }
 

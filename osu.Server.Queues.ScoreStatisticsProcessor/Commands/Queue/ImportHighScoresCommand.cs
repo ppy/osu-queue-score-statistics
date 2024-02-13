@@ -47,187 +47,90 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         public bool CheckSlaveLatency { get; set; }
 
         /// <summary>
-        /// Whether existing legacy score IDs should be skipped rather than reprocessed. Defaults to <c>true</c>.
-        /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-existing")]
-        public bool SkipExisting { get; set; } = true;
-
-        /// <summary>
-        /// Whether new legacy score IDs should be skipped rather than inserted. Defaults to <c>false</c>.
-        /// Use in conjunction with `SkipExisting=false` to reprocess older items in an isolated context.
-        /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-new")]
-        public bool SkipNew { get; set; }
-
-        /// <summary>
         /// Whether to skip pushing imported score to the elasticsearch indexing queue.
         /// </summary>
         [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-indexing")]
         public bool SkipIndexing { get; set; }
 
         /// <summary>
-        /// When set to <c>true</c> and in watch mode, scores will not be queued to the score statistics processor,
-        /// instead being sent straight to the elasticsearch indexing queue.
+        /// The number of processing threads. Note that too many threads may lead to table fragmentation.
         /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-score-processor")]
-        public bool SkipScoreProcessor { get; set; }
+        [Option(CommandOptionType.SingleValue, Template = "--thread-count")]
+        public int ThreadCount { get; set; } = 2;
+
+        /// <summary>
+        /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--batch-size")]
+        public int InsertBatchSize { get; set; } = 128000;
 
         private long lastCommitTimestamp;
         private long startupTimestamp;
         private long lastLatencyCheckTimestamp;
 
         private ElasticQueuePusher? elasticQueueProcessor;
-        private ScoreStatisticsQueueProcessor? scoreStatisticsQueueProcessor;
-
-        /// <summary>
-        /// The number of scores done in a single processing query. These scores are read in one go, then distributed to parallel insertion workers.
-        /// May be adjusted at runtime based on the replication state.
-        /// </summary>
-        private const int maximum_scores_per_query = 40000;
-
-        /// <summary>
-        /// In cases of slave replication latency, this will be the minimum scores processed per top-level query.
-        /// </summary>
-        private const int safe_minimum_scores_per_query = 500;
-
-        /// <summary>
-        /// The number of scores to run in each batch. Setting this higher will reduce the parallelism and in turn, the throughput of this process.
-        /// </summary>
-        private const int mysql_batch_size = 500;
-
-        /// <summary>
-        /// The number of seconds between console progress reports.
-        /// </summary>
-        private const double seconds_between_report = 2;
 
         /// <summary>
         /// The number of seconds between checks for slave latency.
         /// </summary>
         private const int seconds_between_latency_checks = 60;
 
-        private int scoresPerQuery = safe_minimum_scores_per_query * 4;
-
         /// <summary>
         /// The latency a slave is allowed to fall behind before we start to panic.
         /// </summary>
-        private const int maximum_slave_latency_seconds = 60;
+        private const int maximum_slave_latency_seconds = 120;
+
+        private ulong maxProcessableId;
+        private ulong lastProcessedId;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            if (!CheckSlaveLatency)
-                scoresPerQuery = maximum_scores_per_query;
-
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
             string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
 
             DateTimeOffset start = DateTimeOffset.Now;
-
-            ulong lastId = StartId ?? 0;
-            string where;
-            bool watchMode = !StartId.HasValue;
-            ulong maxProcessableId;
-
-            // When running in watch mode, we need to ascertain a few things:
-            // - There is active ongoing processing in `score_process_queue` – if not, there will be nothing to watch and we will switch to full run mode.
-            // - Check whether the full run (non-watch) has caught up to recent scores (ie. processed up to a `score_id` contained in `score_process_queue`,
-            //   which generally keeps ~3 days of scores). If not, we should warn that there is a gap in processing, and an extra full run should be performed
-            //   to catch up.
-            if (watchMode)
-            {
-                using var db = DatabaseAccess.GetConnection();
-
-                ulong? lastImportedLegacyScore = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(old_score_id) FROM score_legacy_id_map WHERE ruleset_id = {RulesetId}") ?? 0;
-                ulong? lowestProcessQueueEntry = db.QuerySingleOrDefault<ulong?>($"SELECT MIN(score_id) FROM score_process_queue WHERE is_deletion = 0 AND mode = {ruleset.RulesetInfo.OnlineID}") - 1;
-
-                if (lowestProcessQueueEntry == null)
-                {
-                    // Generally for bootstrapping a local dev setup.
-                    Console.WriteLine("No start ID specified, and no `score_process_queue` entries, switching to single run.");
-                    lastId = 0;
-                    watchMode = false;
-                }
-                else if (lastImportedLegacyScore >= lowestProcessQueueEntry)
-                {
-                    lastId = lastImportedLegacyScore.Value + 1;
-                    Console.WriteLine($"Continuing watch mode from last processed legacy score ({lastId})");
-                }
-                else
-                {
-                    lastId = lowestProcessQueueEntry.Value;
-                    Console.WriteLine($"WARNING: Continuing watch mode from start of score_process_queue ({lastId})");
-                    Console.WriteLine("This implies that a full import hasn't been run yet, you might want to run another import first to catch up.");
-                    await Task.Delay(5000, cancellationToken);
-                }
-            }
+            lastProcessedId = StartId ?? 0;
 
             Console.WriteLine();
-            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastId}");
-            Console.WriteLine($"Inserting into scores and processing {(watchMode ? "indefinitely" : "as single run")}");
+            Console.WriteLine($"Sourcing from {highScoreTable} for {ruleset.ShortName} starting from {lastProcessedId}");
+            Console.WriteLine($"Insert size: {InsertBatchSize}");
+            Console.WriteLine($"Threads: {ThreadCount}");
 
-            if (watchMode)
-            {
-                if (!SkipScoreProcessor)
-                {
-                    scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
+            maxProcessableId = getMaxProcessable(ruleset);
 
-                    if (SkipIndexing)
-                    {
-                        throw new NotSupportedException("Skipping indexing in watch mode is not supported, "
-                                                        + $"as watch mode will push imported scores to the {scoreStatisticsQueueProcessor.QueueName} redis queue in order to process PP, "
-                                                        + "and once that score is processed on the aforementioned queue, it will be pushed for indexing to ES.");
-                    }
+            Console.WriteLine(maxProcessableId != ulong.MaxValue
+                ? $"Will process scores up to ID {maxProcessableId}"
+                : "Will process all scores to end of table (could not determine queue state from `score_process_queue`)");
 
-                    Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
-                }
-
-                // We are going to enqueue the score for pp processing ourselves, so we don't care about its current processing status on the old queue.
-                maxProcessableId = ulong.MaxValue;
-                where = "WHERE score_id >= @lastId";
-            }
-            else
-            {
-                maxProcessableId = getMaxProcessable(ruleset);
-                where = "WHERE score_id >= @lastId AND score_id <= @maxProcessableId";
-
-                Console.WriteLine(maxProcessableId != ulong.MaxValue
-                    ? $"Will process scores up to ID {maxProcessableId}"
-                    : "Will process all scores to end of table (could not determine queue state from `score_process_queue`)");
-            }
-
-            if (!SkipIndexing && scoreStatisticsQueueProcessor == null)
+            if (!SkipIndexing)
             {
                 elasticQueueProcessor = new ElasticQueuePusher();
                 Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
             }
 
-            await Task.Delay(5000, cancellationToken);
-
-            using (var dbMainQuery = DatabaseAccess.GetConnection())
+            using (var db = DatabaseAccess.GetConnection())
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     if (CheckSlaveLatency)
-                        checkSlaveLatency(dbMainQuery);
+                        await checkSlaveLatency(db, cancellationToken);
 
-                    var highScores = await dbMainQuery.QueryAsync<HighScore>($"SELECT * FROM {highScoreTable} h {where}" +
-                                                                             " ORDER BY score_id LIMIT @scoresPerQuery", new
+                    Console.WriteLine($"Fetching next scores from {lastProcessedId}...");
+                    var highScores = await db.QueryAsync<HighScore>($"SELECT h.*, s.id as new_id FROM {highScoreTable} h "
+                                                                    + $"LEFT JOIN scores s ON h.score_id = s.legacy_score_id AND s.ruleset_id = {RulesetId} "
+                                                                    + "WHERE score_id >= @lastId AND score_id <= @maxProcessableId "
+                                                                    + "ORDER BY score_id LIMIT @batchSize", new
                     {
-                        lastId,
+                        lastId = lastProcessedId,
                         maxProcessableId,
-                        scoresPerQuery,
+                        batchSize = InsertBatchSize * ThreadCount,
                         rulesetId = ruleset.RulesetInfo.OnlineID,
                     });
 
                     if (!highScores.Any())
                     {
-                        if (!watchMode)
-                        {
-                            Console.WriteLine("No scores found, all done!");
-                            break;
-                        }
-
-                        Thread.Sleep(500);
-                        continue;
+                        Console.WriteLine("No scores found, all done!");
+                        break;
                     }
 
                     List<BatchInserter> runningBatches = new List<BatchInserter>();
@@ -244,7 +147,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         // Ensure batches are only ever split on dealing with scores from a new beatmap_id.
                         // This is to enforce insertion order per-beatmap as we may use this to decide ordering in tiebreaker scenarios.
-                        if (lastBeatmapId != score.beatmap_id && batch.Count >= mysql_batch_size)
+                        if (lastBeatmapId != score.beatmap_id && batch.Count >= InsertBatchSize)
                             queueNextBatch();
 
                         lastBeatmapId = score.beatmap_id;
@@ -253,49 +156,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     queueNextBatch();
 
                     // update lastId to allow the next bulk query to start from the correct location.
-                    lastId = highScores.Max(s => s.score_id);
+                    lastProcessedId = highScores.Last().score_id;
 
                     while (!runningBatches.All(t => t.Task.IsCompleted))
-                    {
-                        long currentTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-
-                        if ((currentTimestamp - lastCommitTimestamp) / 1000f >= seconds_between_report)
-                        {
-                            int inserted = Interlocked.Exchange(ref BatchInserter.CurrentReportInsertCount, 0);
-                            int updated = Interlocked.Exchange(ref BatchInserter.CurrentReportUpdateCount, 0);
-
-                            // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
-                            if (inserted + updated > 0 && startupTimestamp == 0)
-                                startupTimestamp = lastCommitTimestamp;
-
-                            double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
-                            double processingRate = (BatchInserter.TotalInsertCount + BatchInserter.TotalUpdateCount) / secondsSinceStart;
-
-                            string eta = string.Empty;
-
-                            if (!watchMode)
-                            {
-                                double secondsLeft = (maxProcessableId - lastId) / processingRate;
-
-                                int etaHours = (int)(secondsLeft / 3600);
-                                int etaMins = (int)(secondsLeft - etaHours * 3600) / 60;
-                                eta = $"{etaHours}h{etaMins}m";
-                            }
-
-                            Console.WriteLine($"Inserting up to {lastId:N0} "
-                                              + $"[{runningBatches.Count(t => t.Task.IsCompleted),-2}/{runningBatches.Count}] "
-                                              + $"{BatchInserter.TotalInsertCount:N0} inserted {BatchInserter.TotalUpdateCount:N0} updated {BatchInserter.TotalSkipCount:N0} skipped (+{inserted:N0} new +{updated:N0} upd) {processingRate:N0}/s {eta}");
-
-                            lastCommitTimestamp = currentTimestamp;
-                        }
-
                         Thread.Sleep(10);
-                    }
+
+                    report();
 
                     if (runningBatches.Any(t => t.Task.IsFaulted))
                     {
                         Console.WriteLine("ERROR: At least one tasks were faulted. Aborting for safety.");
-                        Console.WriteLine($"Running batches were processing up to {lastId}.");
+                        Console.WriteLine($"Running batches were processing up to {lastProcessedId}.");
                         Console.WriteLine();
 
                         for (int i = 0; i < runningBatches.Count; i++)
@@ -311,19 +182,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         return -1;
                     }
 
-                    if (scoreStatisticsQueueProcessor != null)
-                    {
-                        Debug.Assert(!runningBatches.SelectMany(b => b.ElasticScoreItems).Any());
-
-                        var scoreStatisticsItems = runningBatches.SelectMany(b => b.ScoreStatisticsItems).ToList();
-
-                        if (scoreStatisticsItems.Any())
-                        {
-                            scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
-                            Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
-                        }
-                    }
-                    else if (elasticQueueProcessor != null)
+                    if (elasticQueueProcessor != null)
                     {
                         Debug.Assert(!runningBatches.SelectMany(b => b.ScoreStatisticsItems).Any());
 
@@ -336,15 +195,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         }
                     }
 
-                    Console.WriteLine($"Workers processed up to score_id {lastId}");
-                    lastId++;
+                    lastProcessedId++;
 
                     void queueNextBatch()
                     {
                         if (batch.Count == 0)
                             return;
 
-                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: !watchMode || SkipScoreProcessor, skipExisting: SkipExisting, skipNew: SkipNew));
+                        runningBatches.Add(new BatchInserter(ruleset, batch.ToArray(), importLegacyPP: true));
                         batch.Clear();
                     }
                 }
@@ -357,7 +215,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 Console.WriteLine($"Cancelled after {(DateTimeOffset.Now - start).TotalSeconds} seconds.");
                 Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted, {BatchInserter.TotalSkipCount} skipped");
-                Console.WriteLine($"Resume from start id {lastId}");
+                Console.WriteLine($"Resume from start id {lastProcessedId}");
             }
             else
             {
@@ -368,6 +226,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine();
             Console.WriteLine();
             return 0;
+        }
+
+        private void report()
+        {
+            long currentTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            int inserted = Interlocked.Exchange(ref BatchInserter.CurrentReportInsertCount, 0);
+
+            // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
+            if (inserted > 0 && startupTimestamp == 0)
+                startupTimestamp = lastCommitTimestamp;
+
+            double secondsSinceStart = (double)(currentTimestamp - startupTimestamp) / 1000;
+            double processingRate = (BatchInserter.TotalInsertCount - InsertBatchSize * ThreadCount) / secondsSinceStart;
+
+            double secondsLeft = (maxProcessableId - lastProcessedId) / processingRate;
+
+            int etaHours = (int)(secondsLeft / 3600);
+            int etaMins = (int)(secondsLeft - etaHours * 3600) / 60;
+            string eta = processingRate == 0 ? "--h--m" : $"{etaHours}h{etaMins}m";
+
+            Console.WriteLine($"{BatchInserter.TotalInsertCount:N0} inserted {BatchInserter.TotalSkipCount:N0} skipped (+{inserted:N0}) {processingRate:N0}/s {eta}");
+
+            lastCommitTimestamp = currentTimestamp;
         }
 
         private ulong getMaxProcessable(Ruleset ruleset)
@@ -389,7 +270,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             }
         }
 
-        private void checkSlaveLatency(MySqlConnection db)
+        private async Task checkSlaveLatency(MySqlConnection db, CancellationToken cancellationToken)
         {
             long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
 
@@ -398,34 +279,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             lastLatencyCheckTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
 
-            // This latency is best-effort, and randomly queried from available hosts (with rough precedence of the importance of the host).
-            // When we detect a high latency value, a recovery period should be introduced where we are pretty sure that we're back in a good
-            // state before resuming operations.
-            int? latency = db.QueryFirstOrDefault<int?>("SELECT `count` FROM `osu_counts` WHERE NAME = 'slave_latency'");
+            int? latency;
 
-            if (latency == null)
-                return;
-
-            if (latency > maximum_slave_latency_seconds)
+            do
             {
+                // This latency is best-effort, and randomly queried from available hosts (with rough precedence of the importance of the host).
+                // When we detect a high latency value, a recovery period should be introduced where we are pretty sure that we're back in a good
+                // state before resuming operations.
+                latency = db.QueryFirstOrDefault<int?>("SELECT `count` FROM `osu_counts` WHERE NAME = 'slave_latency'");
+
+                if (latency == null || latency < maximum_slave_latency_seconds)
+                    return;
+
                 Console.WriteLine($"Current slave latency of {latency} seconds exceeded maximum of {maximum_slave_latency_seconds} seconds.");
-                Console.WriteLine($"Sleeping for {latency} seconds to allow catch-up.");
+                Console.WriteLine("Sleeping to allow catch-up.");
 
-                Thread.Sleep(latency.Value * 1000);
-
-                // greatly reduce processing rate to allow for recovery.
-                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - 500);
-            }
-            else if (latency > 2)
-            {
-                scoresPerQuery = Math.Max(safe_minimum_scores_per_query, scoresPerQuery - 200);
-                Console.WriteLine($"Decreasing processing rate to {scoresPerQuery} due to latency of {latency}");
-            }
-            else if (scoresPerQuery < maximum_scores_per_query)
-            {
-                scoresPerQuery = Math.Min(maximum_scores_per_query, scoresPerQuery + 100);
-                Console.WriteLine($"Increasing processing rate to {scoresPerQuery} due to latency of {latency}");
-            }
+                await Task.Delay(maximum_slave_latency_seconds * 1000, cancellationToken);
+            } while (latency > maximum_slave_latency_seconds);
         }
     }
 }

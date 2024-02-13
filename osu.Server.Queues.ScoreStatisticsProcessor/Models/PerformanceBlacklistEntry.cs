@@ -12,7 +12,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     [Table("osu_beatmap_performance_blacklist")]
     public class PerformanceBlacklistEntry
     {
-        public int beatmap_id { get; set; }
-        public int mode { get; set; }
+        public uint beatmap_id { get; set; }
+        public uint mode { get; set; }
     }
 }
