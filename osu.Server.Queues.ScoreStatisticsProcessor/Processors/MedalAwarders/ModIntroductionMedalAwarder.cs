@@ -21,7 +21,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.RulesetID);
 
             // Select score mods, ignoring certain mods that can be included in the combination for mod introduction medals
-            Mod[] mods = score.Mods.Select(m => m.ToMod(ruleset)).Where(m => !checkIfAllowedCombinationMod(m, score)).ToArray();
+            Mod[] mods = score.Mods.Select(m => m.ToMod(ruleset)).Where(m => !isIgnoredForIntroductionMedal(m)).ToArray();
 
             // Ensure the mod is the only one selected
             if (mods.Length != 1)
@@ -77,7 +77,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             };
         }
 
-        private bool checkIfAllowedCombinationMod(Mod m, SoloScoreInfo score)
+        private bool isIgnoredForIntroductionMedal(Mod m)
         {
             switch (m)
             {
@@ -86,7 +86,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                     return true;
 
                 default:
-                    return false;
+                    return m.Type == ModType.System;
             }
         }
     }
