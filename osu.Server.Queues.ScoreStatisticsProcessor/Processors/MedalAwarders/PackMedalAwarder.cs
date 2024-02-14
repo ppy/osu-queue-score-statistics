@@ -239,6 +239,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 316 => checkPack(2732) || checkPack(2733) || checkPack(2734) || checkPack(2735),
                 // Project Loved: Summer 2023 (3122-3125)
                 325 => checkPack(3122) || checkPack(3123) || checkPack(3124) || checkPack(3125),
+                // in love with a ghost beatmap pack
+                335 => checkPack(3145),
 
                 _ => false,
             };
