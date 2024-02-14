@@ -37,10 +37,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.RulesetID);
             Mod[] mods = score.Mods.Select(m => m.ToMod(ruleset)).ToArray();
 
-            // Ensure the score isn't using any unranked or difficulty reducing mods
-            // The requirement for being ranked is because ranked mods have been given consideration
-            // with regard to difficulty, and as such can be relied on for having accurate star rating
-            if (mods.Any(x => !x.Ranked || x.IsDifficultyReductionMod()))
+            // Ensure the score isn't using any difficulty reducing mods
+            if (mods.Any(MedalHelpers.IsDifficultyReductionMod))
                 return Enumerable.Empty<Medal>();
 
             // On mania, these medals cannot be triggered with key mods and Dual Stages
