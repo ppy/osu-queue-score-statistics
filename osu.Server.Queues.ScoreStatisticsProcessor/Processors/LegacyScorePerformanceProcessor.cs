@@ -25,12 +25,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
         }
 
-        public async Task ProcessUserScoresAsync(SoloScore[] scores, MySqlConnection conn, MySqlTransaction? transaction = null)
-        {
-            foreach (SoloScore score in scores)
-                await ProcessScoreAsync(score.ToScoreInfo(), conn, transaction);
-        }
-
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
             ProcessScoreAsync(score, conn, transaction).Wait();
@@ -38,6 +32,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
         {
+        }
+
+        public async Task ProcessUserScoresAsync(SoloScore[] scores, MySqlConnection conn, MySqlTransaction? transaction = null)
+        {
+            foreach (SoloScore score in scores)
+                await ProcessScoreAsync(score.ToScoreInfo(), conn, transaction);
         }
 
         public async Task ProcessScoreAsync(SoloScoreInfo score, MySqlConnection connection, MySqlTransaction? transaction)
