@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
@@ -9,9 +10,7 @@ using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
-using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
-using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -203,56 +202,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// </summary>
         public static bool AllModsValidForPerformance(SoloScoreInfo score, Mod[] mods)
         {
-            foreach (var m in mods)
-            {
-                switch (m)
-                {
-                    // Overrides for mods which would otherwise be allowed by the block below.
-                    case ManiaModHardRock:
-                    case ManiaModKey1:
-                    case ManiaModKey2:
-                    case ManiaModKey3:
-                    case ManiaModKey10:
-                        return false;
+            IEnumerable<Mod> modsToCheck = mods;
 
-                    // The mods which are allowed.
-                    case ModEasy:
-                    case ModNoFail:
-                    case ModSuddenDeath:
-                    case ModPerfect:
-                    case ModHardRock:
-                    case ModHidden:
-                    case ModFlashlight:
-                    case ModMuted:
-                    case ModNightcore:
-                    case ModDoubleTime:
-                    case ModDaycore:
-                    case ModHalfTime:
-                    // osu!-specific:
-                    case OsuModSpunOut:
-                    case OsuModTouchDevice:
-                    // mania-specific:
-                    case ManiaKeyMod:
-                    case ManiaModMirror:
-                        break;
+            // Classic mod is only allowed on legacy scores.
+            if (score.IsLegacyScore)
+                modsToCheck = mods.Where(mod => mod is not ModClassic);
 
-                    // Classic mod is only allowed on legacy scores.
-                    case ModClassic:
-                        if (!score.IsLegacyScore)
-                            return false;
-
-                        break;
-
-                    // Any other mods not in the above list aren't allowed.
-                    default:
-                        return false;
-                }
-
-                if (!m.UsesDefaultConfiguration)
-                    return false;
-            }
-
-            return true;
+            return modsToCheck.All(m => m.Ranked);
         }
     }
 }

@@ -10,10 +10,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using MySqlConnector;
 using osu.Game.Scoring;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using StringBuilder = System.Text.StringBuilder;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -27,6 +29,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public ulong? StartId { get; set; }
 
         /// <summary>
+        /// The ruleset to run this verify job for.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--ruleset-id")]
+        public int RulesetId { get; set; }
+
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
+        public bool Verbose { get; set; }
+
+        /// <summary>
         /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
         /// </summary>
         [Option(CommandOptionType.SingleValue, Template = "--batch-size")]
@@ -38,67 +49,84 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "--delete-only")]
         public bool DeleteOnly { get; set; }
 
-        private ElasticQueuePusher? elasticQueueProcessor;
+        private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
+
+        private readonly StringBuilder sqlBuffer = new StringBuilder();
+
+        private readonly HashSet<ElasticQueuePusher.ElasticScoreItem> elasticItems = new HashSet<ElasticQueuePusher.ElasticScoreItem>();
+
+        private int skipOutput;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
+            var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
+
             ulong lastId = StartId ?? 0;
             int deleted = 0;
             int fail = 0;
 
-            Console.WriteLine();
-            Console.WriteLine($"Verifying scores starting from {lastId}");
+            using var conn = DatabaseAccess.GetConnection();
 
-            elasticQueueProcessor = new ElasticQueuePusher();
+            if (lastId == 0)
+            {
+                lastId = await conn.QuerySingleAsync<ulong?>(
+                    "SELECT id FROM scores WHERE ruleset_id = @rulesetId AND legacy_score_id = (SELECT MIN(legacy_score_id) FROM scores WHERE ruleset_id = @rulesetId AND id >= @lastId AND legacy_score_id > 0)",
+                    new
+                    {
+                        lastId,
+                        rulesetId = RulesetId,
+                    }) ?? lastId;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"Verifying scores starting from {lastId} for ruleset {RulesetId}");
+
             Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
-            using var conn = DatabaseAccess.GetConnection();
-
             while (!cancellationToken.IsCancellationRequested)
             {
-                HashSet<ElasticQueuePusher.ElasticScoreItem> elasticItems = new HashSet<ElasticQueuePusher.ElasticScoreItem>();
-
-                IEnumerable<ComparableScore> importedScores = await conn.QueryAsync<ComparableScore>(
+                IEnumerable<ComparableScore> importedScores = await conn.QueryAsync(
                     "SELECT `id`, "
                     + "`ruleset_id`, "
                     + "`legacy_score_id`, "
                     + "`legacy_total_score`, "
                     + "`total_score`, "
-                    + "`rank`, "
-                    + "`pp` "
-                    + "FROM scores "
-                    + "WHERE id >= @lastId AND legacy_score_id IS NOT NULL ORDER BY id LIMIT @batchSize", new
+                    + "`has_replay`, "
+                    + "s.`rank`, "
+                    + "s.`pp`, "
+                    + "h.* "
+                    + "FROM scores s "
+                    + $"LEFT JOIN {rulesetSpecifics.HighScoreTable} h ON (legacy_score_id = score_id) "
+                    + "WHERE id BETWEEN @lastId AND (@lastId + @batchSize - 1) AND legacy_score_id IS NOT NULL AND ruleset_id = @rulesetId ORDER BY id",
+                    (ComparableScore score, HighScore highScore) =>
+                    {
+                        score.HighScore = highScore;
+                        return score;
+                    },
+                    new
                     {
                         lastId,
+                        rulesetId = RulesetId,
                         batchSize = BatchSize
-                    });
-
-                // gather high scores for each ruleset
-                foreach (var rulesetScores in importedScores.GroupBy(s => s.ruleset_id))
-                {
-                    var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetScores.Key);
-
-                    var highScores = (await conn.QueryAsync<HighScore>(
-                            $"SELECT * FROM {rulesetSpecifics.HighScoreTable} WHERE score_id IN ({string.Join(',', rulesetScores.Select(s => s.legacy_score_id))})"))
-                        .ToDictionary(s => s.score_id, s => s);
-
-                    foreach (var score in rulesetScores)
-                    {
-                        if (highScores.TryGetValue(score.legacy_score_id!.Value, out var highScore))
-                            score.HighScore = highScore;
-                    }
-                }
+                    }, splitOn: "score_id");
 
                 if (!importedScores.Any())
                 {
-                    Console.WriteLine("All done!");
-                    break;
-                }
+                    if (lastId > await conn.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores"))
+                    {
+                        Console.WriteLine("All done!");
+                        break;
+                    }
 
-                elasticItems.Clear();
+                    lastId += (ulong)BatchSize;
+
+                    if (++skipOutput % 100 == 0)
+                        Console.WriteLine($"Skipped up to {lastId}...");
+                    continue;
+                }
 
                 if (!DeleteOnly)
                 {
@@ -121,23 +149,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     try
                     {
+                        // Score was set via lazer, we have nothing to verify.
                         if (importedScore.legacy_score_id == null) continue;
 
                         // Score was deleted in legacy table.
+                        //
+                        // Importantly, `legacy_score_id` of 0 implies a non-high-score (which doesn't have a matching entry).
+                        // We should leave these.
                         if (importedScore.HighScore == null)
                         {
-                            Interlocked.Increment(ref deleted);
-                            requiresIndexing = true;
-
-                            if (!DryRun)
+                            if (importedScore.legacy_score_id > 0)
                             {
-                                await conn.ExecuteAsync("DELETE FROM scores WHERE id = @id", new
-                                {
-                                    id = importedScore.id
-                                });
-                            }
+                                Interlocked.Increment(ref deleted);
+                                requiresIndexing = true;
 
-                            continue;
+                                sqlBuffer.Append($"DELETE FROM scores WHERE id = {importedScore.id};");
+
+                                continue;
+                            }
+                            else
+                            {
+                                // Score was sourced from the osu_scores table, and we don't really care about verifying these.
+                                continue;
+                            }
                         }
 
                         if (DeleteOnly)
@@ -150,29 +184,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             Interlocked.Increment(ref fail);
                             requiresIndexing = true;
 
-                            // PP was reset (had a value in new table but no value in old).
-                            if (importedScore.HighScore.pp == null)
-                            {
-                                if (!DryRun)
-                                {
-                                    await conn.ExecuteAsync("UPDATE scores SET pp = NULL WHERE id = @id", new
-                                    {
-                                        id = importedScore.id
-                                    });
-                                }
-                            }
-                            // PP doesn't match.
-                            else
-                            {
-                                if (!DryRun)
-                                {
-                                    await conn.ExecuteAsync("UPDATE scores SET pp = @pp WHERE id = @id", new
-                                    {
-                                        pp = importedScore.HighScore.pp,
-                                        id = importedScore.id,
-                                    });
-                                }
-                            }
+                            // PP was reset (had a value in new table but no value in old) or doesn't match.
+                            sqlBuffer.Append($"UPDATE scores SET pp = {importedScore.HighScore.pp.ToString() ?? "NULL"} WHERE id = {importedScore.id};");
+                        }
+
+                        if (!check(importedScore.id, "replay", importedScore.has_replay, importedScore.HighScore.replay))
+                        {
+                            Interlocked.Increment(ref fail);
+                            sqlBuffer.Append($"UPDATE scores SET has_replay = {importedScore.HighScore.replay} WHERE id = {importedScore.id};");
                         }
 
                         if (!check(importedScore.id, "total score", importedScore.total_score, referenceScore.TotalScore))
@@ -186,14 +205,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 continue;
                             }
 
-                            if (!DryRun)
-                            {
-                                await conn.ExecuteAsync("UPDATE scores SET total_score = @score WHERE id = @id", new
-                                {
-                                    score = referenceScore.TotalScore,
-                                    id = importedScore.id,
-                                });
-                            }
+                            sqlBuffer.Append($"UPDATE scores SET total_score = {referenceScore.TotalScore} WHERE id = {importedScore.id};");
                         }
 
                         if (!check(importedScore.id, "legacy total score", importedScore.legacy_total_score, referenceScore.LegacyTotalScore))
@@ -207,29 +219,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 continue;
                             }
 
-                            if (!DryRun)
-                            {
-                                await conn.ExecuteAsync("UPDATE scores SET legacy_total_score = @score WHERE id = @id", new
-                                {
-                                    score = referenceScore.LegacyTotalScore ?? 0,
-                                    id = importedScore.id,
-                                });
-                            }
+                            sqlBuffer.Append($"UPDATE scores SET legacy_total_score = {referenceScore.LegacyTotalScore ?? 0} WHERE id = {importedScore.id};");
                         }
 
                         if (!check(importedScore.id, "rank", importedScore.rank, referenceScore.Rank))
                         {
                             Interlocked.Increment(ref fail);
                             requiresIndexing = true;
-
-                            if (!DryRun)
-                            {
-                                await conn.ExecuteAsync("UPDATE scores SET `rank` = @rank WHERE `id` = @id", new
-                                {
-                                    rank = referenceScore.Rank.ToString(),
-                                    id = importedScore.id,
-                                });
-                            }
+                            sqlBuffer.Append($"UPDATE scores SET `rank` = '{referenceScore.Rank.ToString()}' WHERE `id` = {importedScore.id};");
                         }
                     }
                     finally
@@ -239,20 +236,43 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     }
                 }
 
-                if (elasticItems.Count > 0)
-                {
-                    if (!DryRun)
-                        elasticQueueProcessor.PushToQueue(elasticItems.ToList());
-                    Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
-                }
-
-                lastId = importedScores.Max(s => s.id) + 1;
-
+                Console.Write($"Processed up to {importedScores.Max(s => s.id)} ({deleted} deleted {fail} failed)");
                 Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
-                Console.Write($"Processed up to {lastId} ({deleted} deleted {fail} failed)");
+
+                lastId += (ulong)BatchSize;
+                flush(conn);
             }
 
+            flush(conn, true);
+
             return 0;
+        }
+
+        private void flush(MySqlConnection conn, bool force = false)
+        {
+            int bufferLength = sqlBuffer.Length;
+
+            if (bufferLength == 0)
+                return;
+
+            if (bufferLength > 1024 || force)
+            {
+                if (!DryRun)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
+                    conn.Execute(sqlBuffer.ToString());
+
+                    if (elasticItems.Count > 0)
+                    {
+                        elasticQueueProcessor.PushToQueue(elasticItems.ToList());
+                        Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+                        elasticItems.Clear();
+                    }
+                }
+
+                sqlBuffer.Clear();
+            }
         }
 
         private bool check<T>(ulong scoreId, string name, T imported, T original)
@@ -262,8 +282,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             if (imported?.Equals(original) != true)
             {
-                Console.WriteLine();
-                Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
+                if (Verbose)
+                    Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
                 return false;
             }
 
@@ -278,6 +298,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             public ulong? legacy_score_id;
             public long legacy_total_score;
             public long? total_score;
+            public bool has_replay;
             public ScoreRank rank;
             public float? pp;
 
