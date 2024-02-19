@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -84,7 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 foreach (var score in importedScores)
                 {
-                    if (!score.has_replay) continue;
+                    Debug.Assert(score.has_replay);
 
                     try
                     {
