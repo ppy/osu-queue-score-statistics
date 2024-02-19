@@ -14,6 +14,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(MigratePlaylistScoresToSoloScoresCommand))]
     [Subcommand(typeof(VerifyImportedScoresCommand))]
     [Subcommand(typeof(DeleteImportedHighScoresCommand))]
+    [Subcommand(typeof(VerifyReplaysExistCommand))]
     public sealed class MaintenanceCommands
     {
         public Task<int> OnExecuteAsync(CommandLineApplication app, CancellationToken cancellationToken)
