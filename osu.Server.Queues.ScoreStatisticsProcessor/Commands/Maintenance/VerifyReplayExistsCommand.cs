@@ -92,8 +92,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         // check the replay is available on s3.
                         _ = await s3.GetObjectMetadataAsync("score-replays", score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
                     }
-                    catch
+                    catch (AmazonS3Exception ex)
                     {
+                        // This is the closest we can get to knowing if a file exists or not.
+                        if (ex.ErrorType != ErrorType.Sender || ex.ErrorCode != "Forbidden")
+                            throw;
+
                         Console.WriteLine($"Score {score.id} missing replay");
                         if (!DryRun)
                             await conn.ExecuteAsync("UPDATE scores SET has_replay = 0 WHERE id = @id", score);
