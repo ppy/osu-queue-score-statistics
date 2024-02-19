@@ -23,13 +23,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
     public class VerifyReplaysExistCommand
     {
         /// <summary>
-        /// The high score ID to start deleting imported high scores from.
+        /// The <c>scores</c> table row ID to start verifying replays from.
         /// </summary>
         [Option(CommandOptionType.SingleValue, Template = "--start-id")]
         public ulong? StartId { get; set; }
 
         /// <summary>
-        /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
+        /// The number of scores to fetch in each batch.
         /// </summary>
         [Option(CommandOptionType.SingleValue, Template = "--batch-size")]
         public int BatchSize { get; set; } = 5000;
