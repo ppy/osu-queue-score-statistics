@@ -99,7 +99,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         if (!DryRun)
                             await conn.ExecuteAsync("UPDATE scores SET has_replay = 0 WHERE id = @id", score);
                     }
+
+                    lastId = score.id;
                 }
+
+                lastId++;
             }
 
             return 0;
