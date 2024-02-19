@@ -14,6 +14,7 @@ using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using InvalidOperationException = System.InvalidOperationException;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -42,8 +43,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             ulong lastId = StartId ?? 0;
 
-            var s3Key = Environment.GetEnvironmentVariable("S3_KEY") ?? string.Empty;
-            var s3Secret = Environment.GetEnvironmentVariable("S3_SECRET") ?? string.Empty;
+            var s3Key = Environment.GetEnvironmentVariable("S3_KEY") ?? throw new InvalidOperationException("S3_KEY must be specified.");
+            var s3Secret = Environment.GetEnvironmentVariable("S3_SECRET") ?? throw new InvalidOperationException("S3_SECRET must be specified.");
 
             using var s3 = new AmazonS3Client(new BasicAWSCredentials(s3Key, s3Secret), new AmazonS3Config
             {
