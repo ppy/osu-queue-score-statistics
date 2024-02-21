@@ -309,14 +309,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND ranked = 0", 1, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NULL", 1, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });
         }
 
         [Fact]
-        public void ScoresThatHavePpButInvalidModsIsNotRanked()
+        public void ScoresThatHavePpButInvalidModsGetsNoPP()
         {
             AddBeatmap();
             AddBeatmapAttributes<OsuDifficultyAttributes>();
@@ -332,7 +332,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.accuracy = 1;
                 score.Score.build_id = TestBuildID;
                 score.Score.ScoreData.Mods = new[] { new APIMod(new InvalidMod()) };
-                score.Score.pp = 1;
                 score.Score.preserve = true;
 
                 conn.Insert(score.Score);
@@ -340,7 +339,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 PushToQueueAndWaitForProcess(score);
             }
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND ranked = 0", 1, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NULL", 1, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });
