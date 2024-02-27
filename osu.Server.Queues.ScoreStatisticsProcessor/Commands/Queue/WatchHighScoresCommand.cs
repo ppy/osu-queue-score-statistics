@@ -137,6 +137,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                                                  }))
                                              // there might be multiple queue entries for the same insert. this can cause issues due to how we do the mapping lookup so let's fix that.
                                              .DistinctBy(s => s.score_id)
+                                             // scores may have since been deleted.
+                                             .Where(s => s.score_id > 0)
                                              .OrderBy(s => s.score_id)
                                              .ToArray();
 
