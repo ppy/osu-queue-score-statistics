@@ -100,6 +100,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     beatmapSetId = score.Beatmap.OnlineBeatmapSetID
                 }, transaction);
 
+                if (score.Passed)
+                {
+                    conn.Execute("UPDATE osu_beatmaps SET passcount = passcount + @increment WHERE beatmap_id = @beatmapId", new
+                    {
+                        increment,
+                        beatmapId = score.BeatmapID
+                    }, transaction);
+                }
+
                 // Reindex beatmap occasionally.
                 if (RNG.Next(0, 10) == 0)
                     LegacyDatabaseHelper.RunLegacyIO("indexing/bulk", "POST", $"beatmapset[]={score.Beatmap.OnlineBeatmapSetID}");
