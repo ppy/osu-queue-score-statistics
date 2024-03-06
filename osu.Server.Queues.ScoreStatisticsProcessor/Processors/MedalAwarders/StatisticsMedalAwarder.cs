@@ -1,8 +1,8 @@
 ﻿using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
-using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using System.Collections.Generic;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 {
