@@ -5,9 +5,11 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Text;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Framework.Extensions.TypeExtensions;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -30,7 +32,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         static MedalProcessor()
         {
             // add each processor automagically.
-            foreach (var t in typeof(ScoreStatisticsQueueProcessor).Assembly.GetTypes().Where(t => !t.IsInterface && typeof(IMedalAwarder).IsAssignableFrom(t)))
+            foreach (var t in AppDomain.CurrentDomain
+                                       .GetAssemblies()
+                                       .SelectMany(t => t.GetTypes())
+                                       .Where(t => !t.IsInterface && typeof(IMedalAwarder).IsAssignableFrom(t)))
             {
                 if (Activator.CreateInstance(t) is IMedalAwarder awarder)
                     medal_awarders.Add(awarder);
@@ -96,5 +101,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         }
 
         public record struct AwardedMedal(Medal Medal, SoloScoreInfo Score);
+
+        public string DisplayString
+        {
+            get
+            {
+                var stringBuilder = new StringBuilder();
+
+                stringBuilder.AppendLine($"- {GetType().ReadableName()} ({GetType().Assembly.FullName})");
+                stringBuilder.Append("  Medal awarders:");
+
+                foreach (var awarder in medal_awarders)
+                {
+                    stringBuilder.AppendLine();
+                    stringBuilder.Append($"  - {awarder.GetType().ReadableName()} ({awarder.GetType().Assembly.FullName})");
+                }
+
+                return stringBuilder.ToString();
+            }
+        }
     }
 }

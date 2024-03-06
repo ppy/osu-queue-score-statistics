@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using MySqlConnector;
+using osu.Framework.Extensions.TypeExtensions;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -39,5 +40,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <param name="score">The user's score.</param>
         /// <param name="conn">The database connection.</param>
         void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn);
+
+        string DisplayString => $"- {GetType().ReadableName()} ({GetType().Assembly.FullName})";
     }
 }
