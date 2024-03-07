@@ -58,6 +58,62 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public Task TestGlobalPassCountsIncrementOnPass()
+        {
+            const int attempt_count = 100;
+
+            var cts = new CancellationTokenSource();
+
+            var incrementTask = Task.Run(() =>
+            {
+                for (int i = 0; i < attempt_count; i++)
+                {
+                    if (cts.IsCancellationRequested)
+                        break;
+
+                    int offset = i - attempt_count;
+                    SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.ended_at = DateTimeOffset.Now.AddMinutes(offset));
+                }
+            }, cts.Token);
+
+            WaitForDatabaseState($"SELECT IF(passcount > 0, 1, 0) FROM osu_beatmaps WHERE beatmap_id = {TEST_BEATMAP_ID}", 1, CancellationToken);
+
+            cts.Cancel();
+
+            return incrementTask;
+        }
+
+        [Fact]
+        public Task TestGlobalPassCountsDoNotIncrementOnFail()
+        {
+            const int attempt_count = 100;
+
+            var cts = new CancellationTokenSource();
+
+            var incrementTask = Task.Run(() =>
+            {
+                for (int i = 0; i < attempt_count; i++)
+                {
+                    if (cts.IsCancellationRequested)
+                        break;
+
+                    int offset = i - attempt_count;
+                    SetScoreForBeatmap(TEST_BEATMAP_ID, s =>
+                    {
+                        s.Score.passed = false;
+                        s.Score.ended_at = DateTimeOffset.Now.AddMinutes(offset);
+                    });
+                }
+            }, cts.Token);
+
+            WaitForDatabaseState($"SELECT IF(passcount > 0, 1, 0) FROM osu_beatmaps WHERE beatmap_id = {TEST_BEATMAP_ID}", 0, CancellationToken);
+
+            cts.Cancel();
+
+            return incrementTask;
+        }
+
+        [Fact]
         public void TestPlaycountIncrease()
         {
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
