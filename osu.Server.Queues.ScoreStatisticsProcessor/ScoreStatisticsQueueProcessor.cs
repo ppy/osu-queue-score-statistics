@@ -18,6 +18,7 @@ using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models.Messages;
+using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
