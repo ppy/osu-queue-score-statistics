@@ -1,6 +1,4 @@
 ﻿using JetBrains.Annotations;
-using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using System.Collections.Generic;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -11,17 +9,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     {
         public bool RunOnFailedScores => false;
 
-        public IEnumerable<Medal> Check(SoloScoreInfo score, UserStats userStats, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
+        public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
             foreach (var medal in medals)
             {
-                if (checkMedal(score, medal, userStats))
+                if (checkMedal(medal, context))
                     yield return medal;
             }
         }
 
-        private bool checkMedal(SoloScoreInfo score, Medal medal, UserStats stats)
+        private bool checkMedal(Medal medal, MedalAwarderContext context)
         {
+            var score = context.Score;
+            var stats = context.UserStats;
+
             return medal.achievement_id switch
             {
                 // osu!standard

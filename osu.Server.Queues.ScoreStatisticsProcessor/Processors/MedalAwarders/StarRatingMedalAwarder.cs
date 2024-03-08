@@ -1,5 +1,4 @@
 ﻿using JetBrains.Annotations;
-using MySqlConnector;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
@@ -8,7 +7,6 @@ using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
-using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,35 +19,31 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     [UsedImplicitly]
     public class StarRatingMedalAwarder : IMedalAwarder
     {
-        private BeatmapStore? beatmapStore;
-
         public bool RunOnFailedScores => false;
 
-        public IEnumerable<Medal> Check(SoloScoreInfo score, UserStats userStats, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
+        public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
-            return checkAsync(score, medals, conn, transaction).Result;
+            return checkAsync(medals, context).Result;
         }
 
-        private async Task<IEnumerable<Medal>> checkAsync(SoloScoreInfo score, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
+        private async Task<IEnumerable<Medal>> checkAsync(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
             List<Medal> earnedMedals = new List<Medal>();
 
-            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.RulesetID);
-            Mod[] mods = score.Mods.Select(m => m.ToMod(ruleset)).ToArray();
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(context.Score.RulesetID);
+            Mod[] mods = context.Score.Mods.Select(m => m.ToMod(ruleset)).ToArray();
 
             // Ensure the score isn't using any difficulty reducing mods
             if (mods.Any(MedalHelpers.IsDifficultyReductionMod))
                 return Enumerable.Empty<Medal>();
 
             // On mania, these medals cannot be triggered with key mods and Dual Stages
-            if (score.RulesetID == 3 && mods.Any(isManiaDisallowedMod))
+            if (context.Score.RulesetID == 3 && mods.Any(isManiaDisallowedMod))
                 return Enumerable.Empty<Medal>();
 
             try
             {
-                beatmapStore ??= await BeatmapStore.CreateAsync(conn, transaction);
-
-                Beatmap? beatmap = await beatmapStore.GetBeatmapAsync((uint)score.BeatmapID, conn, transaction);
+                Beatmap? beatmap = await context.BeatmapStore.GetBeatmapAsync((uint)context.Score.BeatmapID, context.Connection, context.Transaction);
                 if (beatmap == null)
                     return Enumerable.Empty<Medal>();
 
@@ -59,7 +53,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
                 // Get map star rating (including mods)
                 APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
-                DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, conn, transaction);
+                DifficultyAttributes? difficultyAttributes = await context.BeatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, context.Connection, context.Transaction);
 
                 if (difficultyAttributes == null)
                     return Enumerable.Empty<Medal>();
@@ -67,23 +61,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 // Award pass medals
                 foreach (var medal in medals)
                 {
-                    if (checkMedalPass(score, medal, difficultyAttributes.StarRating))
+                    if (checkMedalPass(context.Score, medal, difficultyAttributes.StarRating))
                         earnedMedals.Add(medal);
                 }
 
                 // Check for FC and award FC medals if necessary
-                if (score.MaxCombo == score.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Sum(kvp => kvp.Value))
+                if (context.Score.MaxCombo == context.Score.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Sum(kvp => kvp.Value))
                 {
                     foreach (var medal in medals)
                     {
-                        if (checkMedalFc(score, medal, difficultyAttributes.StarRating))
+                        if (checkMedalFc(context.Score, medal, difficultyAttributes.StarRating))
                             earnedMedals.Add(medal);
                     }
                 }
             }
             catch (Exception ex)
             {
-                await Console.Error.WriteLineAsync($"{score.ID} failed in StarRatingMedalAwarder with: {ex}");
+                await Console.Error.WriteLineAsync($"{context.Score.ID} failed in StarRatingMedalAwarder with: {ex}");
             }
 
             return earnedMedals;
