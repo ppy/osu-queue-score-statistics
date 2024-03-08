@@ -1,5 +1,4 @@
 ﻿using JetBrains.Annotations;
-using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
@@ -16,12 +15,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     {
         public bool RunOnFailedScores => false;
 
-        public IEnumerable<Medal> Check(SoloScoreInfo score, UserStats userStats, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
+        public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
-            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.RulesetID);
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(context.Score.RulesetID);
 
             // Select score mods, ignoring certain mods that can be included in the combination for mod introduction medals
-            Mod[] mods = score.Mods.Select(m => m.ToMod(ruleset)).Where(m => !isIgnoredForIntroductionMedal(m)).ToArray();
+            Mod[] mods = context.Score.Mods.Select(m => m.ToMod(ruleset)).Where(m => !isIgnoredForIntroductionMedal(m)).ToArray();
 
             // Ensure the mod is the only one selected
             if (mods.Length != 1)
@@ -33,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
             foreach (var medal in medals)
             {
-                if (checkMedal(score, medal, mods[0]))
+                if (checkMedal(context.Score, medal, mods[0]))
                     yield return medal;
             }
         }

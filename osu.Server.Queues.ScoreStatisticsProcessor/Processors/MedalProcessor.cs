@@ -11,6 +11,7 @@ using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -65,12 +66,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                                          .Where(m => !alreadyAchieved.Contains(m.achievement_id))
                                          .ToArray();
 
+            var beatmapStore = BeatmapStore.CreateAsync(conn, transaction).Result;
+            var context = new MedalAwarderContext(score, userStats, beatmapStore, conn, transaction);
+
             foreach (var awarder in medal_awarders)
             {
                 if (!score.Passed && !awarder.RunOnFailedScores)
                     continue;
 
-                foreach (var awardedMedal in awarder.Check(score, userStats, availableMedalsForUser, conn, transaction))
+                foreach (var awardedMedal in awarder.Check(availableMedalsForUser, context))
                 {
                     awardMedal(score, awardedMedal);
                 }

@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Dapper;
 using JetBrains.Annotations;
-using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
@@ -16,22 +14,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     {
         public bool RunOnFailedScores => false;
 
-        public IEnumerable<Medal> Check(SoloScoreInfo score, UserStats userStats, IEnumerable<Medal> medals, MySqlConnection conn, MySqlTransaction transaction)
+        public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
             // Do a global check to see if this beatmapset is contained in *any* pack.
-            var validPacksForBeatmapSet = conn.Query<int>("SELECT pack_id FROM osu_beatmappacks_items WHERE beatmapset_id = @beatmapSetId LIMIT 1", new
+            var validPacksForBeatmapSet = context.Connection.Query<int>("SELECT pack_id FROM osu_beatmappacks_items WHERE beatmapset_id = @beatmapSetId LIMIT 1", new
             {
-                beatmapSetId = score.Beatmap!.OnlineBeatmapSetID,
-            }, transaction: transaction);
+                beatmapSetId = context.Score.Beatmap!.OnlineBeatmapSetID,
+            }, transaction: context.Transaction);
 
             foreach (var medal in medals)
             {
-                if (checkMedal(score, medal, validPacksForBeatmapSet, conn, transaction))
+                if (checkMedal(context, medal, validPacksForBeatmapSet))
                     yield return medal;
             }
         }
 
-        private bool checkMedal(SoloScoreInfo score, Medal medal, IEnumerable<int> validPacksForBeatmapSet, MySqlConnection conn, MySqlTransaction transaction)
+        private bool checkMedal(MedalAwarderContext context, Medal medal, IEnumerable<int> validPacksForBeatmapSet)
         {
             return medal.achievement_id switch
             {
@@ -262,25 +260,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 }
 
                 // ensure the correct mode, if one is specified
-                int? packRulesetId = conn.QuerySingle<int?>($"SELECT playmode FROM `osu_beatmappacks` WHERE pack_id = {packId}", transaction: transaction);
+                int? packRulesetId = context.Connection.QuerySingle<int?>($"SELECT playmode FROM `osu_beatmappacks` WHERE pack_id = {packId}", transaction: context.Transaction);
 
                 if (packRulesetId != null)
                 {
-                    if (score.RulesetID != packRulesetId)
+                    if (context.Score.RulesetID != packRulesetId)
                         return false;
 
                     rulesetCriteria = $"AND ruleset_id = {packRulesetId}";
                 }
 
                 // TODO: no index on (beatmap_id, user_id) may mean this is too slow.
-                int completed = conn.QuerySingle<int>(
+                int completed = context.Connection.QuerySingle<int>(
                     "SELECT COUNT(distinct p.beatmapset_id)"
                     + "FROM osu_beatmappacks_items p "
                     + "JOIN osu_beatmaps b USING (beatmapset_id) "
                     + "JOIN scores s USING (beatmap_id)"
-                    + $"WHERE s.user_id = {score.UserID} AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: transaction);
+                    + $"WHERE s.user_id = {context.Score.UserID} AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: context.Transaction);
 
-                int countForPack = conn.QuerySingle<int>($"SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = {packId}", transaction: transaction);
+                int countForPack = context.Connection.QuerySingle<int>($"SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = {packId}", transaction: context.Transaction);
 
                 return completed >= countForPack;
             }
