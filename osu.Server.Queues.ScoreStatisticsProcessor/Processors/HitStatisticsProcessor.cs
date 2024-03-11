@@ -15,10 +15,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class HitStatisticsProcessor : IProcessor
     {
-        public const int ORDER = 0;
-
-        public int Order => ORDER;
-
         public bool RunOnFailedScores => true;
 
         public bool RunOnLegacyScores => false;
