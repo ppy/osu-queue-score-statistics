@@ -271,12 +271,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 }
 
                 // TODO: no index on (beatmap_id, user_id) may mean this is too slow.
+                // note that the `preserve = 1` condition relies on the flag being set before score processing (https://github.com/ppy/osu-web/pull/10946).
                 int completed = context.Connection.QuerySingle<int>(
                     "SELECT COUNT(distinct p.beatmapset_id)"
                     + "FROM osu_beatmappacks_items p "
                     + "JOIN osu_beatmaps b USING (beatmapset_id) "
                     + "JOIN scores s USING (beatmap_id)"
-                    + $"WHERE s.user_id = {context.Score.UserID} AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: context.Transaction);
+                    + $"WHERE s.user_id = {context.Score.UserID} AND s.passed = 1 AND s.preserve = 1 AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: context.Transaction);
 
                 int countForPack = context.Connection.QuerySingle<int>($"SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = {packId}", transaction: context.Transaction);
 

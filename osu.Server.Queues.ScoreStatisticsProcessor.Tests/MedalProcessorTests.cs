@@ -62,11 +62,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addPackMedal(medal_id, pack_id, new[] { beatmap });
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id);
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
 
             assertAwarded(medal_id);
 
-            SetScoreForBeatmap(beatmap.beatmap_id);
+            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
             assertAwarded(medal_id);
         }
 
@@ -86,6 +86,37 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.passed = false);
 
+            assertNoneAwarded();
+        }
+
+        /// <summary>
+        /// The pack awarder should skip scores that are failed.
+        /// </summary>
+        [Fact]
+        public void TestPackMedalsDoNotIncludePreviousFails()
+        {
+            var firstBeatmap = AddBeatmap(b => b.beatmap_id = 1234, s => s.beatmapset_id = 4321);
+            var secondBeatmap = AddBeatmap(b => b.beatmap_id = 5678, s => s.beatmapset_id = 8765);
+
+            const int medal_id = 7;
+            const int pack_id = 40;
+
+            addPackMedal(medal_id, pack_id, new[] { firstBeatmap, secondBeatmap });
+
+            assertNoneAwarded();
+
+            SetScoreForBeatmap(firstBeatmap.beatmap_id, s =>
+            {
+                s.Score.passed = false;
+                s.Score.preserve = false;
+            });
+            assertNoneAwarded();
+
+            SetScoreForBeatmap(secondBeatmap.beatmap_id, s =>
+            {
+                s.Score.passed = true;
+                s.Score.preserve = true;
+            });
             assertNoneAwarded();
         }
 
@@ -126,7 +157,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ended_at = DateTimeOffset.Now.AddMinutes(minutesOffset++));
+                SetScoreForBeatmap(beatmap.beatmap_id, s =>
+                {
+                    s.Score.ended_at = DateTimeOffset.Now.AddMinutes(minutesOffset++);
+                    s.Score.preserve = true;
+                });
             }
 
             assertAwarded(medal_id);
@@ -172,7 +207,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in beatmaps)
             {
                 assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id);
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
             }
 
             // Awarding should only happen after the final set is hit.
@@ -194,14 +229,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addPackMedal(medal_id, pack_id, new[] { beatmap1, beatmap2 });
 
-            SetScoreForBeatmap(beatmap1.beatmap_id);
+            SetScoreForBeatmap(beatmap1.beatmap_id, s => s.Score.preserve = true);
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap1.beatmap_id);
+            SetScoreForBeatmap(beatmap1.beatmap_id, s => s.Score.preserve = true);
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap1.beatmap_id);
+            SetScoreForBeatmap(beatmap1.beatmap_id, s => s.Score.preserve = true);
             assertNoneAwarded();
 
-            SetScoreForBeatmap(beatmap2.beatmap_id);
+            SetScoreForBeatmap(beatmap2.beatmap_id, s => s.Score.preserve = true);
             assertAwarded(medal_id);
         }
 
@@ -232,7 +267,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModEasy()) });
+                SetScoreForBeatmap(beatmap.beatmap_id, s =>
+                {
+                    s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModEasy()) };
+                    s.Score.preserve = true;
+                });
             }
 
             // Even after completing all beatmaps with easy mod, the pack medal is not awarded.
@@ -241,7 +280,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (var beatmap in allBeatmaps)
             {
                 assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
+                SetScoreForBeatmap(beatmap.beatmap_id, s =>
+                {
+                    s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()) };
+                    s.Score.preserve = true;
+                });
             }
 
             // Only after completing each beatmap again without easy mod (double time arbitrarily added to mix things up)
