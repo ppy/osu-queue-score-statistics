@@ -41,8 +41,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             ulong lastId = StartId ?? 0;
 
-            var s3Key = Environment.GetEnvironmentVariable("S3_KEY") ?? throw new InvalidOperationException("S3_KEY must be specified.");
-            var s3Secret = Environment.GetEnvironmentVariable("S3_SECRET") ?? throw new InvalidOperationException("S3_SECRET must be specified.");
+            string s3Key = Environment.GetEnvironmentVariable("S3_KEY") ?? throw new InvalidOperationException("S3_KEY must be specified.");
+            string s3Secret = Environment.GetEnvironmentVariable("S3_SECRET") ?? throw new InvalidOperationException("S3_SECRET must be specified.");
 
             using var s3 = new AmazonS3Client(new BasicAWSCredentials(s3Key, s3Secret), new AmazonS3Config
             {

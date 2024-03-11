@@ -30,7 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             var score = CreateTestScore().Score;
 
-            var serialised = score.Serialize();
+            string? serialised = score.Serialize();
             var deserialised = serialised.Deserialize<SoloScore>();
 
             Debug.Assert(deserialised != null);
