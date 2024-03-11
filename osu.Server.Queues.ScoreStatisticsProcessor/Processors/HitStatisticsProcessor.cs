@@ -38,7 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             int multiplier = revert ? -1 : 1;
 
-            foreach (var (result, count) in score.Statistics)
+            foreach ((var result, int count) in score.Statistics)
             {
                 if (count < 0)
                     return;
