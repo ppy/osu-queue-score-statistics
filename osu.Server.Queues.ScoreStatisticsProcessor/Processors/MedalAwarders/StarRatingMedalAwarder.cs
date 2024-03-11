@@ -22,44 +22,42 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
         public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
-            return checkAsync(medals, context).Result;
+            return checkAsync(medals, context).ToBlockingEnumerable();
         }
 
-        private async Task<IEnumerable<Medal>> checkAsync(IEnumerable<Medal> medals, MedalAwarderContext context)
+        private async IAsyncEnumerable<Medal> checkAsync(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
-            List<Medal> earnedMedals = new List<Medal>();
-
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(context.Score.RulesetID);
             Mod[] mods = context.Score.Mods.Select(m => m.ToMod(ruleset)).ToArray();
 
             // Ensure the score isn't using any difficulty reducing mods
             if (mods.Any(MedalHelpers.IsDifficultyReductionMod))
-                return Enumerable.Empty<Medal>();
+                yield break;
 
             // On mania, these medals cannot be triggered with key mods and Dual Stages
             if (context.Score.RulesetID == 3 && mods.Any(isManiaDisallowedMod))
-                return Enumerable.Empty<Medal>();
+                yield break;
 
             Beatmap? beatmap = await context.BeatmapStore.GetBeatmapAsync((uint)context.Score.BeatmapID, context.Connection, context.Transaction);
             if (beatmap == null)
-                return Enumerable.Empty<Medal>();
+                yield break;
 
             // Make sure the map isn't Qualified or Loved, as those maps may occasionally have SR-breaking/aspire aspects
             if (beatmap.approved == BeatmapOnlineStatus.Qualified || beatmap.approved == BeatmapOnlineStatus.Loved)
-                return Enumerable.Empty<Medal>();
+                yield break;
 
             // Get map star rating (including mods)
             APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
             DifficultyAttributes? difficultyAttributes = await context.BeatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, context.Connection, context.Transaction);
 
             if (difficultyAttributes == null)
-                return Enumerable.Empty<Medal>();
+                yield break;
 
             // Award pass medals
             foreach (var medal in medals)
             {
                 if (checkMedalPass(context.Score, medal, difficultyAttributes.StarRating))
-                    earnedMedals.Add(medal);
+                    yield return medal;
             }
 
             // Check for FC and award FC medals if necessary
@@ -68,11 +66,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 foreach (var medal in medals)
                 {
                     if (checkMedalFc(context.Score, medal, difficultyAttributes.StarRating))
-                        earnedMedals.Add(medal);
+                        yield return medal;
                 }
             }
-
-            return earnedMedals;
         }
 
         private bool checkMedalPass(SoloScoreInfo score, Medal medal, double starRating)
