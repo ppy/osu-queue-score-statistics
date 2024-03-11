@@ -17,7 +17,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
         public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
             // Do a global check to see if this beatmapset is contained in *any* pack.
-            var validPacksForBeatmapSet = context.Connection.Query<int>("SELECT pack_id FROM osu_beatmappacks_items WHERE beatmapset_id = @beatmapSetId LIMIT 1", new
+            var validPacksForBeatmapSet = context.Connection.Query<int>("SELECT pack_id FROM osu_beatmappacks_items WHERE beatmapset_id = @beatmapSetId", new
             {
                 beatmapSetId = context.Score.Beatmap!.OnlineBeatmapSetID,
             }, transaction: context.Transaction);
