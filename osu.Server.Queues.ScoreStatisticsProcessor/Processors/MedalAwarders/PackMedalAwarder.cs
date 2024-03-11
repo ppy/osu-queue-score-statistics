@@ -276,7 +276,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                     + "FROM osu_beatmappacks_items p "
                     + "JOIN osu_beatmaps b USING (beatmapset_id) "
                     + "JOIN scores s USING (beatmap_id)"
-                    + $"WHERE s.user_id = {context.Score.UserID} AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: context.Transaction);
+                    + $"WHERE s.user_id = {context.Score.UserID} AND s.passed = 1 AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: context.Transaction);
 
                 int countForPack = context.Connection.QuerySingle<int>($"SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = {packId}", transaction: context.Transaction);
 
