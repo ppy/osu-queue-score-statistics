@@ -35,7 +35,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 return;
             }
 
-            var classicTotalScore = score.GetDisplayScore(ScoringMode.Classic);
+            long classicTotalScore = score.GetDisplayScore(ScoringMode.Classic);
 
             if (previousVersion >= 11 && !shouldIncludePlayInTotalScore(score, classicTotalScore))
                 return;
@@ -46,7 +46,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            var classicTotalScore = score.GetDisplayScore(ScoringMode.Classic);
+            long classicTotalScore = score.GetDisplayScore(ScoringMode.Classic);
 
             if (!shouldIncludePlayInTotalScore(score, classicTotalScore))
                 return;

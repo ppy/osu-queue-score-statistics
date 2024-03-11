@@ -327,13 +327,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreData.Statistics = new()
+                s.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
                 {
                     { HitResult.Perfect, 3 },
                     { HitResult.Miss, 2 },
                     { HitResult.LargeBonus, 0 }
                 };
-                s.Score.ScoreData.MaximumStatistics = new()
+                s.Score.ScoreData.MaximumStatistics = new Dictionary<HitResult, int>
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
@@ -347,12 +347,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreData.Statistics = new()
+                s.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
                 };
-                s.Score.ScoreData.MaximumStatistics = new()
+                s.Score.ScoreData.MaximumStatistics = new Dictionary<HitResult, int>
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
@@ -383,12 +383,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreData.Statistics = new()
+                s.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
                 };
-                s.Score.ScoreData.MaximumStatistics = new()
+                s.Score.ScoreData.MaximumStatistics = new Dictionary<HitResult, int>
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
@@ -444,8 +444,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
             AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
-            var passMedalIds = new[] { 55, 56, 57, 58, 59, 60, 61, 62, 242, 244 };
-            var fcMedalIds = new[] { 63, 64, 65, 66, 67, 68, 69, 70, 243, 245 };
+            int[] passMedalIds = { 55, 56, 57, 58, 59, 60, 61, 62, 242, 244 };
+            int[] fcMedalIds = { 63, 64, 65, 66, 67, 68, 69, 70, 243, 245 };
 
             foreach (int passMedal in passMedalIds)
                 addMedal(passMedal);
@@ -455,13 +455,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreData.Statistics = new()
+                s.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
                 {
                     { HitResult.Perfect, 3 },
                     { HitResult.Miss, 2 },
                     { HitResult.LargeBonus, 0 }
                 };
-                s.Score.ScoreData.MaximumStatistics = new()
+                s.Score.ScoreData.MaximumStatistics = new Dictionary<HitResult, int>
                 {
                     { HitResult.Perfect, 5 },
                     { HitResult.LargeBonus, 2 }
@@ -675,7 +675,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreData.Statistics = new() { { HitResult.Perfect, 1 } };
+                s.Score.ScoreData.Statistics = new Dictionary<HitResult, int> { { HitResult.Perfect, 1 } };
                 s.Score.ruleset_id = 3;
             });
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats_mania WHERE user_id = 2", 39999, CancellationToken);
@@ -686,7 +686,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
-                s.Score.ScoreData.Statistics = new() { { HitResult.Perfect, 1 } };
+                s.Score.ScoreData.Statistics = new Dictionary<HitResult, int> { { HitResult.Perfect, 1 } };
                 s.Score.ruleset_id = 3;
             });
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats_mania WHERE user_id = 2", 40000, CancellationToken);
