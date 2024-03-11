@@ -1,17 +1,16 @@
-﻿using JetBrains.Annotations;
+﻿using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using JetBrains.Annotations;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using osu.Game.Rulesets.Scoring;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
@@ -41,43 +40,36 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             if (context.Score.RulesetID == 3 && mods.Any(isManiaDisallowedMod))
                 return Enumerable.Empty<Medal>();
 
-            try
+            Beatmap? beatmap = await context.BeatmapStore.GetBeatmapAsync((uint)context.Score.BeatmapID, context.Connection, context.Transaction);
+            if (beatmap == null)
+                return Enumerable.Empty<Medal>();
+
+            // Make sure the map isn't Qualified or Loved, as those maps may occasionally have SR-breaking/aspire aspects
+            if (beatmap.approved == BeatmapOnlineStatus.Qualified || beatmap.approved == BeatmapOnlineStatus.Loved)
+                return Enumerable.Empty<Medal>();
+
+            // Get map star rating (including mods)
+            APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
+            DifficultyAttributes? difficultyAttributes = await context.BeatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, context.Connection, context.Transaction);
+
+            if (difficultyAttributes == null)
+                return Enumerable.Empty<Medal>();
+
+            // Award pass medals
+            foreach (var medal in medals)
             {
-                Beatmap? beatmap = await context.BeatmapStore.GetBeatmapAsync((uint)context.Score.BeatmapID, context.Connection, context.Transaction);
-                if (beatmap == null)
-                    return Enumerable.Empty<Medal>();
+                if (checkMedalPass(context.Score, medal, difficultyAttributes.StarRating))
+                    earnedMedals.Add(medal);
+            }
 
-                // Make sure the map isn't Qualified or Loved, as those maps may occasionally have SR-breaking/aspire aspects
-                if (beatmap.approved == BeatmapOnlineStatus.Qualified || beatmap.approved == BeatmapOnlineStatus.Loved)
-                    return Enumerable.Empty<Medal>();
-
-                // Get map star rating (including mods)
-                APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
-                DifficultyAttributes? difficultyAttributes = await context.BeatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, context.Connection, context.Transaction);
-
-                if (difficultyAttributes == null)
-                    return Enumerable.Empty<Medal>();
-
-                // Award pass medals
+            // Check for FC and award FC medals if necessary
+            if (context.Score.MaxCombo == context.Score.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Sum(kvp => kvp.Value))
+            {
                 foreach (var medal in medals)
                 {
-                    if (checkMedalPass(context.Score, medal, difficultyAttributes.StarRating))
+                    if (checkMedalFc(context.Score, medal, difficultyAttributes.StarRating))
                         earnedMedals.Add(medal);
                 }
-
-                // Check for FC and award FC medals if necessary
-                if (context.Score.MaxCombo == context.Score.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Sum(kvp => kvp.Value))
-                {
-                    foreach (var medal in medals)
-                    {
-                        if (checkMedalFc(context.Score, medal, difficultyAttributes.StarRating))
-                            earnedMedals.Add(medal);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                await Console.Error.WriteLineAsync($"{context.Score.ID} failed in StarRatingMedalAwarder with: {ex}");
             }
 
             return earnedMedals;
