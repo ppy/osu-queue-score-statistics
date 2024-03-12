@@ -70,16 +70,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
         private void loadExternalProcessorAssemblies(AssemblyName[]? externalProcessorAssemblies)
         {
-            var pathsFromEnvironment = Environment.GetEnvironmentVariable(external_processor_path_envvar)?.Split(':', StringSplitOptions.RemoveEmptyEntries);
+            string[]? pathsFromEnvironment = Environment.GetEnvironmentVariable(external_processor_path_envvar)?.Split(':', StringSplitOptions.RemoveEmptyEntries);
 
             if (pathsFromEnvironment == null || pathsFromEnvironment.Length == 0)
                 return;
 
-            foreach (var path in pathsFromEnvironment)
+            foreach (string path in pathsFromEnvironment)
             {
                 if (Directory.Exists(path))
                 {
-                    foreach (var dll in Directory.GetFiles(path, "*.dll"))
+                    foreach (string dll in Directory.GetFiles(path, "*.dll"))
                         loadAssembly(dll);
                     continue;
                 }
