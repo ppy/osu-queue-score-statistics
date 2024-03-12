@@ -263,35 +263,77 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             addPackMedal(medal_id, pack_id, allBeatmaps);
-
-            foreach (var beatmap in allBeatmaps)
-            {
-                assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s =>
-                {
-                    s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModEasy()) };
-                    s.Score.preserve = true;
-                });
-            }
-
-            // Even after completing all beatmaps with easy mod, the pack medal is not awarded.
             assertNoneAwarded();
 
-            foreach (var beatmap in allBeatmaps)
+            // Set passes without mods on all but the first map
+            foreach (var beatmap in allBeatmaps.Skip(1))
             {
+                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
                 assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s =>
-                {
-                    s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()) };
-                    s.Score.preserve = true;
-                });
             }
 
-            // Only after completing each beatmap again without easy mod (double time arbitrarily added to mix things up)
-            // is the pack actually awarded.
+            // Pass the first map with Easy mod (difficulty reduction)
+            SetScoreForBeatmap(allBeatmaps[0].beatmap_id, s =>
+            {
+                s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModEasy()) };
+                s.Score.preserve = true;
+            });
+            assertNoneAwarded();
+
+            // Pass the first map without mods
+            SetScoreForBeatmap(allBeatmaps[0].beatmap_id, s => s.Score.preserve = true);
             assertAwarded(medal_id);
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length * 2, CancellationToken);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length + 1, CancellationToken);
+        }
+
+        public static readonly object[][] NO_REDUCTION_MODS_COMBINATIONS =
+        {
+            // No mods
+            [true, new APIMod[] { }],
+
+            // Difficulty increase
+            [true, new[] { new APIMod(new OsuModDoubleTime()) }],
+
+            // Difficulty reduction or automation
+            [false, new[] { new APIMod(new OsuModNoFail()) }],
+            [false, new[] { new APIMod(new OsuModRelax()) }],
+
+            // Mixed
+            [false, new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModEasy()) }],
+            [false, new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModAutopilot()) }],
+            [false, new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModClassic()) }],
+            [true, new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModTouchDevice()) }],
+
+            // Allowed base mod, but disallowed settings
+            [false, new[] { new APIMod(new OsuModDoubleTime { SpeedChange = { Value = 1.3 } }) }],
+        };
+
+        /// <summary>
+        /// Tests whether challenge pack medals are properly awarded with various mod combinations.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(NO_REDUCTION_MODS_COMBINATIONS))]
+        public void TestNoReductionModsPackWithSelectedMods(bool expectAllowed, APIMod[] mods)
+        {
+            const int medal_id = 267;
+            const int pack_id = 2036;
+
+            var beatmap = AddBeatmap();
+
+            addPackMedal(medal_id, pack_id, new[] { beatmap });
+            assertNoneAwarded();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.ScoreData.Mods = mods;
+                s.Score.preserve = true;
+            });
+
+            if (expectAllowed)
+                assertAwarded(medal_id);
+            else
+                assertNoneAwarded();
         }
 
         /// <summary>
