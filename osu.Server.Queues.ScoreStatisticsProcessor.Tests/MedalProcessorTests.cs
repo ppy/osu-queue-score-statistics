@@ -61,19 +61,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// </summary>
         [Theory]
         [MemberData(nameof(MEDAL_PACK_IDS))]
-        public void TestOnlyAwardsOnce(int medal_id, int pack_id)
+        public void TestOnlyAwardsOnce(int medalId, int packId)
         {
             var beatmap = AddBeatmap();
 
-            addPackMedal(medal_id, pack_id, new[] { beatmap });
+            addPackMedal(medalId, packId, new[] { beatmap });
 
             assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
 
-            assertAwarded(medal_id);
+            assertAwarded(medalId);
 
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
-            assertAwarded(medal_id);
+            assertAwarded(medalId);
         }
 
         /// <summary>
@@ -81,11 +81,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// </summary>
         [Theory]
         [MemberData(nameof(MEDAL_PACK_IDS))]
-        public void TestDoesNotAwardOnFailedScores(int medal_id, int pack_id)
+        public void TestDoesNotAwardOnFailedScores(int medalId, int packId)
         {
             var beatmap = AddBeatmap();
 
-            addPackMedal(medal_id, pack_id, new[] { beatmap });
+            addPackMedal(medalId, packId, new[] { beatmap });
 
             assertNoneAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.passed = false);
@@ -98,12 +98,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// </summary>
         [Theory]
         [MemberData(nameof(MEDAL_PACK_IDS))]
-        public void TestPackMedalsDoNotIncludePreviousFails(int medal_id, int pack_id)
+        public void TestPackMedalsDoNotIncludePreviousFails(int medalId, int packId)
         {
             var firstBeatmap = AddBeatmap(b => b.beatmap_id = 1234, s => s.beatmapset_id = 4321);
             var secondBeatmap = AddBeatmap(b => b.beatmap_id = 5678, s => s.beatmapset_id = 8765);
 
-            addPackMedal(medal_id, pack_id, new[] { firstBeatmap, secondBeatmap });
+            addPackMedal(medalId, packId, new[] { firstBeatmap, secondBeatmap });
 
             assertNoneAwarded();
 
@@ -129,7 +129,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// </summary>
         [Theory]
         [MemberData(nameof(MEDAL_PACK_IDS))]
-        public void TestSimplePack(int medal_id, int pack_id)
+        public void TestSimplePack(int medalId, int packId)
         {
             var allBeatmaps = new[]
             {
@@ -149,7 +149,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 AddBeatmap(b => b.beatmap_id = 497769, s => s.beatmapset_id = 211704),
             };
 
-            addPackMedal(medal_id, pack_id, allBeatmaps);
+            addPackMedal(medalId, packId, allBeatmaps);
 
             // Need to space out submissions else we will hit rate limits.
             int minutesOffset = -allBeatmaps.Length;
@@ -164,7 +164,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 });
             }
 
-            assertAwarded(medal_id);
+            assertAwarded(medalId);
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length, CancellationToken);
         }
@@ -176,7 +176,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// </summary>
         [Theory]
         [MemberData(nameof(MEDAL_PACK_IDS))]
-        public void TestPlayMultipleBeatmapsFromSameSetDoesNotAward(int medal_id, int pack_id)
+        public void TestPlayMultipleBeatmapsFromSameSetDoesNotAward(int medalId, int packId)
         {
             const int beatmapset_id = 13022;
 
@@ -201,7 +201,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             Assert.Equal(4, beatmaps.Count);
 
-            addPackMedal(medal_id, pack_id, beatmaps);
+            addPackMedal(medalId, packId, beatmaps);
 
             foreach (var beatmap in beatmaps)
             {
@@ -210,7 +210,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
 
             // Awarding should only happen after the final set is hit.
-            assertAwarded(medal_id);
+            assertAwarded(medalId);
         }
 
         /// <summary>
@@ -219,12 +219,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// </summary>
         [Theory]
         [MemberData(nameof(MEDAL_PACK_IDS))]
-        public void TestPlayMultipleTimeOnSameSetDoesNotAward(int medal_id, int pack_id)
+        public void TestPlayMultipleTimeOnSameSetDoesNotAward(int medalId, int packId)
         {
             var beatmap1 = AddBeatmap(b => b.beatmap_id = 71623, s => s.beatmapset_id = 13022);
             var beatmap2 = AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
 
-            addPackMedal(medal_id, pack_id, new[] { beatmap1, beatmap2 });
+            addPackMedal(medalId, packId, new[] { beatmap1, beatmap2 });
 
             SetScoreForBeatmap(beatmap1.beatmap_id, s => s.Score.preserve = true);
             assertNoneAwarded();
@@ -234,7 +234,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertNoneAwarded();
 
             SetScoreForBeatmap(beatmap2.beatmap_id, s => s.Score.preserve = true);
-            assertAwarded(medal_id);
+            assertAwarded(medalId);
         }
 
         /// <summary>
