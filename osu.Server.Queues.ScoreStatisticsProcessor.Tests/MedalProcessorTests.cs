@@ -11,6 +11,7 @@ using osu.Game.Beatmaps;
 using osu.Game.Online.API;
 using osu.Game.Rulesets.Mania.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
+using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
@@ -66,13 +67,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var beatmap = AddBeatmap();
 
             addPackMedal(medalId, packId, new[] { beatmap });
+            setUpBeatmapsForPackMedal([beatmap]);
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
 
             assertAwarded(medalId);
 
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
             assertAwarded(medalId);
         }
 
@@ -88,7 +98,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addPackMedal(medalId, packId, new[] { beatmap });
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.passed = false);
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.passed = false;
+                s.Score.build_id = TestBuildID;
+            });
 
             assertNoneAwarded();
         }
@@ -104,6 +118,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var secondBeatmap = AddBeatmap(b => b.beatmap_id = 5678, s => s.beatmapset_id = 8765);
 
             addPackMedal(medalId, packId, new[] { firstBeatmap, secondBeatmap });
+            setUpBeatmapsForPackMedal([firstBeatmap, secondBeatmap]);
 
             assertNoneAwarded();
 
@@ -111,6 +126,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 s.Score.passed = false;
                 s.Score.preserve = false;
+                s.Score.build_id = TestBuildID;
             });
             assertNoneAwarded();
 
@@ -118,6 +134,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 s.Score.passed = true;
                 s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
             });
             assertNoneAwarded();
         }
@@ -150,6 +167,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             addPackMedal(medalId, packId, allBeatmaps);
+            setUpBeatmapsForPackMedal(allBeatmaps);
 
             // Need to space out submissions else we will hit rate limits.
             int minutesOffset = -allBeatmaps.Length;
@@ -161,6 +179,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 {
                     s.Score.ended_at = DateTimeOffset.Now.AddMinutes(minutesOffset++);
                     s.Score.preserve = true;
+                    s.Score.build_id = TestBuildID;
                 });
             }
 
@@ -202,11 +221,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             Assert.Equal(4, beatmaps.Count);
 
             addPackMedal(medalId, packId, beatmaps);
+            setUpBeatmapsForPackMedal(beatmaps);
 
             foreach (var beatmap in beatmaps)
             {
                 assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
+                SetScoreForBeatmap(beatmap.beatmap_id, s =>
+                {
+                    s.Score.preserve = true;
+                    s.Score.build_id = TestBuildID;
+                });
             }
 
             // Awarding should only happen after the final set is hit.
@@ -225,15 +249,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var beatmap2 = AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
 
             addPackMedal(medalId, packId, new[] { beatmap1, beatmap2 });
+            setUpBeatmapsForPackMedal([beatmap1, beatmap2]);
 
-            SetScoreForBeatmap(beatmap1.beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(beatmap1.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap1.beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(beatmap1.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap1.beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(beatmap1.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
             assertNoneAwarded();
 
-            SetScoreForBeatmap(beatmap2.beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(beatmap2.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
             assertAwarded(medalId);
         }
 
@@ -260,12 +301,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             addPackMedal(medal_id, pack_id, allBeatmaps);
+            setUpBeatmapsForPackMedal(allBeatmaps);
             assertNoneAwarded();
 
             // Set passes without mods on all but the first map
             foreach (var beatmap in allBeatmaps.Skip(1))
             {
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
+                SetScoreForBeatmap(beatmap.beatmap_id, s =>
+                {
+                    s.Score.preserve = true;
+                    s.Score.build_id = TestBuildID;
+                });
                 assertNoneAwarded();
             }
 
@@ -274,11 +320,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModEasy()) };
                 s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
             });
             assertNoneAwarded();
 
             // Pass the first map without mods
-            SetScoreForBeatmap(allBeatmaps[0].beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(allBeatmaps[0].beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
             assertAwarded(medal_id);
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length + 1, CancellationToken);
@@ -317,24 +368,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int pack_id = 2036;
 
             var beatmap = AddBeatmap();
-
-            // for optimisation reasons challenge packs depend on PP awarding.
-            // if a score has no PP awarded, it is presumed that it uses unranked mods, and as such is not considered for challenge packs.
-            // however, to make sure that ranked mods can give PP, difficulty attributes must be present in the database.
-            // therefore, add difficulty attributes for all mod combinations that give PP on stable to approximate this.
-            var workingBeatmap = new FlatWorkingBeatmap(new Game.Beatmaps.Beatmap());
-            var combinations = new OsuRuleset().CreateDifficultyCalculator(workingBeatmap).CreateDifficultyAdjustmentModCombinations();
-
-            foreach (var combination in combinations)
-            {
-                AddBeatmapAttributes<OsuDifficultyAttributes>(setup: attr =>
-                {
-                    attr.Mods = ModUtils.FlattenMod(combination).ToArray();
-                    attr.AimDifficulty = 3;
-                    attr.SpeedDifficulty = 3;
-                    attr.OverallDifficulty = 3;
-                });
-            }
+            setUpBeatmapsForPackMedal([beatmap], allModCombinations: true);
 
             addPackMedal(medal_id, pack_id, new[] { beatmap });
             assertNoneAwarded();
@@ -813,6 +847,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 foreach (int setId in beatmaps.GroupBy(b => b.beatmapset_id).Select(g => g.Key))
                     db.Execute($"INSERT INTO osu_beatmappacks_items (pack_id, beatmapset_id) VALUES ({packId}, {setId})");
+            }
+        }
+
+        private void setUpBeatmapsForPackMedal(IEnumerable<Beatmap> beatmaps, bool allModCombinations = false)
+        {
+            // for optimisation reasons challenge packs depend on PP awarding.
+            // if a score has no PP awarded, it is presumed that it uses unranked mods, and as such is not considered for challenge packs.
+            // however, to make sure that ranked mods can give PP, difficulty attributes must be present in the database.
+            // therefore, add difficulty attributes for all mod combinations that give PP on stable to approximate this.
+            var workingBeatmap = new FlatWorkingBeatmap(new Game.Beatmaps.Beatmap());
+            var combinations = allModCombinations
+                ? new OsuRuleset().CreateDifficultyCalculator(workingBeatmap).CreateDifficultyAdjustmentModCombinations()
+                : [new ModNoMod()];
+
+            foreach (var beatmap in beatmaps)
+            {
+                foreach (var combination in combinations)
+                {
+                    AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, setup: attr =>
+                    {
+                        attr.Mods = ModUtils.FlattenMod(combination).ToArray();
+                        attr.AimDifficulty = 3;
+                        attr.SpeedDifficulty = 3;
+                        attr.OverallDifficulty = 3;
+                    });
+                }
             }
         }
 
