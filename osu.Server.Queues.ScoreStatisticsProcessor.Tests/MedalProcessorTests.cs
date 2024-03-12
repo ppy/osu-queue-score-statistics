@@ -11,10 +11,12 @@ using osu.Game.Beatmaps;
 using osu.Game.Online.API;
 using osu.Game.Rulesets.Mania.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
+using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Taiko.Difficulty;
+using osu.Game.Utils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
@@ -316,6 +318,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var beatmap = AddBeatmap();
 
+            // for optimisation reasons challenge packs depend on PP awarding.
+            // if a score has no PP awarded, it is presumed that it uses unranked mods, and as such is not considered for challenge packs.
+            // however, to make sure that ranked mods can give PP, difficulty attributes must be present in the database.
+            // therefore, add difficulty attributes for all mod combinations that give PP on stable to approximate this.
+            var workingBeatmap = new FlatWorkingBeatmap(new Game.Beatmaps.Beatmap());
+            var combinations = new OsuRuleset().CreateDifficultyCalculator(workingBeatmap).CreateDifficultyAdjustmentModCombinations();
+
+            foreach (var combination in combinations)
+            {
+                AddBeatmapAttributes<OsuDifficultyAttributes>(setup: attr =>
+                {
+                    attr.Mods = ModUtils.FlattenMod(combination).ToArray();
+                    attr.AimDifficulty = 3;
+                    attr.SpeedDifficulty = 3;
+                    attr.OverallDifficulty = 3;
+                });
+            }
+
             addPackMedal(medal_id, pack_id, new[] { beatmap });
             assertNoneAwarded();
 
@@ -323,6 +343,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 s.Score.ScoreData.Mods = mods;
                 s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
             });
 
             if (expectAllowed)
