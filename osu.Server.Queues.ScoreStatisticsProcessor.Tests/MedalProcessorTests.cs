@@ -11,10 +11,13 @@ using osu.Game.Beatmaps;
 using osu.Game.Online.API;
 using osu.Game.Rulesets.Mania.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
+using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Taiko.Difficulty;
+using osu.Game.Utils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
@@ -47,44 +50,59 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// </summary>
         private static uint getNextBeatmapId() => (uint)Interlocked.Increment(ref lastBeatmapId);
 
+        public static readonly object[][] MEDAL_PACK_IDS =
+        {
+            [7, 40], // Normal pack
+            [267, 2036], // Challenge pack
+        };
+
         /// <summary>
         /// The medal processor should skip medals which have already been awarded.
         /// There are no medals which should trigger more than once.
         /// </summary>
-        [Fact]
-        public void TestOnlyAwardsOnce()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestOnlyAwardsOnce(int medalId, int packId)
         {
             var beatmap = AddBeatmap();
 
-            const int medal_id = 7;
-            const int pack_id = 40;
-
-            addPackMedal(medal_id, pack_id, new[] { beatmap });
+            addPackMedal(medalId, packId, new[] { beatmap });
+            setUpBeatmapsForPackMedal([beatmap]);
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
 
-            assertAwarded(medal_id);
+            assertAwarded(medalId);
 
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
-            assertAwarded(medal_id);
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
+            assertAwarded(medalId);
         }
 
         /// <summary>
         /// The pack awarder should skip scores that are failed.
         /// </summary>
-        [Fact]
-        public void TestDoesNotAwardOnFailedScores()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestDoesNotAwardOnFailedScores(int medalId, int packId)
         {
             var beatmap = AddBeatmap();
 
-            const int medal_id = 7;
-            const int pack_id = 40;
-
-            addPackMedal(medal_id, pack_id, new[] { beatmap });
+            addPackMedal(medalId, packId, new[] { beatmap });
 
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.passed = false);
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.passed = false;
+                s.Score.build_id = TestBuildID;
+            });
 
             assertNoneAwarded();
         }
@@ -92,16 +110,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// <summary>
         /// The pack awarder should skip scores that are failed.
         /// </summary>
-        [Fact]
-        public void TestPackMedalsDoNotIncludePreviousFails()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestPackMedalsDoNotIncludePreviousFails(int medalId, int packId)
         {
             var firstBeatmap = AddBeatmap(b => b.beatmap_id = 1234, s => s.beatmapset_id = 4321);
             var secondBeatmap = AddBeatmap(b => b.beatmap_id = 5678, s => s.beatmapset_id = 8765);
 
-            const int medal_id = 7;
-            const int pack_id = 40;
-
-            addPackMedal(medal_id, pack_id, new[] { firstBeatmap, secondBeatmap });
+            addPackMedal(medalId, packId, new[] { firstBeatmap, secondBeatmap });
+            setUpBeatmapsForPackMedal([firstBeatmap, secondBeatmap]);
 
             assertNoneAwarded();
 
@@ -109,6 +126,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 s.Score.passed = false;
                 s.Score.preserve = false;
+                s.Score.build_id = TestBuildID;
             });
             assertNoneAwarded();
 
@@ -116,6 +134,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 s.Score.passed = true;
                 s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
             });
             assertNoneAwarded();
         }
@@ -125,12 +144,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// This mimics the "video game" pack, but is intended to test the process rather than the
         /// content of that pack specifically.
         /// </summary>
-        [Fact]
-        public void TestSimplePack()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestSimplePack(int medalId, int packId)
         {
-            const int medal_id = 7;
-            const int pack_id = 40;
-
             var allBeatmaps = new[]
             {
                 AddBeatmap(b => b.beatmap_id = 71621, s => s.beatmapset_id = 13022),
@@ -149,7 +166,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 AddBeatmap(b => b.beatmap_id = 497769, s => s.beatmapset_id = 211704),
             };
 
-            addPackMedal(medal_id, pack_id, allBeatmaps);
+            addPackMedal(medalId, packId, allBeatmaps);
+            setUpBeatmapsForPackMedal(allBeatmaps);
 
             // Need to space out submissions else we will hit rate limits.
             int minutesOffset = -allBeatmaps.Length;
@@ -161,10 +179,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 {
                     s.Score.ended_at = DateTimeOffset.Now.AddMinutes(minutesOffset++);
                     s.Score.preserve = true;
+                    s.Score.build_id = TestBuildID;
                 });
             }
 
-            assertAwarded(medal_id);
+            assertAwarded(medalId);
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length, CancellationToken);
         }
@@ -174,11 +193,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// When checking whether we should award, there's a need group user's plays across a single set to avoid counting
         /// plays on different difficulties of the same beatmap twice.
         /// </summary>
-        [Fact]
-        public void TestPlayMultipleBeatmapsFromSameSetDoesNotAward()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestPlayMultipleBeatmapsFromSameSetDoesNotAward(int medalId, int packId)
         {
-            const int medal_id = 7;
-            const int pack_id = 40;
             const int beatmapset_id = 13022;
 
             List<Beatmap> beatmaps = new List<Beatmap>
@@ -202,42 +220,62 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             Assert.Equal(4, beatmaps.Count);
 
-            addPackMedal(medal_id, pack_id, beatmaps);
+            addPackMedal(medalId, packId, beatmaps);
+            setUpBeatmapsForPackMedal(beatmaps);
 
             foreach (var beatmap in beatmaps)
             {
                 assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.preserve = true);
+                SetScoreForBeatmap(beatmap.beatmap_id, s =>
+                {
+                    s.Score.preserve = true;
+                    s.Score.build_id = TestBuildID;
+                });
             }
 
             // Awarding should only happen after the final set is hit.
-            assertAwarded(medal_id);
+            assertAwarded(medalId);
         }
 
         /// <summary>
         /// We may have multiple scores in the database for a single user-beatmap combo.
         /// Only one should be counted.
         /// </summary>
-        [Fact]
-        public void TestPlayMultipleTimeOnSameSetDoesNotAward()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestPlayMultipleTimeOnSameSetDoesNotAward(int medalId, int packId)
         {
-            const int medal_id = 7;
-            const int pack_id = 40;
-
             var beatmap1 = AddBeatmap(b => b.beatmap_id = 71623, s => s.beatmapset_id = 13022);
             var beatmap2 = AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
 
-            addPackMedal(medal_id, pack_id, new[] { beatmap1, beatmap2 });
+            addPackMedal(medalId, packId, new[] { beatmap1, beatmap2 });
+            setUpBeatmapsForPackMedal([beatmap1, beatmap2]);
 
-            SetScoreForBeatmap(beatmap1.beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(beatmap1.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap1.beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(beatmap1.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
             assertNoneAwarded();
-            SetScoreForBeatmap(beatmap1.beatmap_id, s => s.Score.preserve = true);
+            SetScoreForBeatmap(beatmap1.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
             assertNoneAwarded();
 
-            SetScoreForBeatmap(beatmap2.beatmap_id, s => s.Score.preserve = true);
-            assertAwarded(medal_id);
+            SetScoreForBeatmap(beatmap2.beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
+            assertAwarded(medalId);
         }
 
         /// <summary>
@@ -263,35 +301,89 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             addPackMedal(medal_id, pack_id, allBeatmaps);
-
-            foreach (var beatmap in allBeatmaps)
-            {
-                assertNoneAwarded();
-                SetScoreForBeatmap(beatmap.beatmap_id, s =>
-                {
-                    s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModEasy()) };
-                    s.Score.preserve = true;
-                });
-            }
-
-            // Even after completing all beatmaps with easy mod, the pack medal is not awarded.
+            setUpBeatmapsForPackMedal(allBeatmaps);
             assertNoneAwarded();
 
-            foreach (var beatmap in allBeatmaps)
+            // Set passes without mods on all but the first map
+            foreach (var beatmap in allBeatmaps.Skip(1))
             {
-                assertNoneAwarded();
                 SetScoreForBeatmap(beatmap.beatmap_id, s =>
                 {
-                    s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()) };
                     s.Score.preserve = true;
+                    s.Score.build_id = TestBuildID;
                 });
+                assertNoneAwarded();
             }
 
-            // Only after completing each beatmap again without easy mod (double time arbitrarily added to mix things up)
-            // is the pack actually awarded.
+            // Pass the first map with Easy mod (difficulty reduction)
+            SetScoreForBeatmap(allBeatmaps[0].beatmap_id, s =>
+            {
+                s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModEasy()) };
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
+            assertNoneAwarded();
+
+            // Pass the first map without mods
+            SetScoreForBeatmap(allBeatmaps[0].beatmap_id, s =>
+            {
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
             assertAwarded(medal_id);
 
-            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length * 2, CancellationToken);
+            WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length + 1, CancellationToken);
+        }
+
+        public static readonly object[][] NO_REDUCTION_MODS_COMBINATIONS =
+        {
+            // No mods
+            [true, new APIMod[] { }],
+
+            // Difficulty increase
+            [true, new[] { new APIMod(new OsuModDoubleTime()) }],
+
+            // Difficulty reduction or automation
+            [false, new[] { new APIMod(new OsuModNoFail()) }],
+            [false, new[] { new APIMod(new OsuModRelax()) }],
+
+            // Mixed
+            [false, new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModEasy()) }],
+            [false, new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModAutopilot()) }],
+            [false, new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModClassic()) }],
+            [true, new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModTouchDevice()) }],
+
+            // Allowed base mod, but disallowed settings
+            [false, new[] { new APIMod(new OsuModDoubleTime { SpeedChange = { Value = 1.3 } }) }],
+        };
+
+        /// <summary>
+        /// Tests whether challenge pack medals are properly awarded with various mod combinations.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(NO_REDUCTION_MODS_COMBINATIONS))]
+        public void TestNoReductionModsPackWithSelectedMods(bool expectAllowed, APIMod[] mods)
+        {
+            const int medal_id = 267;
+            const int pack_id = 2036;
+
+            var beatmap = AddBeatmap();
+            setUpBeatmapsForPackMedal([beatmap], allModCombinations: true);
+
+            addPackMedal(medal_id, pack_id, new[] { beatmap });
+            assertNoneAwarded();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.ScoreData.Mods = mods;
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+            });
+
+            if (expectAllowed)
+                assertAwarded(medal_id);
+            else
+                assertNoneAwarded();
         }
 
         /// <summary>
@@ -755,6 +847,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 foreach (int setId in beatmaps.GroupBy(b => b.beatmapset_id).Select(g => g.Key))
                     db.Execute($"INSERT INTO osu_beatmappacks_items (pack_id, beatmapset_id) VALUES ({packId}, {setId})");
+            }
+        }
+
+        private void setUpBeatmapsForPackMedal(IEnumerable<Beatmap> beatmaps, bool allModCombinations = false)
+        {
+            // for optimisation reasons challenge packs depend on PP awarding.
+            // if a score has no PP awarded, it is presumed that it uses unranked mods, and as such is not considered for challenge packs.
+            // however, to make sure that ranked mods can give PP, difficulty attributes must be present in the database.
+            // therefore, add difficulty attributes for all mod combinations that give PP on stable to approximate this.
+            var workingBeatmap = new FlatWorkingBeatmap(new Game.Beatmaps.Beatmap());
+            var combinations = allModCombinations
+                ? new OsuRuleset().CreateDifficultyCalculator(workingBeatmap).CreateDifficultyAdjustmentModCombinations()
+                : [new ModNoMod()];
+
+            foreach (var beatmap in beatmaps)
+            {
+                foreach (var combination in combinations)
+                {
+                    AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, setup: attr =>
+                    {
+                        attr.Mods = ModUtils.FlattenMod(combination).ToArray();
+                        attr.AimDifficulty = 3;
+                        attr.SpeedDifficulty = 3;
+                        attr.OverallDifficulty = 3;
+                    });
+                }
             }
         }
 
