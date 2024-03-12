@@ -256,7 +256,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                     modsCriteria = @"AND json_search(data, 'one', 'EZ', null, '$.mods[*].acronym') IS NULL"
                                    + " AND json_search(data, 'one', 'NF', null, '$.mods[*].acronym') IS NULL"
                                    + " AND json_search(data, 'one', 'HT', null, '$.mods[*].acronym') IS NULL"
-                                   + " AND json_search(data, 'one', 'SO', null, '$.mods[*].acronym') IS NULL";
+                                   + " AND json_search(data, 'one', 'DC', null, '$.mods[*].acronym') IS NULL"
+                                   + " AND json_search(data, 'one', 'SO', null, '$.mods[*].acronym') IS NULL"
+                                   // this conditional's goal is to exclude plays with unranked mods from query.
+                                   // the reason why this is done in this roundabout way is that expressing the query in SQL is complicated otherwise,
+                                   // and materialising the collection of all scores to check this C#-side is likely to be prohibitively expensive.
+                                   + " AND s.pp IS NOT NULL";
                 }
 
                 // ensure the correct mode, if one is specified
