@@ -47,17 +47,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// </summary>
         private static uint getNextBeatmapId() => (uint)Interlocked.Increment(ref lastBeatmapId);
 
+        public static readonly object[][] MEDAL_PACK_IDS =
+        {
+            [7, 40], // Normal pack
+            [267, 2036], // Challenge pack
+        };
+
         /// <summary>
         /// The medal processor should skip medals which have already been awarded.
         /// There are no medals which should trigger more than once.
         /// </summary>
-        [Fact]
-        public void TestOnlyAwardsOnce()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestOnlyAwardsOnce(int medal_id, int pack_id)
         {
             var beatmap = AddBeatmap();
-
-            const int medal_id = 7;
-            const int pack_id = 40;
 
             addPackMedal(medal_id, pack_id, new[] { beatmap });
 
@@ -73,13 +77,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// <summary>
         /// The pack awarder should skip scores that are failed.
         /// </summary>
-        [Fact]
-        public void TestDoesNotAwardOnFailedScores()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestDoesNotAwardOnFailedScores(int medal_id, int pack_id)
         {
             var beatmap = AddBeatmap();
-
-            const int medal_id = 7;
-            const int pack_id = 40;
 
             addPackMedal(medal_id, pack_id, new[] { beatmap });
 
@@ -92,14 +94,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// <summary>
         /// The pack awarder should skip scores that are failed.
         /// </summary>
-        [Fact]
-        public void TestPackMedalsDoNotIncludePreviousFails()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestPackMedalsDoNotIncludePreviousFails(int medal_id, int pack_id)
         {
             var firstBeatmap = AddBeatmap(b => b.beatmap_id = 1234, s => s.beatmapset_id = 4321);
             var secondBeatmap = AddBeatmap(b => b.beatmap_id = 5678, s => s.beatmapset_id = 8765);
-
-            const int medal_id = 7;
-            const int pack_id = 40;
 
             addPackMedal(medal_id, pack_id, new[] { firstBeatmap, secondBeatmap });
 
@@ -125,12 +125,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// This mimics the "video game" pack, but is intended to test the process rather than the
         /// content of that pack specifically.
         /// </summary>
-        [Fact]
-        public void TestSimplePack()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestSimplePack(int medal_id, int pack_id)
         {
-            const int medal_id = 7;
-            const int pack_id = 40;
-
             var allBeatmaps = new[]
             {
                 AddBeatmap(b => b.beatmap_id = 71621, s => s.beatmapset_id = 13022),
@@ -174,11 +172,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// When checking whether we should award, there's a need group user's plays across a single set to avoid counting
         /// plays on different difficulties of the same beatmap twice.
         /// </summary>
-        [Fact]
-        public void TestPlayMultipleBeatmapsFromSameSetDoesNotAward()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestPlayMultipleBeatmapsFromSameSetDoesNotAward(int medal_id, int pack_id)
         {
-            const int medal_id = 7;
-            const int pack_id = 40;
             const int beatmapset_id = 13022;
 
             List<Beatmap> beatmaps = new List<Beatmap>
@@ -218,12 +215,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// We may have multiple scores in the database for a single user-beatmap combo.
         /// Only one should be counted.
         /// </summary>
-        [Fact]
-        public void TestPlayMultipleTimeOnSameSetDoesNotAward()
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestPlayMultipleTimeOnSameSetDoesNotAward(int medal_id, int pack_id)
         {
-            const int medal_id = 7;
-            const int pack_id = 40;
-
             var beatmap1 = AddBeatmap(b => b.beatmap_id = 71623, s => s.beatmapset_id = 13022);
             var beatmap2 = AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
 
