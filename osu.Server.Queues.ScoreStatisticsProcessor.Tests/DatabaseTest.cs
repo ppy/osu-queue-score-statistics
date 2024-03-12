@@ -11,6 +11,7 @@ using Dapper.Contrib.Extensions;
 using MySqlConnector;
 using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Beatmaps;
+using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
@@ -187,6 +188,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             setup?.Invoke(attribs);
 
+            var rulesetStore = new AssemblyRulesetStore();
+            var rulesetInfo = rulesetStore.GetRuleset(mode)!;
+            // `AssemblyRulesetStore` does not mark `Available = true` on the `RulesetInfo` instances it exposes
+            // even though they actually are.
+            // TODO: fix game-side, remove this once fixed
+            rulesetInfo.Available = true;
+            var ruleset = rulesetInfo.CreateInstance();
+
             using (var db = Processor.GetDatabaseConnection())
             {
                 foreach (var a in attribs.ToDatabaseAttributes())
@@ -195,7 +204,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     {
                         beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
                         mode = mode,
-                        mods = 0,
+                        mods = (uint)ruleset.ConvertToLegacyMods(attribs.Mods),
                         attrib_id = (ushort)a.attributeId,
                         value = Convert.ToSingle(a.value),
                     });
