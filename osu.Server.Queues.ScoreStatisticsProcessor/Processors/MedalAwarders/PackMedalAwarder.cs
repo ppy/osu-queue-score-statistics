@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Dapper;
 using JetBrains.Annotations;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
@@ -248,16 +249,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 if (!validPacksForBeatmapSet.Contains(packId))
                     return false;
 
-                string modsCriteria = string.Empty;
-                string rulesetCriteria = string.Empty;
-
-                if (noReductionMods)
-                {
-                    modsCriteria = @"AND json_search(data, 'one', 'EZ', null, '$.mods[*].acronym') IS NULL"
-                                   + " AND json_search(data, 'one', 'NF', null, '$.mods[*].acronym') IS NULL"
-                                   + " AND json_search(data, 'one', 'HT', null, '$.mods[*].acronym') IS NULL"
-                                   + " AND json_search(data, 'one', 'SO', null, '$.mods[*].acronym') IS NULL";
-                }
+                // TODO: no index on (s.beatmap_id, s.user_id) may mean this is too slow.
+                // note that the `preserve = 1` condition relies on the flag being set before score processing (https://github.com/ppy/osu-web/pull/10946).
+                string selectClauses =
+                    "FROM osu_beatmappacks_items p " +
+                    "JOIN osu_beatmaps b USING (beatmapset_id) " +
+                    "JOIN scores s USING (beatmap_id) " +
+                    "WHERE s.passed = 1 " +
+                    "AND s.preserve = 1 " +
+                    $"AND s.user_id = {context.Score.UserID} " +
+                    $"AND p.pack_id = {packId}";
 
                 // ensure the correct mode, if one is specified
                 int? packRulesetId = context.Connection.QuerySingle<int?>($"SELECT playmode FROM `osu_beatmappacks` WHERE pack_id = {packId}", transaction: context.Transaction);
@@ -267,17 +268,31 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                     if (context.Score.RulesetID != packRulesetId)
                         return false;
 
-                    rulesetCriteria = $"AND ruleset_id = {packRulesetId}";
+                    selectClauses += $" AND s.ruleset_id = {packRulesetId}";
                 }
 
-                // TODO: no index on (beatmap_id, user_id) may mean this is too slow.
-                // note that the `preserve = 1` condition relies on the flag being set before score processing (https://github.com/ppy/osu-web/pull/10946).
-                int completed = context.Connection.QuerySingle<int>(
-                    "SELECT COUNT(distinct p.beatmapset_id)"
-                    + "FROM osu_beatmappacks_items p "
-                    + "JOIN osu_beatmaps b USING (beatmapset_id) "
-                    + "JOIN scores s USING (beatmap_id)"
-                    + $"WHERE s.user_id = {context.Score.UserID} AND s.passed = 1 AND s.preserve = 1 AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: context.Transaction);
+                int completed;
+
+                if (noReductionMods)
+                {
+                    var scoresWithBeatmapsetId = context.Connection.Query(
+                        $"SELECT s.data, p.beatmapset_id {selectClauses}",
+                        (SoloScore score, uint beatmapsetId) => (score, beatmapsetId),
+                        transaction: context.Transaction,
+                        splitOn: "beatmapset_id");
+
+                    var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(context.Score.RulesetID);
+
+                    // Select the scores that don't use any difficulty reduction mods, then count the distinct beatmapset IDs
+                    completed = scoresWithBeatmapsetId
+                                .Where(s => s.score.ScoreData.Mods
+                                             .Select(m => m.ToMod(ruleset))
+                                             .All(m => !MedalHelpers.IsDifficultyReductionMod(m)))
+                                .DistinctBy(s => s.beatmapsetId)
+                                .Count();
+                }
+                else
+                    completed = context.Connection.QuerySingle<int>($"SELECT COUNT(DISTINCT p.beatmapset_id) {selectClauses}", transaction: context.Transaction);
 
                 int countForPack = context.Connection.QuerySingle<int>($"SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = {packId}", transaction: context.Transaction);
 
