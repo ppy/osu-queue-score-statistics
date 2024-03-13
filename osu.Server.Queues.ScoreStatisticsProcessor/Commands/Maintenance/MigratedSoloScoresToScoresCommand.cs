@@ -42,7 +42,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             await insertCommand.PrepareAsync(cancellationToken);
 
-            foreach (dynamic score in db.Query("SELECT * FROM solo_scores JOIN multiplayer_score_links_old ON (id = score_id)", buffered: false))
+            foreach (dynamic score in db.Query("SELECT * FROM solo_scores s JOIN multiplayer_score_links_old l ON (id = score_id and s.user_id = l.user_id)", buffered: false))
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
