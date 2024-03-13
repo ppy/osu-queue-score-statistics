@@ -32,7 +32,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 await deleteCommand.PrepareAsync(cancellationToken);
 
-                var scores = await readConnection.QueryAsync<SoloScore>(new CommandDefinition($"SELECT * FROM scores WHERE preserve = 0 AND updated_at < DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR)", flags: CommandFlags.None, cancellationToken: cancellationToken));
+                var scores = await readConnection.QueryAsync<SoloScore>(new CommandDefinition(
+                    $"SELECT * FROM scores WHERE preserve = 0 AND updated_at < DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR)", flags: CommandFlags.None, cancellationToken: cancellationToken));
 
                 foreach (var score in scores)
                 {
@@ -42,6 +43,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     Console.WriteLine($"Deleting score {score.id}...");
                     scoreId.Value = score.id;
                     await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+
+                    // TODO: check pins
 
                     if (score.has_replay)
                     {
