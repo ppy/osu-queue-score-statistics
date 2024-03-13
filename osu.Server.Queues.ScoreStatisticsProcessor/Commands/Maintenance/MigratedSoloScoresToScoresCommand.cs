@@ -22,8 +22,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             using var db = DatabaseAccess.GetConnection();
+            using var dbInsert = DatabaseAccess.GetConnection();
 
-            using var insertCommand = db.CreateCommand();
+            using var insertCommand = dbInsert.CreateCommand();
             insertCommand.CommandText =
                 "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`, `build_id`) VALUES (@user_id,  @ruleset_id, @beatmap_id, false, true, false, @rank, @passed, @accuracy, @max_combo, @total_score, @data, null, null, 0, @created_at, unix_timestamp(@created_at), @build_id)";
 
@@ -46,7 +47,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
-                Console.WriteLine($"Processing score {score.ID}...");
+                Console.WriteLine($"Processing score {score.id}...");
 
                 dynamic origData = JsonConvert.DeserializeObject(score.data);
 
@@ -61,14 +62,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 paramUserId.Value = score.user_id;
                 paramRulesetId.Value = score.ruleset_id;
                 paramBeatmapId.Value = score.beatmap_id;
-                paramRank.Value = origData.rank;
-                paramPassed.Value = origData.passed;
-                paramAccuracy.Value = origData.accuracy;
-                paramMaxCombo.Value = origData.max_combo;
-                paramTotalScore.Value = origData.total_score;
+                paramRank.Value = origData.rank.ToString();
+                paramPassed.Value = origData.passed == "True";
+                paramAccuracy.Value = (float)origData.accuracy;
+                paramMaxCombo.Value = (int)origData.max_combo;
+                paramTotalScore.Value = (int)origData.total_score;
                 paramData.Value = newData;
                 paramCreatedAt.Value = score.created_at;
-                paramBuildId.Value = origData.build_id;
+                paramBuildId.Value = (int)origData.build_id;
 
                 if (DryRun)
                 {
@@ -101,8 +102,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     await insertCommand.ExecuteNonQueryAsync(cancellationToken);
                     long insertId = insertCommand.LastInsertedId;
 
-                    await db.QuerySingleAsync<long>(
-                        "INSERT INTO multiplayer_score_links (user_id, playlist_item_id, score_id) VALUES (@userId, @playlistItemId, @scoreId);",
+                    long linkInsertId = await dbInsert.QuerySingleAsync<long>(
+                        "INSERT INTO multiplayer_score_links (user_id, playlist_item_id, score_id) VALUES (@userId, @playlistItemId, @scoreId); SELECT LAST_INSERT_ID();",
                         new
                         {
                             userId = score.user_id,
@@ -110,7 +111,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             scoreId = insertId,
                         });
 
-                    Console.WriteLine($"Inserted score {insertId}");
+                    Console.WriteLine($"Inserted score {insertId} link {linkInsertId}");
                 }
             }
 
