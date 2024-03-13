@@ -25,7 +25,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             using var insertCommand = db.CreateCommand();
             insertCommand.CommandText =
-                "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`, `build_id`) VALUES (@user_id,  @ruleset_id, @beatmap_id, false, true, false, @rank, @passed, @accuracy, @max_combo, @total_score, @data, null, null, null, @created_at, unix_timestamp(@created_at), @build_id)";
+                "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`, `build_id`) VALUES (@user_id,  @ruleset_id, @beatmap_id, false, true, false, @rank, @passed, @accuracy, @max_combo, @total_score, @data, null, null, 0, @created_at, unix_timestamp(@created_at), @build_id)";
 
             var paramUserId = insertCommand.Parameters.Add("user_id", DbType.UInt32);
             var paramRulesetId = insertCommand.Parameters.Add("ruleset_id", DbType.UInt16);
