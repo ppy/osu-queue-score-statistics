@@ -36,6 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         // ID of this score in the `scores` table. Used in join context.
         public ulong? new_id { get; set; }
+        public int? new_user_id { get; set; }
 
         // These come from osu_scores. If present, this is a non-high-score, ie. is sourced from the osu_scores table series.
         public byte[]? scorechecksum { get; set; }
