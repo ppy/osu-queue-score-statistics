@@ -19,6 +19,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
         public bool DryRun { get; set; }
 
+        /// <summary>
+        /// The score ID to start migrating from.
+        /// </summary>
+        [Option(CommandOptionType.SingleValue, Template = "--start-id")]
+        public ulong? StartId { get; set; }
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             using var db = DatabaseAccess.GetConnection();
@@ -42,7 +48,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             await insertCommand.PrepareAsync(cancellationToken);
 
-            foreach (dynamic score in db.Query("SELECT * FROM solo_scores s JOIN multiplayer_score_links_old l ON (id = score_id and s.user_id = l.user_id)", buffered: false))
+            string startFrom = StartId == null ? string.Empty : $" AND score_id >= {StartId}";
+
+            foreach (dynamic score in db.Query($"SELECT * FROM solo_scores s JOIN multiplayer_score_links_old l ON (id = score_id and s.user_id = l.user_id) {startFrom}", buffered: false))
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
