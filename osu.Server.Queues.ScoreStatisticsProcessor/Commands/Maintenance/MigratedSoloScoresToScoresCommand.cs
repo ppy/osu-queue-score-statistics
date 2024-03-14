@@ -59,13 +59,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 dynamic origData = JsonConvert.DeserializeObject(score.data);
 
-                string newData = JsonConvert.SerializeObject(new
-                {
-                    mods = origData.mods,
-                    statistics = origData.statistics,
-                    maximum_statistics = origData.maximum_statistics,
-                    migrated_solo_score_id = score.id,
-                });
+                string newData = JsonConvert.SerializeObject(origData.mods != null
+                    ? new
+                    {
+                        mods = origData.mods,
+                        statistics = origData.statistics,
+                        maximum_statistics = origData.maximum_statistics,
+                        migrated_solo_score_id = score.id,
+                    }
+                    : new
+                    {
+                        statistics = origData.statistics,
+                        maximum_statistics = origData.maximum_statistics,
+                        migrated_solo_score_id = score.id,
+                    });
 
                 paramUserId.Value = score.user_id;
                 paramRulesetId.Value = score.ruleset_id;
