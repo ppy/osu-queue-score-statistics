@@ -69,7 +69,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 paramTotalScore.Value = (int)origData.total_score;
                 paramData.Value = newData;
                 paramCreatedAt.Value = score.created_at;
-                paramBuildId.Value = (int)origData.build_id;
+                paramBuildId.Value = (int?)origData.build_id;
 
                 if (DryRun)
                 {
