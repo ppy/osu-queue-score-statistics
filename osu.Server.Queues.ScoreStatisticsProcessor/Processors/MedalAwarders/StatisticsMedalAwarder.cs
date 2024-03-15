@@ -1,5 +1,8 @@
 ﻿using JetBrains.Annotations;
 using System.Collections.Generic;
+using System.Linq;
+using osu.Game.Rulesets;
+using osu.Game.Rulesets.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
@@ -23,24 +26,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             var score = context.Score;
             var stats = context.UserStats;
 
+            Ruleset ruleset = ScoreStatisticsQueueProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.RulesetID);
+
+            // Automation mods should not count towards max combo statistic.
+            bool isAutomationMod = score.Mods.Select(m => m.ToMod(ruleset)).Any(m => m.Type == ModType.Automation);
+
             switch (medal.achievement_id)
             {
                 // osu!standard
                 // 500 Combo
                 case 1:
-                    return score.MaxCombo >= 500;
+                    return !isAutomationMod && score.MaxCombo >= 500;
 
                 // 750 Combo
                 case 3:
-                    return score.MaxCombo >= 750;
+                    return !isAutomationMod && score.MaxCombo >= 750;
 
                 // 1000 Combo
                 case 4:
-                    return score.MaxCombo >= 1000;
+                    return !isAutomationMod && score.MaxCombo >= 1000;
 
                 // 2000 Combo
                 case 5:
-                    return score.MaxCombo >= 2000;
+                    return !isAutomationMod && score.MaxCombo >= 2000;
 
                 // 5000 Plays
                 case 20:
