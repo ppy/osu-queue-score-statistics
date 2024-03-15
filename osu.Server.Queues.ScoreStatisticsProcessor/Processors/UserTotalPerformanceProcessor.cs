@@ -108,8 +108,49 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
 
             userStats.rank_score = (float)totalPp;
-            userStats.rank_score_index = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > {totalPp}", transaction: transaction)) + 1;
+            await updateGlobalRank(userStats, connection, transaction, dbInfo);
             userStats.accuracy_new = (float)totalAccuracy;
+        }
+
+        private static async Task updateGlobalRank(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
+        {
+            // User's current global rank.
+            userStats.rank_score_index = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > {userStats.rank_score}", transaction: transaction)) + 1;
+
+            // User's historical best rank (ever).
+            int userHistoricalHighestRank = await connection.QuerySingleOrDefaultAsync<int?>($"SELECT `rank` FROM `osu_user_performance_rank_highest` WHERE `user_id` = @userId AND `mode` = @mode",
+                new
+                {
+                    userId = userStats.user_id,
+                    mode = dbInfo.RulesetId
+                }, transaction) ?? 0;
+
+            if (userHistoricalHighestRank == 0 || userHistoricalHighestRank > userStats.rank_score_index)
+            {
+                await connection.ExecuteAsync($"REPLACE INTO `osu_user_performance_rank_highest` (`user_id`, `mode`, `rank`) VALUES (@userId, @mode, @rank)",
+                    new
+                    {
+                        userId = userStats.user_id,
+                        mode = dbInfo.RulesetId,
+                        rank = userStats.rank_score_index
+                    }, transaction);
+            }
+
+            // User's 90-day rolling rank history.
+            int todaysRankColumn = await connection.QuerySingleOrDefaultAsync<int?>(@"SELECT `count` FROM `osu_counts` WHERE `name` = @todaysRankColumn", new
+            {
+                dbInfo.TodaysRankColumn
+            }, transaction) ?? 0;
+
+            await connection.ExecuteAsync(
+                $"INSERT INTO `osu_user_performance_rank` (`user_id`, `mode`, `r{todaysRankColumn}`) VALUES (@userId, @mode, @rank) "
+                + $"ON DUPLICATE KEY UPDATE `r{todaysRankColumn}` = @rank",
+                new
+                {
+                    userId = userStats.user_id,
+                    mode = dbInfo.RulesetId,
+                    rank = userStats.rank_score_index
+                }, transaction);
         }
     }
 }
