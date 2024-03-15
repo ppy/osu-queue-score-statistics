@@ -39,28 +39,47 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
         private bool checkMedal(SoloScoreInfo score, Medal medal, Mod mod)
         {
-            return medal.achievement_id switch
+            switch (medal.achievement_id)
             {
                 // Sudden Death (Finality)
-                119 => mod is ModSuddenDeath,
+                case 119:
+                    return mod is ModSuddenDeath;
+
                 // Perfect (Perfectionist)
-                120 => mod is ModPerfect,
+                case 120:
+                    return mod is ModPerfect;
+
                 // Hard Rock (Rock Around The Clock)
-                121 => mod is ModHardRock,
+                case 121:
+                    return mod is ModHardRock;
+
                 // Double Time (Time And A Half)
-                122 => mod is ModDoubleTime,
+                case 122:
+                    return mod is ModDoubleTime;
+
                 // Nightcore (Sweet Rave Party)
-                123 => mod is ModNightcore,
+                case 123:
+                    return mod is ModNightcore;
+
                 // Hidden (Blindsight)
-                124 => mod is ModHidden,
+                case 124:
+                    return mod is ModHidden;
+
                 // Flashlight (Are You Afraid Of The Dark?)
-                125 => mod is ModFlashlight,
+                case 125:
+                    return mod is ModFlashlight;
+
                 // Easy (Dial It Right Back)
-                126 => mod is ModEasy,
+                case 126:
+                    return mod is ModEasy;
+
                 // No Fail (Risk Averse)
-                127 => mod is ModNoFail,
+                case 127:
+                    return mod is ModNoFail;
+
                 // Half Time (Slowboat)
-                128 => mod is ModHalfTime,
+                case 128:
+                    return mod is ModHalfTime;
 
                 // TODO: These medals are currently marked inoperable in osu-web-10.
                 //       It may be desirable to set these medals up for lazer.
@@ -68,12 +87,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 // 129 => mod is ModRelax,
                 // Autopilot
                 // 130 => mod is OsuModAutopilot,
-
                 // Spun Out (Burned Out)
-                131 => mod is OsuModSpunOut,
+                case 131:
+                    return mod is OsuModSpunOut;
 
-                _ => false
-            };
+                default:
+                    return false;
+            }
         }
 
         private bool isIgnoredForIntroductionMedal(Mod m)
