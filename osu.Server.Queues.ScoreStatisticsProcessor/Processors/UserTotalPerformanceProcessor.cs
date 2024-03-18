@@ -139,21 +139,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     }, transaction);
             }
 
-            // User's 90-day rolling rank history.
-            int todaysRankColumn = await connection.QuerySingleOrDefaultAsync<int?>(@"SELECT `count` FROM `osu_counts` WHERE `name` = @todaysRankColumn", new
-            {
-                dbInfo.TodaysRankColumn
-            }, transaction) ?? 0;
+            // Update user's 90-day rolling rank history for today.
+            // TODO: This doesn't need to be updated here. the osu-web graph always uses `rank_score_index` for the current day.
+            // TODO: code is left for now as it will need to be used in the future for daily processing purposes (once migrated from web-10).
 
-            await connection.ExecuteAsync(
-                $"INSERT INTO `osu_user_performance_rank` (`user_id`, `mode`, `r{todaysRankColumn}`) VALUES (@userId, @mode, @rank) "
-                + $"ON DUPLICATE KEY UPDATE `r{todaysRankColumn}` = @rank",
-                new
-                {
-                    userId = userStats.user_id,
-                    mode = dbInfo.RulesetId,
-                    rank = userStats.rank_score_index
-                }, transaction);
+            // int todaysRankColumn = await connection.QuerySingleOrDefaultAsync<int?>(@"SELECT `count` FROM `osu_counts` WHERE `name` = @todaysRankColumn", new
+            // {
+            //     dbInfo.TodaysRankColumn
+            // }, transaction) ?? 0;
+            //
+            // await connection.ExecuteAsync(
+            //     $"INSERT INTO `osu_user_performance_rank` (`user_id`, `mode`, `r{todaysRankColumn}`) VALUES (@userId, @mode, @rank) "
+            //     + $"ON DUPLICATE KEY UPDATE `r{todaysRankColumn}` = @rank",
+            //     new
+            //     {
+            //         userId = userStats.user_id,
+            //         mode = dbInfo.RulesetId,
+            //         rank = userStats.rank_score_index
+            //     }, transaction);
         }
     }
 }
