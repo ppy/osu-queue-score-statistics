@@ -421,7 +421,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
 
             await db.ExecuteAsync(stringBuilder.ToString());
-            await db.ExecuteAsync($"REPLACE INTO `osu_counts` (name, count) VALUES ('pp_rank_column_osu', 13)");
+            await db.ExecuteAsync("REPLACE INTO `osu_counts` (name, count) VALUES ('pp_rank_column_osu', 13)");
 
             var beatmap = AddBeatmap();
 
@@ -449,7 +449,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 mode = 0,
             });
 
-            await db.ExecuteAsync($"REPLACE INTO `osu_counts` (name, count) VALUES ('pp_rank_column_osu', 14)");
+            await db.ExecuteAsync("REPLACE INTO `osu_counts` (name, count) VALUES ('pp_rank_column_osu', 14)");
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
