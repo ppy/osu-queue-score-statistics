@@ -58,7 +58,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="userStats">An existing <see cref="UserStats"/> object to update with.</param>
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
-        public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
+        /// <param name="updateIndex">Whether to update the rank index / history / user highest rank statistics.</param>
+        public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null, bool updateIndex = true)
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
 
@@ -108,14 +109,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
 
             userStats.rank_score = (float)totalPp;
-            await updateGlobalRank(userStats, connection, transaction, dbInfo);
+            if (updateIndex)
+                await updateGlobalRank(userStats, connection, transaction, dbInfo);
             userStats.accuracy_new = (float)totalAccuracy;
         }
 
         private static async Task updateGlobalRank(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
         {
             // User's current global rank.
-            userStats.rank_score_index = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > {userStats.rank_score}", transaction: transaction)) + 1;
+            userStats.rank_score_index = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > {userStats.rank_score}", transaction: transaction))
+                                         + 1;
 
             // User's historical best rank (ever).
             int userHistoricalHighestRank = await connection.QuerySingleOrDefaultAsync<int?>("SELECT `rank` FROM `osu_user_performance_rank_highest` WHERE `user_id` = @userId AND `mode` = @mode",
