@@ -218,8 +218,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         {
             if (scoreStatisticsQueueProcessor != null)
             {
-                Debug.Assert(inserter.ElasticScoreItems.Any());
-
                 var scoreStatisticsItems = inserter.ScoreStatisticsItems.ToList();
 
                 if (scoreStatisticsItems.Any())
@@ -229,10 +227,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
                 }
             }
-            else if (elasticQueueProcessor != null)
-            {
-                Debug.Assert(!inserter.ScoreStatisticsItems.Any());
 
+            if (elasticQueueProcessor != null)
+            {
                 var elasticItems = inserter.ElasticScoreItems.ToList();
 
                 if (elasticItems.Any())
