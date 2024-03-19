@@ -468,10 +468,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     // on completion of PP processing, the score will be pushed to ES for indexing.
                     // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
                     // is not constructed anywhere before this...
-                    var score = await connection.QuerySingleAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id",
+                    var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id",
                         new { id = scoreId });
-                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id",
-                        new { id = scoreId });
+
+                    if (score == null)
+                    {
+                        // likely a deletion; already queued for ES above.
+                        continue;
+                    }
+
+                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id", new { id = scoreId });
+
                     ScoreStatisticsItems.Add(new ScoreItem(score, history));
                 }
             }
