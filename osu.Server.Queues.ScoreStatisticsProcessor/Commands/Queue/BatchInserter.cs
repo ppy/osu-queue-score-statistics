@@ -183,11 +183,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             StringBuilder insertBuilder = new StringBuilder(
                 "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
+            scores = scores.Where(score => !string.IsNullOrEmpty(score.InsertSql)).ToArray();
+
             foreach (var score in scores)
             {
-                if (string.IsNullOrEmpty(score.InsertSql))
-                    continue;
-
                 if (!first)
                     insertBuilder.Append(",");
                 first = false;
