@@ -277,7 +277,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void LegacyScoreDoesProcess()
+        public void LegacyScoreDoesNotProcess()
         {
             AddBeatmap();
             AddBeatmapAttributes<OsuDifficultyAttributes>();
@@ -291,7 +291,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL AND ranked = 1 AND preserve = 1", 1, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NULL AND ranked = 1 AND preserve = 1", 1, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });

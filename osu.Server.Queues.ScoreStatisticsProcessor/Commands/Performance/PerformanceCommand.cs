@@ -69,7 +69,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                     if (userStats == null)
                         return;
 
-                    await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db);
+                    await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, updateIndex: false);
                     await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
                 }
 
