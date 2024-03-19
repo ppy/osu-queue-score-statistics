@@ -448,6 +448,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 if (importLegacyPP)
                 {
+                    // TODO: this is queueing non-legacy scores for indexing unnecessarily.
+                    // consider querying first (as below in the `else`).
+
                     // we can proceed by pushing the score directly to ES for indexing.
                     ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
                     {
@@ -468,7 +471,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     // on completion of PP processing, the score will be pushed to ES for indexing.
                     // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
                     // is not constructed anywhere before this...
-                    var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id",
+                    var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id AND legacy_score_id IS NOT NULL",
                         new { id = scoreId });
 
                     if (score == null)
