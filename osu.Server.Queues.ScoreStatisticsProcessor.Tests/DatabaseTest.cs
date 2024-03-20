@@ -174,7 +174,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             using (var db = Processor.GetDatabaseConnection())
             {
                 db.Insert(beatmap);
-                db.Insert(beatmapSet);
+                if (db.QuerySingleOrDefault<int>("SELECT COUNT(1) FROM `osu_beatmapsets` WHERE `beatmapset_id` = @beatmapSetId", new { beatmapSetId = beatmapSet.beatmapset_id }) == 0)
+                    db.Insert(beatmapSet);
             }
 
             return beatmap;
