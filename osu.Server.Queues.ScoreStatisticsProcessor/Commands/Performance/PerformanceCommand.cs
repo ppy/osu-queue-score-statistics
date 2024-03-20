@@ -17,7 +17,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
     public abstract class PerformanceCommand
     {
         protected ScorePerformanceProcessor ScoreProcessor { get; private set; } = null!;
-        protected LegacyScorePerformanceProcessor LegacyScorePerformanceProcessor { get; private set; } = null!;
         protected UserTotalPerformanceProcessor TotalProcessor { get; private set; } = null!;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
@@ -29,7 +28,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
         public virtual async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             ScoreProcessor = new ScorePerformanceProcessor();
-            LegacyScorePerformanceProcessor = new LegacyScorePerformanceProcessor();
             TotalProcessor = new UserTotalPerformanceProcessor();
             return await ExecuteAsync(cancellationToken);
         }
@@ -94,10 +92,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
             await ProcessPartitioned(userIds, async userId =>
             {
                 using (var db = DatabaseAccess.GetConnection())
-                {
-                    var scores = await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
-                    await LegacyScorePerformanceProcessor.ProcessUserScoresAsync(scores, db);
-                }
+                    await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
 
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);

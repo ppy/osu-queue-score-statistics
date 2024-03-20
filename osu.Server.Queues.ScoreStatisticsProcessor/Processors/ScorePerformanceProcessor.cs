@@ -36,6 +36,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
+        private static readonly bool write_legacy_score_pp = Environment.GetEnvironmentVariable("WRITE_LEGACY_SCORE_PP") != "0";
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -56,7 +58,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="rulesetId">The ruleset for which scores should be processed.</param>
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
-        public async Task<SoloScore[]> ProcessUserScoresAsync(int userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
+        public async Task ProcessUserScoresAsync(int userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             var scores = (await connection.QueryAsync<SoloScore>("SELECT * FROM scores WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
             {
@@ -66,8 +68,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             foreach (SoloScore score in scores)
                 await ProcessScoreAsync(score, connection, transaction);
-
-            return scores;
         }
 
         /// <summary>
@@ -155,13 +155,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (performanceAttributes == null)
                     return;
 
-                score.PP = performanceAttributes.Total;
-
                 await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
                 {
                     ScoreId = score.ID,
-                    Pp = score.PP
+                    Pp = performanceAttributes.Total
                 }, transaction: transaction);
+
+                if (score.IsLegacyScore && write_legacy_score_pp)
+                {
+                    var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.RulesetID);
+                    await connection.ExecuteAsync($"UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
+                    {
+                        LegacyScoreId = score.LegacyScoreId,
+                        Pp = performanceAttributes.Total,
+                    }, transaction: transaction);
+                }
             }
             catch (Exception ex)
             {
