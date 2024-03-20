@@ -34,7 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnFailedScores => false;
 
-        public bool RunOnLegacyScores => true;
+        public bool RunOnLegacyScores => false;
 
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
@@ -127,26 +127,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 Beatmap? beatmap = await beatmapStore.GetBeatmapAsync((uint)score.BeatmapID, connection, transaction);
 
                 if (beatmap == null)
-                {
-                    await markNonRanked();
-
                     return;
-                }
 
                 if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, (uint)score.RulesetID))
-                {
-                    await markNonRanked();
                     return;
-                }
 
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.RulesetID);
                 Mod[] mods = score.Mods.Select(m => m.ToMod(ruleset)).ToArray();
 
                 if (!AllModsValidForPerformance(score, mods))
-                {
-                    await markNonRanked();
                     return;
-                }
 
                 APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
                 DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, connection, transaction);
@@ -154,25 +144,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 // Performance needs to be allowed for the build.
                 // legacy scores don't need a build id
                 if (score.LegacyScoreId == null && (score.BuildID == null || buildStore.GetBuild(score.BuildID.Value)?.allow_performance != true))
-                {
-                    await markNonRanked();
                     return;
-                }
 
                 if (difficultyAttributes == null)
-                {
-                    await markNonRanked();
                     return;
-                }
 
                 ScoreInfo scoreInfo = score.ToScoreInfo(mods, apiBeatmap);
                 PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
 
                 if (performanceAttributes == null)
-                {
-                    await markNonRanked();
                     return;
-                }
 
                 score.PP = performanceAttributes.Total;
 
@@ -185,15 +166,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             catch (Exception ex)
             {
                 await Console.Error.WriteLineAsync($"{score.ID} failed with: {ex}");
-            }
-
-            // TODO: this should probably just update the model once we switch to SoloScore (the local updated class).
-            Task<int> markNonRanked()
-            {
-                return connection.ExecuteAsync("UPDATE scores SET ranked = 0 WHERE id = @ScoreId", new
-                {
-                    ScoreId = score.ID,
-                }, transaction: transaction);
             }
         }
 

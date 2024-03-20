@@ -12,8 +12,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(DeleteNonPreservedScoresCommand))]
     [Subcommand(typeof(MarkNonPreservedScoresCommand))]
     [Subcommand(typeof(MigratePlaylistScoresToSoloScoresCommand))]
+    [Subcommand(typeof(MigrateSoloScoresCommand))]
     [Subcommand(typeof(VerifyImportedScoresCommand))]
     [Subcommand(typeof(DeleteImportedHighScoresCommand))]
+    [Subcommand(typeof(VerifyReplaysExistCommand))]
     public sealed class MaintenanceCommands
     {
         public Task<int> OnExecuteAsync(CommandLineApplication app, CancellationToken cancellationToken)

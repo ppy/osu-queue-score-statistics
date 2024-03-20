@@ -36,6 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
         public class RulesetDatabaseInfo
         {
+            public readonly int RulesetId;
             public readonly string UsersTable;
             public readonly string ScoreTable;
             public readonly string HighScoreTable;
@@ -44,9 +45,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             public readonly string ReplayTable;
             public readonly string LastProcessedPpUserCount;
             public readonly string LastProcessedPpScoreCount;
+            public readonly string TodaysRankColumn;
 
             public RulesetDatabaseInfo(int rulesetId, string rulesetIdentifier, bool legacySuffix)
             {
+                RulesetId = rulesetId;
+
                 string tableSuffix = legacySuffix ? $"_{rulesetIdentifier}" : string.Empty;
 
                 // If using the dumps, set this environment variable to "sample_users".
@@ -61,6 +65,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 ReplayTable = $"`{dbName}`.`osu_replays{tableSuffix}`";
                 LastProcessedPpUserCount = $"pp_last_user_id{tableSuffix}";
                 LastProcessedPpScoreCount = $"pp_last_score_id{tableSuffix}";
+                TodaysRankColumn = $"pp_rank_column_{rulesetIdentifier}";
             }
         }
 

@@ -103,7 +103,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         }
 
                         using (var conn = DatabaseAccess.GetConnection())
-                            conn.Execute("DELETE FROM scores WHERE id = @new_id", new { highScore.new_id });
+                        {
+                            conn.Execute("DELETE FROM score_pins WHERE score_type = 'solo_score' AND user_id = @new_user_id AND id = @new_id;"
+                                         + "DELETE FROM scores WHERE id = @new_id", new
+                            {
+                                highScore.new_id,
+                                highScore.new_user_id,
+                            });
+                        }
+
                         ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)highScore.new_id });
 
                         Interlocked.Increment(ref TotalDeleteCount);
@@ -175,11 +183,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             StringBuilder insertBuilder = new StringBuilder(
                 "INSERT INTO scores (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, `ended_at`, `unix_updated_at`) VALUES ");
 
+            scores = scores.Where(score => !string.IsNullOrEmpty(score.InsertSql)).ToArray();
+
             foreach (var score in scores)
             {
-                if (string.IsNullOrEmpty(score.InsertSql))
-                    continue;
-
                 if (!first)
                     insertBuilder.Append(",");
                 first = false;
@@ -440,6 +447,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 if (importLegacyPP)
                 {
+                    // TODO: this is queueing non-legacy scores for indexing unnecessarily.
+                    // consider querying first (as below in the `else`).
+
                     // we can proceed by pushing the score directly to ES for indexing.
                     ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
                     {
@@ -460,10 +470,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     // on completion of PP processing, the score will be pushed to ES for indexing.
                     // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
                     // is not constructed anywhere before this...
-                    var score = await connection.QuerySingleAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id",
+                    var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id AND legacy_score_id IS NOT NULL",
                         new { id = scoreId });
-                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id",
-                        new { id = scoreId });
+
+                    if (score == null)
+                    {
+                        // likely a deletion; already queued for ES above.
+                        continue;
+                    }
+
+                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id", new { id = scoreId });
+
                     ScoreStatisticsItems.Add(new ScoreItem(score, history));
                 }
             }

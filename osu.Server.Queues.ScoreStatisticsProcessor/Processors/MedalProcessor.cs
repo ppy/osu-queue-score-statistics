@@ -11,6 +11,7 @@ using MySqlConnector;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -43,12 +44,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
+        // This processor needs to run after the play count and hit statistics have been applied, at very least.
+        public int Order => int.MaxValue;
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
 
         public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
+            if (score.Beatmap!.Status <= 0)
+                return;
+
             int[] alreadyAchieved = conn.Query<int>("SELECT achievement_id FROM osu_user_achievements WHERE user_id = @userId", new
             {
                 userId = score.UserID
@@ -59,15 +66,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                                          .Where(m => !alreadyAchieved.Contains(m.achievement_id))
                                          .ToArray();
 
+            var beatmapStore = BeatmapStore.CreateAsync(conn, transaction).Result;
+            var context = new MedalAwarderContext(score, userStats, beatmapStore, conn, transaction);
+
             foreach (var awarder in medal_awarders)
             {
                 if (!score.Passed && !awarder.RunOnFailedScores)
                     continue;
 
-                foreach (var awardedMedal in awarder.Check(score, availableMedalsForUser, conn, transaction))
+                foreach (var awardedMedal in awarder.Check(availableMedalsForUser, context))
                 {
                     awardMedal(score, awardedMedal);
-                    break;
                 }
             }
         }

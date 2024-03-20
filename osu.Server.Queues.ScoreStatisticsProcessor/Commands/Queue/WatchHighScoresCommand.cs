@@ -2,7 +2,6 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -127,7 +126,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     HighScore[] highScores = (await dbMainQuery.QueryAsync<HighScore>(
-                                                 "SELECT q.*, h.*, s.id as new_id FROM osu.score_process_queue q "
+                                                 "SELECT q.*, h.*, s.id as new_id, s.user_id as new_user_id FROM osu.score_process_queue q "
                                                  + $"LEFT JOIN {highScoreTable} h USING (score_id) "
                                                  + $"LEFT JOIN scores s ON q.score_id = s.legacy_score_id AND s.ruleset_id = {RulesetId} "
                                                  + $"WHERE queue_id >= @lastQueueId AND mode = {RulesetId} ORDER BY queue_id LIMIT 50", new
@@ -203,7 +202,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                     pushCompletedScoreToQueue(inserter);
 
-                    var lastScoreId = highScores.Last().score_id;
+                    ulong lastScoreId = highScores.Last().score_id;
                     lastQueueId = highScores.Max(score => score.queue_id!.Value);
                     Console.WriteLine($"Workers processed up to (score_id: {lastScoreId} queue_id: {lastQueueId})");
                     lastQueueId++;
@@ -218,8 +217,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         {
             if (scoreStatisticsQueueProcessor != null)
             {
-                Debug.Assert(inserter.ElasticScoreItems.Any());
-
                 var scoreStatisticsItems = inserter.ScoreStatisticsItems.ToList();
 
                 if (scoreStatisticsItems.Any())
@@ -229,10 +226,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
                 }
             }
-            else if (elasticQueueProcessor != null)
-            {
-                Debug.Assert(!inserter.ScoreStatisticsItems.Any());
 
+            if (elasticQueueProcessor != null)
+            {
                 var elasticItems = inserter.ElasticScoreItems.ToList();
 
                 if (elasticItems.Any())

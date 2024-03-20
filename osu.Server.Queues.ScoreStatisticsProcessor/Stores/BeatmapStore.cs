@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
@@ -167,6 +168,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
 
         private record struct DifficultyAttributeKey(uint BeatmapId, uint RulesetId, uint ModValue);
 
+        [SuppressMessage("ReSharper", "NotAccessedPositionalProperty.Local")]
         private record struct BlacklistEntry(uint BeatmapId, uint RulesetId);
     }
 }

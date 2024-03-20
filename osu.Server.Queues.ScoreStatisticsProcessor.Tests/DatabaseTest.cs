@@ -10,6 +10,7 @@ using Dapper.Contrib.Extensions;
 using MySqlConnector;
 using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Beatmaps;
+using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
@@ -63,6 +64,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
                 db.Execute("TRUNCATE TABLE osu_beatmaps");
                 db.Execute("TRUNCATE TABLE osu_beatmapsets");
+                db.Execute("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
 
                 // These tables are still views for now (todo osu-web plz).
                 db.Execute("DELETE FROM scores");
@@ -72,6 +74,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");
 
                 TestBuildID = db.QuerySingle<ushort>("INSERT INTO osu_builds (version, allow_performance) VALUES ('1.0.0', 1); SELECT LAST_INSERT_ID();");
+
+                db.Execute("TRUNCATE TABLE `osu_user_performance_rank`");
+                db.Execute("TRUNCATE TABLE `osu_user_performance_rank_highest`");
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
@@ -174,7 +179,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             return beatmap;
         }
 
-        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null)
+        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null, ushort mode = 0)
             where TDifficultyAttributes : DifficultyAttributes, new()
         {
             var attribs = new TDifficultyAttributes
@@ -185,6 +190,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             setup?.Invoke(attribs);
 
+            var rulesetStore = new AssemblyRulesetStore();
+            var rulesetInfo = rulesetStore.GetRuleset(mode)!;
+            // `AssemblyRulesetStore` does not mark `Available = true` on the `RulesetInfo` instances it exposes
+            // even though they actually are.
+            // TODO: fix game-side, remove this once fixed
+            rulesetInfo.Available = true;
+            var ruleset = rulesetInfo.CreateInstance();
+
             using (var db = Processor.GetDatabaseConnection())
             {
                 foreach (var a in attribs.ToDatabaseAttributes())
@@ -192,8 +205,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     db.Insert(new BeatmapDifficultyAttribute
                     {
                         beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
-                        mode = 0,
-                        mods = 0,
+                        mode = mode,
+                        mods = (uint)ruleset.ConvertToLegacyMods(attribs.Mods),
                         attrib_id = (ushort)a.attributeId,
                         value = Convert.ToSingle(a.value),
                     });
