@@ -74,6 +74,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("REPLACE INTO osu_counts (name, count) VALUES ('playcount', 0)");
 
                 TestBuildID = db.QuerySingle<ushort>("INSERT INTO osu_builds (version, allow_performance) VALUES ('1.0.0', 1); SELECT LAST_INSERT_ID();");
+
+                db.Execute("TRUNCATE TABLE `osu_user_performance_rank`");
+                db.Execute("TRUNCATE TABLE `osu_user_performance_rank_highest`");
             }
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);

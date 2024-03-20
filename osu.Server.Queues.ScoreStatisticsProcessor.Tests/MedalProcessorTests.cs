@@ -729,9 +729,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             assertAwarded(medal_id);
         }
 
-        /// <summary>
-        /// This tests the osu!standard combo-based medals.
-        /// </summary>
+        [Fact]
+        public void TestComboMedalsNotGivenOnRelaxMod()
+        {
+            const int medal_id = 1;
+
+            var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
+
+            addMedal(medal_id);
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.max_combo = 500;
+                s.Score.ScoreData.Mods = new[]
+                {
+                    new APIMod(new OsuModRelax()),
+                };
+            });
+            assertNoneAwarded();
+        }
+
         [Theory]
         [InlineData(BeatmapOnlineStatus.Graveyard)]
         [InlineData(BeatmapOnlineStatus.WIP)]

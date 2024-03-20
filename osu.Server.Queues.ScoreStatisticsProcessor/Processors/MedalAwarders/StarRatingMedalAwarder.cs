@@ -90,16 +90,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             if (checkMedalRange(87, medal.achievement_id, starRating))
                 return true;
 
-            return medal.achievement_id switch
+            switch (medal.achievement_id)
             {
                 // osu!standard
                 // 9 stars (Event Horizon)
-                242 => checkStarRating(starRating, 9),
-                // 10 stars (Phantasm)
-                244 => checkStarRating(starRating, 10),
+                case 242:
+                    return checkStarRating(starRating, 9);
 
-                _ => false
-            };
+                // 10 stars (Phantasm)
+                case 244:
+                    return checkStarRating(starRating, 10);
+
+                default:
+                    return false;
+            }
         }
 
         private bool checkMedalFc(SoloScoreInfo score, Medal medal, double starRating)
@@ -121,16 +125,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             if (checkMedalRange(111, medal.achievement_id, starRating))
                 return true;
 
-            return medal.achievement_id switch
+            switch (medal.achievement_id)
             {
                 // osu!standard
                 // 9 stars (Chosen)
-                243 => checkStarRating(starRating, 9),
-                // 10 stars (Unfathomable)
-                245 => checkStarRating(starRating, 10),
+                case 243:
+                    return checkStarRating(starRating, 9);
 
-                _ => false
-            };
+                // 10 stars (Unfathomable)
+                case 245:
+                    return checkStarRating(starRating, 10);
+
+                default:
+                    return false;
+            }
         }
 
         // Checks for medals in a 1-8* range, which tend to be sequential IDs
