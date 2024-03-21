@@ -29,6 +29,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             using (var db = Processor.GetDatabaseConnection())
             {
+                db.Execute("TRUNCATE TABLE osu_scores_high");
                 db.Execute("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
             }
         }
@@ -282,6 +283,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AddBeatmap();
             AddBeatmapAttributes<OsuDifficultyAttributes>();
 
+            using (MySqlConnection conn = Processor.GetDatabaseConnection())
+                conn.Execute("INSERT INTO osu_scores_high (score_id, user_id) VALUES (1, 0)");
+
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
                 score.Score.ScoreData.Statistics[HitResult.Great] = 100;
@@ -292,6 +296,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
 
             WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NULL AND ranked = 1 AND preserve = 1", 1, CancellationToken, new
+            {
+                ScoreId = score.Score.id
+            });
+
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_scores_high WHERE score_id = 1 AND pp IS NOT NULL", 1, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });

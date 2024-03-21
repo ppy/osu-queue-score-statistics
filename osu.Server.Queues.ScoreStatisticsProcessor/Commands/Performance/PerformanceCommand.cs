@@ -93,6 +93,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
             {
                 using (var db = DatabaseAccess.GetConnection())
                     await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
+
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
         }

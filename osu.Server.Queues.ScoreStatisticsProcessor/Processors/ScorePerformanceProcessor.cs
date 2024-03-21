@@ -36,6 +36,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
+        private static readonly bool write_legacy_score_pp = Environment.GetEnvironmentVariable("WRITE_LEGACY_SCORE_PP") != "0";
+
         public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -158,6 +160,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     ScoreId = score.ID,
                     Pp = performanceAttributes.Total
                 }, transaction: transaction);
+
+                if (score.IsLegacyScore && write_legacy_score_pp)
+                {
+                    var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.RulesetID);
+                    await connection.ExecuteAsync($"UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
+                    {
+                        LegacyScoreId = score.LegacyScoreId,
+                        Pp = performanceAttributes.Total,
+                    }, transaction: transaction);
+                }
             }
             catch (Exception ex)
             {
