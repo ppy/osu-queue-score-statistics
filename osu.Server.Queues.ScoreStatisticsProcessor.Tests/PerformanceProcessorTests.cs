@@ -1,6 +1,8 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Text;
+using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
@@ -27,6 +29,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             using (var db = Processor.GetDatabaseConnection())
             {
+                db.Execute("TRUNCATE TABLE osu_scores_high");
                 db.Execute("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
             }
         }
@@ -275,10 +278,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void LegacyScoreDoesProcess()
+        public void LegacyScoreDoesNotProcess()
         {
             AddBeatmap();
             AddBeatmapAttributes<OsuDifficultyAttributes>();
+
+            using (MySqlConnection conn = Processor.GetDatabaseConnection())
+                conn.Execute("INSERT INTO osu_scores_high (score_id, user_id) VALUES (1, 0)");
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -289,7 +295,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL AND ranked = 1 AND preserve = 1", 1, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NULL AND ranked = 1 AND preserve = 1", 1, CancellationToken, new
+            {
+                ScoreId = score.Score.id
+            });
+
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_scores_high WHERE score_id = 1 AND pp IS NOT NULL", 1, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });
@@ -342,6 +353,123 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NULL", 1, CancellationToken, new
             {
                 ScoreId = score.Score.id
+            });
+        }
+
+        [Theory]
+        [InlineData(null, 799)]
+        [InlineData(0, 799)]
+        [InlineData(850, 799)]
+        [InlineData(150, 150)]
+        public async Task UserHighestRankUpdates(int? highestRankBefore, int highestRankAfter)
+        {
+            // simulate fake users to beat as we climb up ranks.
+            // this is going to be a bit of a chonker query...
+            using var db = Processor.GetDatabaseConnection();
+
+            var stringBuilder = new StringBuilder();
+
+            stringBuilder.Append("INSERT INTO osu_user_stats (`user_id`, `rank_score`, `rank_score_index`, "
+                                 + "`accuracy_total`, `accuracy_count`, `accuracy`, `accuracy_new`, `playcount`, `ranked_score`, `total_score`, "
+                                 + "`x_rank_count`, `xh_rank_count`, `s_rank_count`, `sh_rank_count`, `a_rank_count`, `rank`, `level`) VALUES ");
+
+            for (int i = 0; i < 1000; ++i)
+            {
+                if (i > 0)
+                    stringBuilder.Append(',');
+
+                stringBuilder.Append($"({1000 + i}, {1000 - i}, {i}, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)");
+            }
+
+            await db.ExecuteAsync(stringBuilder.ToString());
+
+            if (highestRankBefore != null)
+            {
+                await db.ExecuteAsync("INSERT INTO `osu_user_performance_rank_highest` (`user_id`, `mode`, `rank`) VALUES (@userId, @mode, @rank)", new
+                {
+                    userId = 2,
+                    mode = 0,
+                    rank = highestRankBefore.Value,
+                });
+            }
+
+            var beatmap = AddBeatmap();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 200; // ~202 pp total, including bonus pp
+            });
+
+            WaitForDatabaseState("SELECT `rank` FROM `osu_user_performance_rank_highest` WHERE `user_id` = @userId AND `mode` = @mode", highestRankAfter, CancellationToken, new
+            {
+                userId = 2,
+                mode = 0,
+            });
+        }
+
+        [Fact]
+        public async Task UserDailyRankUpdates()
+        {
+            // simulate fake users to beat as we climb up ranks.
+            // this is going to be a bit of a chonker query...
+            using var db = Processor.GetDatabaseConnection();
+
+            var stringBuilder = new StringBuilder();
+
+            stringBuilder.Append("INSERT INTO osu_user_stats (`user_id`, `rank_score`, `rank_score_index`, "
+                                 + "`accuracy_total`, `accuracy_count`, `accuracy`, `accuracy_new`, `playcount`, `ranked_score`, `total_score`, "
+                                 + "`x_rank_count`, `xh_rank_count`, `s_rank_count`, `sh_rank_count`, `a_rank_count`, `rank`, `level`) VALUES ");
+
+            for (int i = 0; i < 1000; ++i)
+            {
+                if (i > 0)
+                    stringBuilder.Append(',');
+
+                stringBuilder.Append($"({1000 + i}, {1000 - i}, {i}, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)");
+            }
+
+            await db.ExecuteAsync(stringBuilder.ToString());
+            await db.ExecuteAsync("REPLACE INTO `osu_counts` (name, count) VALUES ('pp_rank_column_osu', 13)");
+
+            var beatmap = AddBeatmap();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 200; // ~202 pp total, including bonus pp
+            });
+
+            WaitForDatabaseState("SELECT `r13` FROM `osu_user_performance_rank` WHERE `user_id` = @userId AND `mode` = @mode", 799, CancellationToken, new
+            {
+                userId = 2,
+                mode = 0,
+            });
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 400; // ~404 pp total, including bonus pp
+            });
+
+            WaitForDatabaseState("SELECT `r13` FROM `osu_user_performance_rank` WHERE `user_id` = @userId AND `mode` = @mode", 597, CancellationToken, new
+            {
+                userId = 2,
+                mode = 0,
+            });
+
+            await db.ExecuteAsync("REPLACE INTO `osu_counts` (name, count) VALUES ('pp_rank_column_osu', 14)");
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 600; // ~606 pp total, including bonus pp
+            });
+
+            WaitForDatabaseState("SELECT `r13`, `r14` FROM `osu_user_performance_rank` WHERE `user_id` = @userId AND `mode` = @mode", (597, 395), CancellationToken, new
+            {
+                userId = 2,
+                mode = 0,
             });
         }
 

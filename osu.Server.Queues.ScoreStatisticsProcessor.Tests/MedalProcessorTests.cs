@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using Dapper;
 using Dapper.Contrib.Extensions;
@@ -724,9 +725,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AssertSingleMedalAwarded(medal_id);
         }
 
-        /// <summary>
-        /// This tests the osu!standard combo-based medals.
-        /// </summary>
+        [Fact]
+        public void TestComboMedalsNotGivenOnRelaxMod()
+        {
+            const int medal_id = 1;
+
+            var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
+
+            addMedal(medal_id);
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.max_combo = 500;
+                s.Score.ScoreData.Mods = new[]
+                {
+                    new APIMod(new OsuModRelax()),
+                };
+            });
+            assertNoneAwarded();
+        }
+
         [Theory]
         [InlineData(BeatmapOnlineStatus.Graveyard)]
         [InlineData(BeatmapOnlineStatus.WIP)]
@@ -824,6 +841,72 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             // After we pass the map again, key count reaches 40000, the medal should be awarded.
             AssertSingleMedalAwarded(medal_id);
+        }
+
+        [Fact]
+        public void TestRankMilestoneMedal()
+        {
+            addMedal(50);
+            addMedal(51);
+            addMedal(52);
+            addMedal(53);
+
+            // simulate fake users to beat as we climb up ranks.
+            // this is going to be a bit of a chonker query...
+            using var db = Processor.GetDatabaseConnection();
+
+            var stringBuilder = new StringBuilder();
+
+            stringBuilder.Append("INSERT INTO osu_user_stats (`user_id`, `rank_score`, `rank_score_index`, "
+                                 + "`accuracy_total`, `accuracy_count`, `accuracy`, `accuracy_new`, `playcount`, `ranked_score`, `total_score`, "
+                                 + "`x_rank_count`, `xh_rank_count`, `s_rank_count`, `sh_rank_count`, `a_rank_count`, `rank`, `level`) VALUES ");
+
+            for (int i = 0; i < 100000; ++i)
+            {
+                if (i > 0)
+                    stringBuilder.Append(',');
+
+                stringBuilder.Append($"({1000 + i}, {100000 - i}, {i}, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)");
+            }
+
+            db.Execute(stringBuilder.ToString());
+
+            var beatmap = AddBeatmap();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 25000; // ~25002 pp total, including bonus pp => rank above 75k
+            });
+            assertNoneAwarded();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 50000; // ~50004 pp total, including bonus pp => rank above 50k
+            });
+            assertAwarded(50);
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 90000; // ~90006 pp total, including bonus pp => rank above 10k
+            });
+            assertAwarded(51);
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 95000; // ~95008 pp total, including bonus pp => rank above 5k
+            });
+            assertAwarded(52);
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 99000; // ~990010 pp total, including bonus pp => rank above 1k
+            });
+            assertAwarded(53);
         }
 
         private void addMedal(int medalId)

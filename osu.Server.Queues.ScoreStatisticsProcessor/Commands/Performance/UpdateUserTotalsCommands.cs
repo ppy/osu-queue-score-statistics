@@ -11,6 +11,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
     [Command("user-totals", Description = "Updates user total PP values.")]
     [Subcommand(typeof(UpdateAllUserTotalsCommand))]
     [Subcommand(typeof(UpdateUserTotalsForUsersCommand))]
+    [Subcommand(typeof(UpdateUserTotalsFromSqlCommand))]
     public sealed class UpdateUserTotalsCommands
     {
         public Task<int> OnExecuteAsync(CommandLineApplication app, CancellationToken cancellationToken)
