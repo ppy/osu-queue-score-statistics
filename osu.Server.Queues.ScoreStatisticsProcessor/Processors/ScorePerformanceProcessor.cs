@@ -161,6 +161,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     Pp = performanceAttributes.Total
                 }, transaction: transaction);
 
+                // for the following code to take effect, `RunOnLegacyScores` must also be true (currently is false).
                 if (score.IsLegacyScore && write_legacy_score_pp)
                 {
                     var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.RulesetID);
