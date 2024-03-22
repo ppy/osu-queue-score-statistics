@@ -278,7 +278,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact(Skip = "ScorePerformanceProcessor is disabled for legacy scores for now: https://github.com/ppy/osu-queue-score-statistics/pull/212#issuecomment-2011297448.")]
-        public void LegacyScoreDoesNotProcess()
+        public void LegacyScoreIsProcessedAndPpIsWrittenBackToLegacyTables()
         {
             AddBeatmap();
             AddBeatmapAttributes<OsuDifficultyAttributes>();
