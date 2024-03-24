@@ -229,7 +229,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                                      + "`passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, "
                                      + "`started_at`, `ended_at`, `build_id`) VALUES ");
 
-                const string scoreData = @"{""mods"": [], ""statistics"": {""perfect"": 5, ""large_bonus"": 0}, ""maximum_statistics"": {""perfect"": 5, ""large_bonus"": 2}}";
+                const string score_data = @"{""mods"": [], ""statistics"": {""perfect"": 5, ""large_bonus"": 0}, ""maximum_statistics"": {""perfect"": 5, ""large_bonus"": 2}}";
                 var endedAt = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
                 // 4k scores
@@ -238,21 +238,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     if (i > 0)
                         stringBuilder.Append(',');
 
-                    stringBuilder.Append($"(2, 3, {beatmapMania4K.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{scoreData}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
+                    stringBuilder.Append($"(2, 3, {beatmapMania4K.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{score_data}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
                 }
 
                 // 7k scores
                 for (int i = 0; i < 30; ++i)
                 {
                     stringBuilder.Append(',');
-                    stringBuilder.Append($"(2, 3, {beatmapMania7K.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{scoreData}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
+                    stringBuilder.Append($"(2, 3, {beatmapMania7K.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{score_data}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
                 }
 
                 // osu! scores
                 for (int i = 0; i < 50; ++i)
                 {
                     stringBuilder.Append(',');
-                    stringBuilder.Append($"(2, 0, {beatmapOsu.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{scoreData}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
+                    stringBuilder.Append($"(2, 0, {beatmapOsu.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{score_data}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
                 }
 
                 db.Execute(stringBuilder.ToString());

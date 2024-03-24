@@ -49,7 +49,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             // this should really not be necessary, but there is no real good way to expose the value of `preserve` *inside* a processor
             // as it does not have access to the raw database row anymore...
-            bool preserve = conn.QuerySingle<bool>($"SELECT `preserve` FROM `scores` WHERE `id` = @id", new { id = score.ID }, transaction);
+            bool preserve = conn.QuerySingle<bool>("SELECT `preserve` FROM `scores` WHERE `id` = @id", new { id = score.ID }, transaction);
 
             if (preserve || existingRow == null)
             {
