@@ -225,7 +225,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 // this is because we wish to exercise the initial estimation logic, which will only run the first time round.
                 var stringBuilder = new StringBuilder();
 
-                stringBuilder.Append("INSERT INTO `scores` (`user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, "
+                stringBuilder.Append("INSERT INTO `scores` (`id`, `user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, `rank`, "
                                      + "`passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, "
                                      + "`started_at`, `ended_at`, `build_id`) VALUES ");
 
@@ -238,21 +238,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     if (i > 0)
                         stringBuilder.Append(',');
 
-                    stringBuilder.Append($"(2, 3, {beatmapMania4K.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{score_data}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
+                    stringBuilder.Append($"({i + 1}, 2, 3, {beatmapMania4K.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{score_data}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
                 }
 
                 // 7k scores
                 for (int i = 0; i < 30; ++i)
                 {
                     stringBuilder.Append(',');
-                    stringBuilder.Append($"(2, 3, {beatmapMania7K.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{score_data}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
+                    stringBuilder.Append($"({i + 20}, 2, 3, {beatmapMania7K.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{score_data}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
                 }
 
                 // osu! scores
                 for (int i = 0; i < 50; ++i)
                 {
                     stringBuilder.Append(',');
-                    stringBuilder.Append($"(2, 0, {beatmapOsu.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{score_data}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
+                    stringBuilder.Append($"({i + 50}, 2, 0, {beatmapOsu.beatmap_id}, 0, 1, 1, 'S', 1, 1, 100, 1000000, '{score_data}', NULL, NULL, 0, '{endedAt:O}', '{endedAt:O}', NULL)");
                 }
 
                 db.Execute(stringBuilder.ToString());
@@ -268,6 +268,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(beatmapMania4K.beatmap_id, s =>
             {
+                s.Score.id = 100;
                 s.Score.ranked = s.Score.preserve = true;
                 s.Score.ruleset_id = 3;
             });
