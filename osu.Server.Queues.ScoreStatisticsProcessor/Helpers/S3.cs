@@ -10,6 +10,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     public static class S3
     {
+        public const string REPLAYS_BUCKET = "score-replays";
+
         public static AmazonS3Client GetClient(RegionEndpoint? endpoint = null)
         {
             string s3Key = Environment.GetEnvironmentVariable("S3_KEY") ?? throw new InvalidOperationException("S3_KEY must be specified.");

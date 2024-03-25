@@ -78,7 +78,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     try
                     {
                         // check the replay is available on s3.
-                        _ = await s3.GetObjectMetadataAsync("score-replays", score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+                        _ = await s3.GetObjectMetadataAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
                     }
                     catch (AmazonS3Exception ex)
                     {
