@@ -79,7 +79,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     continue;
                 }
 
-                if (checkIsMultiplayerScore(db, score))
+                if (await checkIsMultiplayerScoreAsync(db, score))
                 {
                     if (Verbose)
                         Console.WriteLine($"Maintaining preservation for {score.id} (is multiplayer)");
@@ -111,11 +111,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             }
         }
 
-        private bool checkIsMultiplayerScore(MySqlConnection db, SoloScore score)
-        {
-            // TODO: implement (once multiplayer scores are in scores, is an ongoing effort in osu-web).
-            return false;
-        }
+        private async Task<bool> checkIsMultiplayerScoreAsync(MySqlConnection db, SoloScore score) =>
+            await db.QuerySingleOrDefaultAsync<ulong?>("SELECT `playlist_item_id` FROM `multiplayer_playlist_item_scores` WHERE `score_id` = @scoreId", new
+            {
+                scoreId = score.id
+            }) != null;
 
         private static bool checkIsUserHigh(IEnumerable<SoloScore> userScores, SoloScore candidate)
         {
