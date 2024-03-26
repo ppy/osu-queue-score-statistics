@@ -3,6 +3,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
@@ -38,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private Exception? firstError;
 
-        protected DatabaseTest()
+        protected DatabaseTest(AssemblyName[]? externalProcessorAssemblies = null)
         {
             cancellationSource = Debugger.IsAttached
                 ? new CancellationTokenSource()
@@ -46,7 +47,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             Environment.SetEnvironmentVariable("REALTIME_DIFFICULTY", "0");
 
-            Processor = new ScoreStatisticsQueueProcessor();
+            Processor = new ScoreStatisticsQueueProcessor(externalProcessorAssemblies: externalProcessorAssemblies);
             Processor.Error += processorOnError;
 
             Processor.ClearQueue();

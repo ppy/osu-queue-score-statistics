@@ -18,6 +18,7 @@ using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models.Messages;
+using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
@@ -38,35 +39,81 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// </summary>
         public const int VERSION = 11;
 
+        /// <summary>
+        /// Name of environment variable which is read in order to look for external <see cref="IProcessor"/>s and <see cref="IMedalAwarder"/>s.
+        /// The expected value is a colon-delimited list of direct paths to DLLs or paths to directories (all .dll files within will be loaded).
+        /// </summary>
+        private const string external_processor_path_envvar = "EXTERNAL_PROCESSOR_PATH";
+
         public static readonly List<Ruleset> AVAILABLE_RULESETS = getRulesets();
 
-        private readonly List<IProcessor> processors = new List<IProcessor>();
+        private readonly List<IProcessor> processors;
 
         private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
 
-        public ScoreStatisticsQueueProcessor(string[]? disabledProcessors = null)
+        /// <summary>
+        /// Creates a new <see cref="ScoreStatisticsQueueProcessor"/>
+        /// </summary>
+        /// <param name="disabledProcessors">List of names of processors to disable.</param>
+        /// <param name="externalProcessorAssemblies">
+        /// List of names of assemblies to load. Mostly for use by external <see cref="IProcessor"/>s and <see cref="IMedalAwarder"/>s.
+        /// Can also be specified at runtime via  <see cref="external_processor_path_envvar"/>.
+        /// </param>
+        public ScoreStatisticsQueueProcessor(string[]? disabledProcessors = null, AssemblyName[]? externalProcessorAssemblies = null)
             : base(new QueueConfiguration { InputQueueName = Environment.GetEnvironmentVariable("SCORES_PROCESSING_QUEUE") ?? "score-statistics" })
         {
             DapperExtensions.InstallDateTimeOffsetMapper();
 
-            List<Type> enabledTypes = createProcessors(disabledProcessors);
-
-            foreach (var t in enabledTypes)
-            {
-                if (Activator.CreateInstance(t) is IProcessor processor)
-                    processors.Add(processor);
-            }
-
-            processors = processors.OrderBy(p => p.Order).ToList();
+            loadExternalProcessorAssemblies(externalProcessorAssemblies);
+            processors = createProcessors(disabledProcessors);
         }
 
-        private List<Type> createProcessors(string[]? disabledProcessors)
+        private void loadExternalProcessorAssemblies(AssemblyName[]? externalProcessorAssemblies)
         {
-            List<Type> enabledTypes = typeof(ScoreStatisticsQueueProcessor)
-                                      .Assembly
-                                      .GetTypes()
-                                      .Where(t => !t.IsInterface && typeof(IProcessor).IsAssignableFrom(t))
-                                      .ToList();
+            string[]? pathsFromEnvironment = Environment.GetEnvironmentVariable(external_processor_path_envvar)?.Split(':', StringSplitOptions.RemoveEmptyEntries);
+
+            if (pathsFromEnvironment == null || pathsFromEnvironment.Length == 0)
+                return;
+
+            foreach (string path in pathsFromEnvironment)
+            {
+                if (Directory.Exists(path))
+                {
+                    foreach (string dll in Directory.GetFiles(path, "*.dll"))
+                        loadAssembly(dll);
+                    continue;
+                }
+
+                if (File.Exists(path))
+                {
+                    loadAssembly(path);
+                    continue;
+                }
+
+                throw new ArgumentException($"File {path} specified in {external_processor_path_envvar} not found!");
+            }
+
+            if (externalProcessorAssemblies != null)
+            {
+                foreach (var assemblyName in externalProcessorAssemblies)
+                    Assembly.Load(assemblyName);
+            }
+
+            void loadAssembly(string path)
+            {
+                Console.WriteLine($"Loading assembly from {path}...");
+                var loaded = Assembly.LoadFile(path);
+                Console.WriteLine($"Loaded {loaded.FullName}.");
+            }
+        }
+
+        private List<IProcessor> createProcessors(string[]? disabledProcessors)
+        {
+            List<Type> enabledTypes = AppDomain.CurrentDomain
+                                               .GetAssemblies()
+                                               .SelectMany(a => a.GetTypes())
+                                               .Where(t => !t.IsInterface && typeof(IProcessor).IsAssignableFrom(t))
+                                               .ToList();
 
             List<Type> disabledTypes = new List<Type>();
 
@@ -84,19 +131,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 }
             }
 
+            var instances = new List<IProcessor>();
+
+            foreach (var t in enabledTypes)
+            {
+                if (Activator.CreateInstance(t) is IProcessor processor)
+                    instances.Add(processor);
+            }
+
             Console.WriteLine("Active processors:");
-            foreach (var type in enabledTypes)
-                Console.WriteLine($"- {type.ReadableName()}");
+            foreach (var instance in instances)
+                Console.WriteLine(instance.DisplayString);
 
             Console.WriteLine();
 
             Console.WriteLine("Disabled processors:");
             foreach (var type in disabledTypes)
-                Console.WriteLine($"- {type.ReadableName()}");
+                Console.WriteLine($"- {type.ReadableName()} ({GetType().Assembly.FullName})");
 
             Console.WriteLine();
 
-            return enabledTypes;
+            return instances.OrderBy(processor => processor.Order).ToList();
         }
 
         protected override void ProcessResult(ScoreItem item)

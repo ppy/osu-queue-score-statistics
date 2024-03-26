@@ -20,21 +20,17 @@ using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Utils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
-    public class MedalProcessorTests : DatabaseTest
+    public class MedalProcessorTests : MedalAwarderTest
     {
-        private readonly List<MedalProcessor.AwardedMedal> awardedMedals = new List<MedalProcessor.AwardedMedal>();
         private static int lastBeatmapId = 2;
 
         public MedalProcessorTests()
         {
-            MedalProcessor.MedalAwarded += onMedalAwarded;
-
             using (var db = Processor.GetDatabaseConnection())
             {
                 db.Execute("TRUNCATE TABLE osu_achievements");
@@ -70,21 +66,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addPackMedal(medalId, packId, new[] { beatmap });
             setUpBeatmapsForPackMedal([beatmap]);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.preserve = true;
                 s.Score.build_id = TestBuildID;
             });
 
-            assertAwarded(medalId);
+            AssertSingleMedalAwarded(medalId);
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.preserve = true;
                 s.Score.build_id = TestBuildID;
             });
-            assertAwarded(medalId);
+            AssertSingleMedalAwarded(medalId);
         }
 
         /// <summary>
@@ -98,14 +94,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addPackMedal(medalId, packId, new[] { beatmap });
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.passed = false;
                 s.Score.build_id = TestBuildID;
             });
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
         }
 
         /// <summary>
@@ -121,7 +117,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addPackMedal(medalId, packId, new[] { firstBeatmap, secondBeatmap });
             setUpBeatmapsForPackMedal([firstBeatmap, secondBeatmap]);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(firstBeatmap.beatmap_id, s =>
             {
@@ -129,7 +125,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.preserve = false;
                 s.Score.build_id = TestBuildID;
             });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(secondBeatmap.beatmap_id, s =>
             {
@@ -137,7 +133,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.preserve = true;
                 s.Score.build_id = TestBuildID;
             });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
         }
 
         /// <summary>
@@ -175,7 +171,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             foreach (var beatmap in allBeatmaps)
             {
-                assertNoneAwarded();
+                AssertNoMedalsAwarded();
                 SetScoreForBeatmap(beatmap.beatmap_id, s =>
                 {
                     s.Score.ended_at = DateTimeOffset.Now.AddMinutes(minutesOffset++);
@@ -184,7 +180,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 });
             }
 
-            assertAwarded(medalId);
+            AssertSingleMedalAwarded(medalId);
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length, CancellationToken);
         }
@@ -226,7 +222,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             foreach (var beatmap in beatmaps)
             {
-                assertNoneAwarded();
+                AssertNoMedalsAwarded();
                 SetScoreForBeatmap(beatmap.beatmap_id, s =>
                 {
                     s.Score.preserve = true;
@@ -235,7 +231,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
 
             // Awarding should only happen after the final set is hit.
-            assertAwarded(medalId);
+            AssertSingleMedalAwarded(medalId);
         }
 
         /// <summary>
@@ -257,26 +253,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.preserve = true;
                 s.Score.build_id = TestBuildID;
             });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap1.beatmap_id, s =>
             {
                 s.Score.preserve = true;
                 s.Score.build_id = TestBuildID;
             });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap1.beatmap_id, s =>
             {
                 s.Score.preserve = true;
                 s.Score.build_id = TestBuildID;
             });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(beatmap2.beatmap_id, s =>
             {
                 s.Score.preserve = true;
                 s.Score.build_id = TestBuildID;
             });
-            assertAwarded(medalId);
+            AssertSingleMedalAwarded(medalId);
         }
 
         /// <summary>
@@ -303,7 +299,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addPackMedal(medal_id, pack_id, allBeatmaps);
             setUpBeatmapsForPackMedal(allBeatmaps);
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             // Set passes without mods on all but the first map
             foreach (var beatmap in allBeatmaps.Skip(1))
@@ -313,7 +309,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     s.Score.preserve = true;
                     s.Score.build_id = TestBuildID;
                 });
-                assertNoneAwarded();
+                AssertNoMedalsAwarded();
             }
 
             // Pass the first map with Easy mod (difficulty reduction)
@@ -323,7 +319,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.preserve = true;
                 s.Score.build_id = TestBuildID;
             });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             // Pass the first map without mods
             SetScoreForBeatmap(allBeatmaps[0].beatmap_id, s =>
@@ -331,7 +327,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.preserve = true;
                 s.Score.build_id = TestBuildID;
             });
-            assertAwarded(medal_id);
+            AssertSingleMedalAwarded(medal_id);
 
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", allBeatmaps.Length + 1, CancellationToken);
         }
@@ -372,7 +368,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             setUpBeatmapsForPackMedal([beatmap], allModCombinations: true);
 
             addPackMedal(medal_id, pack_id, new[] { beatmap });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
@@ -382,9 +378,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
 
             if (expectAllowed)
-                assertAwarded(medal_id);
+                AssertMedalAwarded(medal_id);
             else
-                assertNoneAwarded();
+                AssertNoMedalsAwarded();
         }
 
         /// <summary>
@@ -400,16 +396,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addMedal(medal_id);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModEasy()) });
 
             // After completing the beatmaps with double time combined with easy, the medal is not awarded.
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()) });
 
             // Once the beatmap is completed with only double time, the medal should be awarded.
-            assertAwarded(medal_id);
+            AssertSingleMedalAwarded(medal_id);
         }
 
         public static readonly object[][] MOD_INTRODUCTION_COMBINATIONS =
@@ -431,12 +427,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addMedal(medal_id);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = mods);
 
             // When the beatmap is completed with double time and classic, the medal should be awarded.
-            assertAwarded(medal_id);
+            AssertSingleMedalAwarded(medal_id);
         }
 
         /// <summary>
@@ -460,7 +456,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addMedal(medal_id_pass);
             addMedal(medal_id_fc);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
@@ -478,8 +474,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
 
             // After passing the beatmaps without an FC, the pass medal is awarded, but the FC one is not.
-            assertAwarded(medal_id_pass);
-            assertNotAwarded(medal_id_fc);
+            AssertSingleMedalAwarded(medal_id_pass);
+            AssertMedalNotAwarded(medal_id_fc);
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
@@ -497,8 +493,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
 
             // Once the beatmap is FC'd, both medals should be awarded.
-            assertAwarded(medal_id_pass);
-            assertAwarded(medal_id_fc);
+            AssertMedalAwarded(medal_id_pass);
+            AssertMedalAwarded(medal_id_fc);
         }
 
         /// <summary>
@@ -516,7 +512,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addMedal(medal_id_pass);
             addMedal(medal_id_fc);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
@@ -534,8 +530,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
 
             // Once the beatmap is FC'd, both medals should be awarded.
-            assertAwarded(medal_id_pass);
-            assertAwarded(medal_id_fc);
+            AssertMedalAwarded(medal_id_pass);
+            AssertMedalAwarded(medal_id_fc);
         }
 
         /// <summary>
@@ -553,12 +549,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             addMedal(medal_id_5_star);
             addMedal(medal_id_4_star);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id);
 
             // After passing the 5 star beatmap, the 5 star medal is awarded, while the 4 star one is not.
-            assertAwarded(medal_id_5_star);
-            assertNotAwarded(medal_id_4_star);
+            AssertMedalAwarded(medal_id_5_star);
+            AssertMedalNotAwarded(medal_id_4_star);
         }
 
         public static readonly object[][] STAR_RATING_MEDAL_DISALLOWED_MOD_COMBINATIONS =
@@ -588,7 +584,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             foreach (int fcMedal in fcMedalIds)
                 addMedal(fcMedal);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
@@ -606,7 +602,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.max_combo = 3;
             });
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
         }
 
         /// <summary>
@@ -623,12 +619,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addMedal(medal_id_5_star);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             // Set a score on the exception taiko beatmap
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ruleset_id = 1);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
         }
 
         /// <summary>
@@ -644,7 +640,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addMedal(medal_id_5_star);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             // Set a score with the Dual Stages mod
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
@@ -654,7 +650,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
 
             // This shouldn't award a medal
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             // Set a score with the a modified key count, which also shouldn't award the medal
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
@@ -663,12 +659,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.ScoreData.Mods = new[] { new APIMod(new ManiaModKey7()) };
             });
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             // Set a score without restricted mods, which should award the medal
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ruleset_id = 3);
 
-            assertAwarded(medal_id_5_star);
+            AssertSingleMedalAwarded(medal_id_5_star);
         }
 
         /// <summary>
@@ -693,12 +689,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addMedal(medal_id_5_star);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             // Set a score on the map, which shouldn't trigger a medal
             SetScoreForBeatmap(beatmap.beatmap_id);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
         }
 
         /// <summary>
@@ -717,16 +713,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addMedal(medal_id);
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.max_combo = 499);
 
             // After passing the beatmap without getting 500 combo, the medal shouldn't be awarded.
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.max_combo = 500);
 
             // Once the beatmap is passed with 500 combo, the medal may be awarded.
-            assertAwarded(medal_id);
+            AssertSingleMedalAwarded(medal_id);
         }
 
         [Fact]
@@ -745,7 +741,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     new APIMod(new OsuModRelax()),
                 };
             });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
         }
 
         [Theory]
@@ -760,7 +756,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             addMedal(medal_id);
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.max_combo = 500);
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
         }
 
         /// <summary>
@@ -786,19 +782,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Insert(stats);
             }
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id);
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 4999, CancellationToken);
 
             // After passing the beatmap for the first time we only reach 4999 play count,
             // the medal shouldn't be awarded.
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(beatmap.beatmap_id);
             WaitForDatabaseState("SELECT playcount FROM osu_user_stats WHERE user_id = 2", 5000, CancellationToken);
 
             // After we pass the map again, play count reaches 5000, the medal may be awarded.
-            assertAwarded(medal_id);
+            AssertSingleMedalAwarded(medal_id);
         }
 
         /// <summary>
@@ -824,7 +820,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Insert(stats);
             }
 
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.ScoreData.Statistics = new Dictionary<HitResult, int> { { HitResult.Perfect, 1 } };
@@ -834,7 +830,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             // After passing the beatmap for the first time we only reach 39999 key count,
             // the medal shouldn't be awarded.
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
@@ -844,7 +840,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats_mania WHERE user_id = 2", 40000, CancellationToken);
 
             // After we pass the map again, key count reaches 40000, the medal should be awarded.
-            assertAwarded(medal_id);
+            AssertSingleMedalAwarded(medal_id);
         }
 
         [Fact]
@@ -882,35 +878,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.preserve = s.Score.ranked = true;
                 s.Score.pp = 25000; // ~25002 pp total, including bonus pp => rank above 75k
             });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.preserve = s.Score.ranked = true;
                 s.Score.pp = 50000; // ~50004 pp total, including bonus pp => rank above 50k
             });
-            assertAwarded(50);
+            AssertMedalAwarded(50);
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.preserve = s.Score.ranked = true;
                 s.Score.pp = 90000; // ~90006 pp total, including bonus pp => rank above 10k
             });
-            assertAwarded(51);
+            AssertMedalAwarded(51);
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.preserve = s.Score.ranked = true;
                 s.Score.pp = 95000; // ~95008 pp total, including bonus pp => rank above 5k
             });
-            assertAwarded(52);
+            AssertMedalAwarded(52);
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.preserve = s.Score.ranked = true;
                 s.Score.pp = 99000; // ~990010 pp total, including bonus pp => rank above 1k
             });
-            assertAwarded(53);
+            AssertMedalAwarded(53);
         }
 
         private void addMedal(int medalId)
@@ -923,9 +919,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
         private void addPackMedal(int medalId, int packId, IReadOnlyList<Beatmap> beatmaps)
         {
+            AddMedal(medalId);
+
             using (var db = Processor.GetDatabaseConnection())
             {
-                db.Execute($"INSERT INTO osu_achievements (achievement_id, slug, ordering, progression, name) VALUES ({medalId}, 'A', 1, 1, 'medal')");
                 db.Execute($"INSERT INTO osu_beatmappacks (pack_id, url, name, author, tag, date) VALUES ({packId}, 'https://osu.ppy.sh', 'pack', 'wang', 'PACK', NOW())");
 
                 foreach (int setId in beatmaps.GroupBy(b => b.beatmapset_id).Select(g => g.Key))
@@ -957,38 +954,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     });
                 }
             }
-        }
-
-        private void assertAwarded(int medalId)
-        {
-            Assert.Contains(awardedMedals, a => medalId == a.Medal.achievement_id);
-        }
-
-        private void assertNoneAwarded()
-        {
-            Assert.Empty(awardedMedals);
-        }
-
-        private void assertNotAwarded(int medalId)
-        {
-            Assert.Collection(awardedMedals, a => Assert.NotEqual(medalId, a.Medal.achievement_id));
-        }
-
-        private void onMedalAwarded(MedalProcessor.AwardedMedal awarded)
-        {
-            awardedMedals.Add(awarded);
-
-            // Usually osu-web would do this.
-            using (var db = Processor.GetDatabaseConnection())
-            {
-                db.Execute($"INSERT INTO osu_user_achievements (achievement_id, user_id, beatmap_id) VALUES ({awarded.Medal.achievement_id}, {awarded.Score.UserID}, {awarded.Score.BeatmapID})");
-            }
-        }
-
-        public override void Dispose()
-        {
-            base.Dispose();
-            MedalProcessor.MedalAwarded -= onMedalAwarded;
         }
     }
 }
