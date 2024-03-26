@@ -741,7 +741,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     new APIMod(new OsuModRelax()),
                 };
             });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
         }
 
         [Theory]
@@ -878,35 +878,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.preserve = s.Score.ranked = true;
                 s.Score.pp = 25000; // ~25002 pp total, including bonus pp => rank above 75k
             });
-            assertNoneAwarded();
+            AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.preserve = s.Score.ranked = true;
                 s.Score.pp = 50000; // ~50004 pp total, including bonus pp => rank above 50k
             });
-            assertAwarded(50);
+            AssertMedalAwarded(50);
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.preserve = s.Score.ranked = true;
                 s.Score.pp = 90000; // ~90006 pp total, including bonus pp => rank above 10k
             });
-            assertAwarded(51);
+            AssertMedalAwarded(51);
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.preserve = s.Score.ranked = true;
                 s.Score.pp = 95000; // ~95008 pp total, including bonus pp => rank above 5k
             });
-            assertAwarded(52);
+            AssertMedalAwarded(52);
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.preserve = s.Score.ranked = true;
                 s.Score.pp = 99000; // ~990010 pp total, including bonus pp => rank above 1k
             });
-            assertAwarded(53);
+            AssertMedalAwarded(53);
         }
 
         private void addMedal(int medalId)
