@@ -2,12 +2,15 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Globalization;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
 using osu.Server.QueueProcessor;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
@@ -25,6 +28,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             using (var readConnection = DatabaseAccess.GetConnection())
             using (var deleteConnection = DatabaseAccess.GetConnection())
             using (var deleteCommand = deleteConnection.CreateCommand())
+            using (var s3 = S3.GetClient())
             {
                 deleteCommand.CommandText = "DELETE FROM scores WHERE id = @id;";
 
@@ -33,7 +37,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 await deleteCommand.PrepareAsync(cancellationToken);
 
                 var scores = await readConnection.QueryAsync<SoloScore>(new CommandDefinition(
-                    $"SELECT * FROM scores WHERE preserve = 0 AND updated_at < DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR)", flags: CommandFlags.None, cancellationToken: cancellationToken));
+                    $"SELECT * FROM `scores` WHERE `preserve` = 0 AND `unix_updated_at` < UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR))", flags: CommandFlags.None, cancellationToken: cancellationToken));
 
                 foreach (var score in scores)
                 {
@@ -48,7 +52,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (score.has_replay)
                     {
-                        // TODO: delete replay from s3
+                        Console.WriteLine("* Removing replay from S3...");
+                        var deleteResult = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+
+                        switch (deleteResult.HttpStatusCode)
+                        {
+                            case HttpStatusCode.NoContent:
+                                // below wording is intentionally very roundabout, because s3 does not actually really seem to produce the types of error you'd expect.
+                                // for instance, even if you request removal of a nonexistent object, it'll just throw a 204 No Content back
+                                // with no real way to determine whether it actually even did anything.
+                                Console.WriteLine("* Deletion request completed without error.");
+                                break;
+
+                            default:
+                                await Console.Error.WriteLineAsync($"* Received unexpected status code when attempting to delete replay: {deleteResult.HttpStatusCode}.");
+                                break;
+                        }
                     }
                 }
             }
