@@ -28,10 +28,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
         }
 
-        protected void AddMedal(int medalId)
+        protected void AddMedal(int medalId, int? mode = null)
         {
             using (var db = Processor.GetDatabaseConnection())
-                db.Execute($"INSERT INTO osu_achievements (achievement_id, slug, ordering, progression, name) VALUES ({medalId}, 'A', 1, 1, 'medal')");
+            {
+                db.Execute("INSERT INTO osu_achievements (achievement_id, slug, ordering, progression, name, mode) VALUES (@medalId, 'A', 1, 1, 'medal', @mode)",
+                    new
+                    {
+                        medalId,
+                        mode
+                    });
+            }
         }
 
         protected void AssertSingleMedalAwarded(int medalId)
