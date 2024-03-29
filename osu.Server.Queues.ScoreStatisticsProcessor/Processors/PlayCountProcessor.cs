@@ -20,6 +20,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class PlayCountProcessor : IProcessor
     {
+        public int Order => LastPlayedDateProcessor.ORDER + 1;
+
         public bool RunOnFailedScores => true;
 
         public bool RunOnLegacyScores => false;
