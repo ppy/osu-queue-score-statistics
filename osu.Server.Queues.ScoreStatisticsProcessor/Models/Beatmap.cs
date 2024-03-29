@@ -19,6 +19,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public uint beatmapset_id { get; set; }
 
+        public uint user_id { get; set; }
+
         public uint countTotal { get; set; }
         public uint countNormal { get; set; }
         public uint countSlider { get; set; }
@@ -32,11 +34,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public int playcount { get; set; }
         public BeatmapOnlineStatus approved { get; set; }
         public float difficultyrating { get; set; }
+        public uint hit_length { get; set; }
+        public float bpm { get; set; }
 
         public APIBeatmap ToAPIBeatmap() => new APIBeatmap
         {
             OnlineID = (int)beatmap_id,
             OnlineBeatmapSetID = (int)beatmapset_id,
+            AuthorID = (int)user_id,
             CircleCount = (int)countNormal,
             SliderCount = (int)countSlider,
             SpinnerCount = (int)countSpinner,
@@ -49,6 +54,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
             StarRating = difficultyrating,
             PlayCount = playcount,
             Status = approved,
+            HitLength = hit_length,
+            BPM = bpm,
         };
     }
 }
