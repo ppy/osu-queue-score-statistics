@@ -24,5 +24,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                     return false;
             }
         }
+
+        /// <summary>
+        /// Some medals on stable require no mods to be active,
+        /// but lazer submission specifics mean that some mods should be allowed.
+        /// <list type="bullet">
+        /// <item>Classic mod marks stable scores, so it should be allowed.</item>
+        /// <item>System mods like touch device should also be allowed, because they're typically not in the user's direct control.</item>
+        /// </list>
+        /// </summary>
+        public static bool IsPermittedInNoModContext(Mod m)
+        {
+            switch (m)
+            {
+                // Allow classic mod
+                case ModClassic:
+                    return true;
+
+                default:
+                    return m.Type == ModType.System;
+            }
+        }
     }
 }

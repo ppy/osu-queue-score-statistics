@@ -20,7 +20,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(context.Score.RulesetID);
 
             // Select score mods, ignoring certain mods that can be included in the combination for mod introduction medals
-            Mod[] mods = context.Score.Mods.Select(m => m.ToMod(ruleset)).Where(m => !isIgnoredForIntroductionMedal(m)).ToArray();
+            Mod[] mods = context.Score.Mods.Select(m => m.ToMod(ruleset)).Where(m => !MedalHelpers.IsPermittedInNoModContext(m)).ToArray();
 
             // Ensure the mod is the only one selected
             if (mods.Length != 1)
