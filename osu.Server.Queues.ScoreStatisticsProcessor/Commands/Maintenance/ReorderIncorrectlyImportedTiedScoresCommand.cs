@@ -38,6 +38,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             Console.WriteLine($"Verifying tied score orders for ruleset {RulesetId}");
             Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
 
+            int totalReordered = 0;
+
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
@@ -45,8 +47,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             dynamic[] beatmaps = (await conn.QueryAsync($"SELECT * FROM osu_beatmaps WHERE approved > 0 and beatmap_id >= {StartId ?? 0}")).ToArray();
 
-            foreach (dynamic beatmap in beatmaps)
+            for (int i = 0; i < beatmaps.Length; i++)
             {
+                dynamic beatmap = beatmaps[i];
                 Console.WriteLine($"Processing {beatmap.beatmap_id}...");
 
                 ulong[] topScoresCheck =
@@ -71,6 +74,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     continue;
 
                 Console.WriteLine("Requires reordering...");
+
+                totalReordered++;
+
+                Console.WriteLine($"Reordering complete ({totalReordered} reordered, {i}/{beatmaps.Length})");
             }
 
             return 0;
