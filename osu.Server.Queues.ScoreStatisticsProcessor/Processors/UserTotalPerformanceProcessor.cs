@@ -84,8 +84,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private static async Task updateGlobalRank(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
         {
             // User's current global rank.
-            userStats.rank_score_index = (await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > {userStats.rank_score}", transaction: transaction))
-                                         + 1;
+            userStats.rank_score_index = await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > @rankScoreCutoff AND user_id != @userId",
+                new
+                {
+                    userId = userStats.user_id,
+                    rankScoreCutoff = userStats.rank_score,
+                }, transaction: transaction) + 1;
 
             // User's historical best rank (ever).
             int userHistoricalHighestRank = await connection.QuerySingleOrDefaultAsync<int?>("SELECT `rank` FROM `osu_user_performance_rank_highest` WHERE `user_id` = @userId AND `mode` = @mode",
