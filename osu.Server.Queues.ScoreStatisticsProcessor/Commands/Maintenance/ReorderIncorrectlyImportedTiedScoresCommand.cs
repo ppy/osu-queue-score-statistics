@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -88,6 +89,30 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 }
 
                 Console.WriteLine("FAIL");
+
+                using (var transaction = await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken))
+                {
+                    for (int j = 0; j < topScores.Length; j++)
+                    {
+                        ulong legacyScoreId = topScoresSorted[j].legacy_score_id!.Value;
+                        ulong oldScoreId = topScoresSorted[j].id;
+                        ulong newScoreId = topScores[j].id;
+
+                        Console.WriteLine($"- legacy {legacyScoreId} remapping from {oldScoreId} to {newScoreId}");
+
+                        if (!DryRun)
+                        {
+                            await conn.ExecuteAsync("UPDATE scores SET id = @newScoreId WHERE legacy_score_id = @legacyScoreId AND ruleset_id = @rulesetId", new
+                            {
+                                newScoreId = newScoreId,
+                                legacyScoreId = legacyScoreId,
+                                rulesetId = RulesetId,
+                            }, transaction);
+                        }
+                    }
+
+                    await transaction.CommitAsync(cancellationToken);
+                }
 
                 if (!DryRun)
                 {
