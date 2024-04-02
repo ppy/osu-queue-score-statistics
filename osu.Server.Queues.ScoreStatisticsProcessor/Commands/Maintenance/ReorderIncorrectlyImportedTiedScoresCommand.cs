@@ -54,7 +54,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 ulong[] topScoresCheck =
                     (await conn.QueryAsync<ulong>(
-                        $"SELECT total_score FROM scores WHERE beatmap_id = {beatmap.beatmap_id} and ruleset_id = {RulesetId} AND preserve = 1 AND legacy_score_id IS NOT NULL ORDER BY total_score DESC LIMIT 2"))
+                        $"SELECT total_score FROM scores WHERE beatmap_id = {beatmap.beatmap_id} and ruleset_id = {RulesetId} AND preserve = 1 AND legacy_score_id IS NOT NULL ORDER BY total_score DESC LIMIT 2", commandTimeout: 60000))
                     .ToArray();
 
                 if (topScoresCheck.Length != 2 || topScoresCheck[0] != topScoresCheck[1])
@@ -65,7 +65,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 Console.WriteLine("Has tied scores, checking order...");
 
                 var topScores = (await conn.QueryAsync<SoloScore>(
-                        $"SELECT * FROM scores WHERE beatmap_id = {beatmap.beatmap_id} and ruleset_id = {RulesetId} AND preserve = 1 AND total_score = {topScore} ORDER BY id"))
+                        $"SELECT * FROM scores WHERE beatmap_id = {beatmap.beatmap_id} and ruleset_id = {RulesetId} AND preserve = 1 AND total_score = {topScore} ORDER BY id", commandTimeout: 60000))
                     .ToArray();
 
                 var topScoresSorted = topScores.OrderBy(s => s.legacy_score_id).ToArray();
@@ -74,6 +74,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     continue;
 
                 Console.WriteLine("Requires reordering...");
+
+                if (!DryRun)
+                {
+                    elasticQueueProcessor.PushToQueue(topScores.Select(s => new ElasticQueuePusher.ElasticScoreItem
+                    {
+                        ScoreId = (long)s.id
+                    }).ToList());
+                }
 
                 totalReordered++;
 
