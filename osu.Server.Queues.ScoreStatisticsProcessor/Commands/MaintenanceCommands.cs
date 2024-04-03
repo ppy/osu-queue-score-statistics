@@ -15,6 +15,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(MigrateSoloScoresCommand))]
     [Subcommand(typeof(VerifyImportedScoresCommand))]
     [Subcommand(typeof(ReorderIncorrectlyImportedTiedScoresCommand))]
+    [Subcommand(typeof(ReindexBeatmapCommand))]
     [Subcommand(typeof(DeleteImportedHighScoresCommand))]
     [Subcommand(typeof(VerifyReplaysExistCommand))]
     public sealed class MaintenanceCommands
