@@ -102,7 +102,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                         if (!DryRun)
                         {
-                            await conn.ExecuteAsync("UPDATE scores SET id = @newScoreId WHERE legacy_score_id = @legacyScoreId AND ruleset_id = @rulesetId", new
+                            await conn.ExecuteAsync("UPDATE scores SET id = @newScoreId, unix_updated_at = UNIX_TIMESTAMP(NOW()) WHERE legacy_score_id = @legacyScoreId AND ruleset_id = @rulesetId", new
                             {
                                 newScoreId = newScoreId,
                                 legacyScoreId = legacyScoreId,
