@@ -124,7 +124,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 totalReordered++;
 
-                Console.WriteLine($"Reordering complete ({totalReordered} reordered, {i}/{beatmaps.Length})");
+                Console.WriteLine($"Reordering complete ({totalReordered} reordered, {i + 1}/{beatmaps.Length})");
             }
 
             return 0;
