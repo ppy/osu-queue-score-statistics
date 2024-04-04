@@ -60,6 +60,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     throw new InvalidOperationException("You are trying to do something very silly.");
 
                 db.Execute("TRUNCATE TABLE osu_user_stats");
+                db.Execute("TRUNCATE TABLE osu_user_stats_taiko");
+                db.Execute("TRUNCATE TABLE osu_user_stats_fruits");
                 db.Execute("TRUNCATE TABLE osu_user_stats_mania");
                 db.Execute("TRUNCATE TABLE osu_user_beatmap_playcount");
                 db.Execute("TRUNCATE TABLE osu_user_month_playcount");
