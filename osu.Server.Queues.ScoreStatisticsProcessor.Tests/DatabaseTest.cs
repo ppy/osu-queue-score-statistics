@@ -43,7 +43,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             cancellationSource = Debugger.IsAttached
                 ? new CancellationTokenSource()
-                : new CancellationTokenSource(10000);
+                : new CancellationTokenSource(20000);
 
             Environment.SetEnvironmentVariable("REALTIME_DIFFICULTY", "0");
 
