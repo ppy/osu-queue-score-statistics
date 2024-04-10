@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Dapper;
 using JetBrains.Annotations;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
@@ -454,45 +455,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 if (!validPacksForBeatmapSet.Contains(packId))
                     return false;
 
-                string modsCriteria = string.Empty;
-                string rulesetCriteria = string.Empty;
-
-                if (noReductionMods)
-                {
-                    modsCriteria = @"AND json_search(data, 'one', 'EZ', null, '$.mods[*].acronym') IS NULL"
-                                   + " AND json_search(data, 'one', 'NF', null, '$.mods[*].acronym') IS NULL"
-                                   + " AND json_search(data, 'one', 'HT', null, '$.mods[*].acronym') IS NULL"
-                                   + " AND json_search(data, 'one', 'DC', null, '$.mods[*].acronym') IS NULL"
-                                   + " AND json_search(data, 'one', 'SO', null, '$.mods[*].acronym') IS NULL"
-                                   // this conditional's goal is to exclude plays with unranked mods from query.
-                                   // the reason why this is done in this roundabout way is that expressing the query in SQL is complicated otherwise,
-                                   // and materialising the collection of all scores to check this C#-side is likely to be prohibitively expensive.
-                                   + " AND s.pp IS NOT NULL";
-                }
-
-                // ensure the correct mode, if one is specified
-                int? packRulesetId = context.Connection.QuerySingle<int?>($"SELECT playmode FROM `osu_beatmappacks` WHERE pack_id = {packId}", transaction: context.Transaction);
-
-                if (packRulesetId != null)
-                {
-                    if (context.Score.RulesetID != packRulesetId)
-                        return false;
-
-                    rulesetCriteria = $"AND ruleset_id = {packRulesetId}";
-                }
-
-                // TODO: no index on (beatmap_id, user_id) may mean this is too slow.
-                // note that the `preserve = 1` condition relies on the flag being set before score processing (https://github.com/ppy/osu-web/pull/10946).
-                int completed = context.Connection.QuerySingle<int>(
-                    "SELECT COUNT(distinct p.beatmapset_id)"
-                    + "FROM osu_beatmappacks_items p "
-                    + "JOIN osu_beatmaps b USING (beatmapset_id) "
-                    + "JOIN scores s USING (beatmap_id)"
-                    + $"WHERE s.user_id = {context.Score.UserID} AND s.passed = 1 AND s.preserve = 1 AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: context.Transaction);
-
-                int countForPack = context.Connection.QuerySingle<int>($"SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = {packId}", transaction: context.Transaction);
-
-                return completed >= countForPack;
+                return MedalHelpers.UserPassedPack(context, noReductionMods, packId);
             }
         }
     }
