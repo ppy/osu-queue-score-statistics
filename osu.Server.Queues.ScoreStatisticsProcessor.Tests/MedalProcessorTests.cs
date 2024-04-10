@@ -63,7 +63,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             var beatmap = AddBeatmap();
 
-            addPackMedal(medalId, packId, new[] { beatmap });
+            AddPackMedal(medalId, packId, new[] { beatmap });
             setUpBeatmapsForPackMedal([beatmap]);
 
             AssertNoMedalsAwarded();
@@ -92,7 +92,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             var beatmap = AddBeatmap();
 
-            addPackMedal(medalId, packId, new[] { beatmap });
+            AddPackMedal(medalId, packId, new[] { beatmap });
 
             AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
@@ -114,7 +114,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var firstBeatmap = AddBeatmap(b => b.beatmap_id = 1234, s => s.beatmapset_id = 4321);
             var secondBeatmap = AddBeatmap(b => b.beatmap_id = 5678, s => s.beatmapset_id = 8765);
 
-            addPackMedal(medalId, packId, new[] { firstBeatmap, secondBeatmap });
+            AddPackMedal(medalId, packId, new[] { firstBeatmap, secondBeatmap });
             setUpBeatmapsForPackMedal([firstBeatmap, secondBeatmap]);
 
             AssertNoMedalsAwarded();
@@ -163,7 +163,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 AddBeatmap(b => b.beatmap_id = 497769, s => s.beatmapset_id = 211704),
             };
 
-            addPackMedal(medalId, packId, allBeatmaps);
+            AddPackMedal(medalId, packId, allBeatmaps);
             setUpBeatmapsForPackMedal(allBeatmaps);
 
             // Need to space out submissions else we will hit rate limits.
@@ -217,7 +217,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             Assert.Equal(4, beatmaps.Count);
 
-            addPackMedal(medalId, packId, beatmaps);
+            AddPackMedal(medalId, packId, beatmaps);
             setUpBeatmapsForPackMedal(beatmaps);
 
             foreach (var beatmap in beatmaps)
@@ -245,7 +245,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var beatmap1 = AddBeatmap(b => b.beatmap_id = 71623, s => s.beatmapset_id = 13022);
             var beatmap2 = AddBeatmap(b => b.beatmap_id = 59225, s => s.beatmapset_id = 16520);
 
-            addPackMedal(medalId, packId, new[] { beatmap1, beatmap2 });
+            AddPackMedal(medalId, packId, new[] { beatmap1, beatmap2 });
             setUpBeatmapsForPackMedal([beatmap1, beatmap2]);
 
             SetScoreForBeatmap(beatmap1.beatmap_id, s =>
@@ -297,7 +297,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 AddBeatmap(b => b.beatmap_id = 2324126, s => s.beatmapset_id = 1112424),
             };
 
-            addPackMedal(medal_id, pack_id, allBeatmaps);
+            AddPackMedal(medal_id, pack_id, allBeatmaps);
             setUpBeatmapsForPackMedal(allBeatmaps);
             AssertNoMedalsAwarded();
 
@@ -367,7 +367,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var beatmap = AddBeatmap();
             setUpBeatmapsForPackMedal([beatmap], allModCombinations: true);
 
-            addPackMedal(medal_id, pack_id, new[] { beatmap });
+            AddPackMedal(medal_id, pack_id, new[] { beatmap });
             AssertNoMedalsAwarded();
 
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
@@ -907,19 +907,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.pp = 99000; // ~990010 pp total, including bonus pp => rank above 1k
             });
             AssertMedalAwarded(53);
-        }
-
-        private void addPackMedal(int medalId, int packId, IReadOnlyList<Beatmap> beatmaps)
-        {
-            AddMedal(medalId);
-
-            using (var db = Processor.GetDatabaseConnection())
-            {
-                db.Execute($"INSERT INTO osu_beatmappacks (pack_id, url, name, author, tag, date) VALUES ({packId}, 'https://osu.ppy.sh', 'pack', 'wang', 'PACK', NOW())");
-
-                foreach (int setId in beatmaps.GroupBy(b => b.beatmapset_id).Select(g => g.Key))
-                    db.Execute($"INSERT INTO osu_beatmappacks_items (pack_id, beatmapset_id) VALUES ({packId}, {setId})");
-            }
         }
 
         private void setUpBeatmapsForPackMedal(IEnumerable<Beatmap> beatmaps, bool allModCombinations = false)
