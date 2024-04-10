@@ -394,7 +394,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var beatmap = AddBeatmap();
 
-            addMedal(medal_id);
+            AddMedal(medal_id);
 
             AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()), new APIMod(new OsuModEasy()) });
@@ -425,7 +425,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var beatmap = AddBeatmap();
 
-            addMedal(medal_id);
+            AddMedal(medal_id);
 
             AssertNoMedalsAwarded();
 
@@ -453,8 +453,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
             AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
-            addMedal(medal_id_pass);
-            addMedal(medal_id_fc);
+            AddMedal(medal_id_pass);
+            AddMedal(medal_id_fc);
 
             AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
@@ -509,8 +509,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
             AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
-            addMedal(medal_id_pass);
-            addMedal(medal_id_fc);
+            AddMedal(medal_id_pass);
+            AddMedal(medal_id_fc);
 
             AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
@@ -546,8 +546,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
             AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
-            addMedal(medal_id_5_star);
-            addMedal(medal_id_4_star);
+            AddMedal(medal_id_5_star);
+            AddMedal(medal_id_4_star);
 
             AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id);
@@ -580,9 +580,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             int[] fcMedalIds = { 63, 64, 65, 66, 67, 68, 69, 70, 243, 245 };
 
             foreach (int passMedal in passMedalIds)
-                addMedal(passMedal);
+                AddMedal(passMedal);
             foreach (int fcMedal in fcMedalIds)
-                addMedal(fcMedal);
+                AddMedal(fcMedal);
 
             AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
@@ -617,7 +617,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var beatmap = AddBeatmap(b => b.beatmap_id = 19990);
             AddBeatmapAttributes<TaikoDifficultyAttributes>(beatmap.beatmap_id, mode: 1);
 
-            addMedal(medal_id_5_star);
+            AddMedal(medal_id_5_star);
 
             AssertNoMedalsAwarded();
 
@@ -638,7 +638,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
             AddBeatmapAttributes<ManiaDifficultyAttributes>(beatmap.beatmap_id, mode: 3);
 
-            addMedal(medal_id_5_star);
+            AddMedal(medal_id_5_star);
 
             AssertNoMedalsAwarded();
 
@@ -687,7 +687,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
             AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
-            addMedal(medal_id_5_star);
+            AddMedal(medal_id_5_star);
 
             AssertNoMedalsAwarded();
 
@@ -711,7 +711,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var beatmap = AddBeatmap(b => b.approved = onlineStatus);
 
-            addMedal(medal_id);
+            AddMedal(medal_id);
 
             AssertNoMedalsAwarded();
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.max_combo = 499);
@@ -732,7 +732,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
 
-            addMedal(medal_id);
+            AddMedal(medal_id);
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.max_combo = 500;
@@ -754,7 +754,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var beatmap = AddBeatmap(b => b.approved = onlineStatus);
 
-            addMedal(medal_id);
+            AddMedal(medal_id);
             SetScoreForBeatmap(beatmap.beatmap_id, s => s.Score.max_combo = 500);
             AssertNoMedalsAwarded();
         }
@@ -769,7 +769,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var beatmap = AddBeatmap();
 
-            addMedal(medal_id);
+            AddMedal(medal_id);
 
             // Set up user stats with 4998 play count
             using (var db = Processor.GetDatabaseConnection())
@@ -807,7 +807,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var beatmap = AddBeatmap();
 
-            addMedal(medal_id);
+            AddMedal(medal_id);
 
             // Set up user stats with 39998 mania key presses
             using (var db = Processor.GetDatabaseConnection())
@@ -846,10 +846,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestRankMilestoneMedal()
         {
-            addMedal(50);
-            addMedal(51);
-            addMedal(52);
-            addMedal(53);
+            AddMedal(50);
+            AddMedal(51);
+            AddMedal(52);
+            AddMedal(53);
 
             // simulate fake users to beat as we climb up ranks.
             // this is going to be a bit of a chonker query...
@@ -907,14 +907,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.pp = 99000; // ~990010 pp total, including bonus pp => rank above 1k
             });
             AssertMedalAwarded(53);
-        }
-
-        private void addMedal(int medalId)
-        {
-            using (var db = Processor.GetDatabaseConnection())
-            {
-                db.Execute($"INSERT INTO osu_achievements (achievement_id, slug, ordering, progression, name) VALUES ({medalId}, 'A', 1, 1, 'medal')");
-            }
         }
 
         private void addPackMedal(int medalId, int packId, IReadOnlyList<Beatmap> beatmaps)
