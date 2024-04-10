@@ -95,6 +95,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     + "`legacy_total_score`, "
                     + "`total_score`, "
                     + "`has_replay`, "
+                    + "s.ranked,"
                     + "s.`rank`, "
                     + "s.`pp`, "
                     + "h.* "
@@ -186,6 +187,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                             // PP was reset (had a value in new table but no value in old) or doesn't match.
                             sqlBuffer.Append($"UPDATE scores SET pp = {importedScore.HighScore.pp.ToString() ?? "NULL"} WHERE id = {importedScore.id};");
+                        }
+
+                        if (!check(importedScore.id, "ranked", importedScore.ranked, true))
+                        {
+                            Interlocked.Increment(ref fail);
+                            requiresIndexing = true;
+                            sqlBuffer.Append($"UPDATE scores SET ranked = 1 WHERE id = {importedScore.id};");
                         }
 
                         if (!check(importedScore.id, "replay", importedScore.has_replay, importedScore.HighScore.replay))
@@ -300,6 +308,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             public long? total_score;
             public bool has_replay;
             public ScoreRank rank;
+            public bool ranked;
             public float? pp;
 
             public HighScore? HighScore { get; set; }
