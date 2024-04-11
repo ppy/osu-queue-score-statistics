@@ -154,10 +154,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Score
         }
 
         [SuppressMessage("ReSharper", "InconsistentNaming")]
+        [Serializable]
         private class ScoreToAdjust
         {
-            public ulong id;
-            public uint total_score;
+            public ulong id { get; set; }
+            public uint total_score { get; set; }
         }
     }
 }
