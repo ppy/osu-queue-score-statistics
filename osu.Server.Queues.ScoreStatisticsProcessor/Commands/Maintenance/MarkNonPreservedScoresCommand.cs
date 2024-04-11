@@ -98,7 +98,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 if (!DryRun)
                 {
-                    await db.ExecuteAsync("UPDATE scores SET preserve = 0, unix_updated_at = CURRENT_TIMESTAMP WHERE id = @scoreId;", new
+                    await db.ExecuteAsync("UPDATE scores SET preserve = 0, unix_updated_at = UNIX_TIMESTAMP() WHERE id = @scoreId;", new
                     {
                         scoreId = score.id
                     });
