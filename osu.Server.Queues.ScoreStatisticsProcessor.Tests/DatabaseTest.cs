@@ -91,7 +91,34 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 scoreSetup?.Invoke(score);
 
-                conn.Insert(score.Score);
+                conn.Execute("INSERT INTO `scores` (`id`, `user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, "
+                             + "`rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, "
+                             + "`started_at`, `ended_at`, `build_id`) "
+                             + "VALUES (@id, @user_id, @ruleset_id, @beatmap_id, @has_replay, @preserve, @ranked, "
+                             + "@rank, @passed, @accuracy, @max_combo, @total_score, @data, @pp, @legacy_score_id, @legacy_total_score,"
+                             + "@started_at, @ended_at, @build_id)",
+                    new
+                    {
+                        score.Score.id,
+                        score.Score.user_id,
+                        score.Score.ruleset_id,
+                        score.Score.beatmap_id,
+                        score.Score.has_replay,
+                        score.Score.preserve,
+                        score.Score.ranked,
+                        rank = score.Score.rank.ToString(),
+                        score.Score.passed,
+                        score.Score.accuracy,
+                        score.Score.max_combo,
+                        score.Score.total_score,
+                        score.Score.data,
+                        score.Score.pp,
+                        score.Score.legacy_score_id,
+                        score.Score.legacy_total_score,
+                        score.Score.started_at,
+                        score.Score.ended_at,
+                        score.Score.build_id,
+                    });
                 PushToQueueAndWaitForProcess(score);
 
                 return score;
@@ -174,7 +201,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             using (var db = Processor.GetDatabaseConnection())
             {
                 db.Insert(beatmap);
-                db.Insert(beatmapSet);
+                if (db.QuerySingleOrDefault<int>("SELECT COUNT(1) FROM `osu_beatmapsets` WHERE `beatmapset_id` = @beatmapSetId", new { beatmapSetId = beatmapSet.beatmapset_id }) == 0)
+                    db.Insert(beatmapSet);
             }
 
             return beatmap;
