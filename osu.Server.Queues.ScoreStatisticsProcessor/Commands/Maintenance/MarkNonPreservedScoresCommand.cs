@@ -120,11 +120,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         private static bool checkIsUserHigh(IEnumerable<SoloScore> userScores, SoloScore candidate)
         {
             var maxPPUserScore = userScores
-                                 .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s))
+                                 .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s) && s.ranked)
                                  .MaxBy(s => s.pp);
 
             var maxScoreUserScore = userScores
-                                    .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s))
+                                    .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s) && s.ranked)
                                     .MaxBy(s => s.total_score);
 
             // Check whether this score is the user's highest
