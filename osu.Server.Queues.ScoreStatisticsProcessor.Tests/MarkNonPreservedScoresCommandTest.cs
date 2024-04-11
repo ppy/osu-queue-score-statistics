@@ -111,5 +111,31 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT COUNT(1) FROM `scores` WHERE `preserve` = 0", 0, CancellationToken);
             WaitForDatabaseState("SELECT `preserve` FROM `scores` WHERE `id` = 2", true, CancellationToken);
         }
+
+        [Fact]
+        public async Task ScoreNotConsideredBestIfNotRanked()
+        {
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.id = 1;
+                s.Score.total_score = 800_000;
+                s.Score.pp = 95;
+                s.Score.ranked = false;
+            });
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.id = 2;
+                s.Score.total_score = 500_000;
+                s.Score.pp = 85;
+            });
+            WaitForDatabaseState("SELECT COUNT(1) FROM `scores` WHERE `preserve` = 1", 2, CancellationToken);
+            WaitForDatabaseState("SELECT COUNT(1) FROM `scores` WHERE `preserve` = 0", 0, CancellationToken);
+
+            var command = new MarkNonPreservedScoresCommand { RulesetId = 0 };
+            await command.OnExecuteAsync(CancellationToken);
+            WaitForDatabaseState("SELECT COUNT(1) FROM `scores` WHERE `preserve` = 1", 1, CancellationToken);
+            WaitForDatabaseState("SELECT COUNT(1) FROM `scores` WHERE `preserve` = 0", 1, CancellationToken);
+            WaitForDatabaseState("SELECT `preserve` FROM `scores` WHERE `id` = 1", false, CancellationToken);
+        }
     }
 }
