@@ -14,7 +14,7 @@ using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
 using osu.Server.QueueProcessor;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Score
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
     [Command("change-mod-multiplier", Description = "Changes a mod's multiplier globally by adjusting all relevant scores' totals.")]
     public class ChangeModMultiplierCommand
