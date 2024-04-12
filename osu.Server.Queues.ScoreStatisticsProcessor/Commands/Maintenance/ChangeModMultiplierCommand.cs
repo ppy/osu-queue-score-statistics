@@ -87,7 +87,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
+            Console.WriteLine("Starting in 15 seconds.");
             Thread.Sleep(15000);
+            Console.WriteLine("Starting now.");
 
             ulong lastId = StartId ?? 0;
             int converted = 0;
