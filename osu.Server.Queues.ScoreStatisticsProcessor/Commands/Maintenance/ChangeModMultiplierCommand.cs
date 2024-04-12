@@ -83,6 +83,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 scoreBatchQuery += $" AND ({AdditionalConditions})";
 
             Console.WriteLine($"Will use following query:\n{scoreBatchQuery}");
+            if (string.IsNullOrEmpty(AdditionalConditions))
+                Console.WriteLine($"NO ADDITIONAL CONDITIONS SPECIFIED. WILL RUN FOR ALL SCORES MATCHING THE MOD ({ModAcronym}).");
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
