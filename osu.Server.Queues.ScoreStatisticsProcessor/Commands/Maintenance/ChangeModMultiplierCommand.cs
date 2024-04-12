@@ -40,6 +40,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run", Description = "Do not actually change any score totals, just display what would be done.")]
         public bool DryRun { get; set; }
 
+        [Option(CommandOptionType.SingleValue, Template = "--where", Description = "Specify extra conditions to use when querying for scores to migrate.")]
+        public string? AdditionalConditions { get; set; }
+
         private readonly StringBuilder sqlBuffer = new StringBuilder();
         private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
         private readonly HashSet<ElasticQueuePusher.ElasticScoreItem> elasticItems = new HashSet<ElasticQueuePusher.ElasticScoreItem>();
@@ -70,10 +73,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             Console.WriteLine($"Changing multiplier of mod {ModAcronym} in ruleset {RulesetId} from {OldMultiplier} to {NewMultiplier}");
             Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
 
+            string scoreBatchQuery = "SELECT `id`, `total_score` "
+                                     + "FROM `scores` "
+                                     + "WHERE `id` BETWEEN @lastId AND (@lastId + @batchSize - 1) "
+                                     + "AND `ruleset_id` = @rulesetId "
+                                     + "AND JSON_SEARCH(`data`, 'one', @modAcronym, NULL, '$.mods[*].acronym') IS NOT NULL";
+
+            if (!string.IsNullOrEmpty(AdditionalConditions))
+                scoreBatchQuery += $" AND ({AdditionalConditions})";
+
+            Console.WriteLine($"Will use following query:\n{scoreBatchQuery}");
+
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
-            Thread.Sleep(5000);
+            Thread.Sleep(15000);
 
             ulong lastId = StartId ?? 0;
             int converted = 0;
@@ -84,11 +98,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             while (!cancellationToken.IsCancellationRequested)
             {
                 var scoresToAdjust = (await conn.QueryAsync<ScoreToAdjust>(
-                    "SELECT `id`, `total_score` "
-                    + "FROM `scores` "
-                    + "WHERE `id` BETWEEN @lastId AND (@lastId + @batchSize - 1) "
-                    + "AND `ruleset_id` = @rulesetId "
-                    + "AND JSON_SEARCH(`data`, 'one', @modAcronym, NULL, '$.mods[*].acronym') IS NOT NULL",
+                    scoreBatchQuery,
                     new
                     {
                         lastId = lastId,
