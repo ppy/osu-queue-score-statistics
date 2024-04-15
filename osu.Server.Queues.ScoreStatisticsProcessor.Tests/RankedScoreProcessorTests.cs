@@ -47,6 +47,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestUnrankedScoreOnRankedMapDoesNotIncreaseRankedScore()
+        {
+            AddBeatmap(b => b.approved = BeatmapOnlineStatus.Ranked);
+            waitForRankedScore("osu_user_stats", 0);
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.ranked = false);
+            waitForRankedScore("osu_user_stats", 0);
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.total_score = 50000);
+            waitForRankedScore("osu_user_stats", 5041);
+        }
+
+        [Fact]
         public void TestScoresFromDifferentBeatmapsAreCountedSeparately()
         {
             var firstBeatmap = AddBeatmap(b => b.beatmap_id = 1001, s => s.beatmapset_id = 1);

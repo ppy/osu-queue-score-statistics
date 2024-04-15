@@ -205,6 +205,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 // usages in processors will generally pass in an unprocessed score, but still expect it to be included in the results of this query as if it was processed.
                 // therefore we need to make an exception here to ensure it's included.
                 + "AND (`preserve` = 1 OR `id` = @new_score_id) "
+                + "AND `ranked` = 1 "
                 + "ORDER BY total_score DESC, `id` DESC "
                 + "LIMIT @offset, 1", new
                 {
