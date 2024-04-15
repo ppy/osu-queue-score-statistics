@@ -124,7 +124,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             try
             {
-                Beatmap? beatmap = await beatmapStore.GetBeatmapAsync((uint)score.BeatmapID, connection, transaction);
+                var beatmap = score.Beatmap;
 
                 if (beatmap == null)
                     return;
@@ -138,8 +138,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (!AllModsValidForPerformance(score, mods))
                     return;
 
-                APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
-                DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, connection, transaction);
+                DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
 
                 // Performance needs to be allowed for the build.
                 // legacy scores don't need a build id
@@ -149,7 +148,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (difficultyAttributes == null)
                     return;
 
-                ScoreInfo scoreInfo = score.ToScoreInfo(mods, apiBeatmap);
+                ScoreInfo scoreInfo = score.ToScoreInfo(mods, beatmap);
                 PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
 
                 if (performanceAttributes == null)
