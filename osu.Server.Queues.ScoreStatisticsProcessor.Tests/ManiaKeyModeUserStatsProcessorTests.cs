@@ -152,6 +152,40 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void RankCountsNotUpdatedForUnrankedScores()
+        {
+            var beatmap4K = AddBeatmap(b =>
+            {
+                b.beatmap_id = 12;
+                b.playmode = 3;
+                b.diff_size = 4;
+            }, s => s.beatmapset_id = 1);
+
+            WaitForDatabaseState<(int?, int?)>("SELECT `a_rank_count`, `s_rank_count` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", (null, null), CancellationToken, new { userId = 2 });
+
+            SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
+            {
+                s.Score.ranked = false;
+                s.Score.preserve = true;
+                s.Score.total_score = 500_000;
+                s.Score.rank = ScoreRank.A;
+                s.Score.ruleset_id = 3;
+            });
+
+            WaitForDatabaseState<(int?, int?)>("SELECT `a_rank_count`, `s_rank_count` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", (0, 0), CancellationToken, new { userId = 2 });
+
+            SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
+            {
+                s.Score.ranked = s.Score.preserve = true;
+                s.Score.total_score = 300_000; // same map and keymode as above, lower score, but score is ranked => should count
+                s.Score.rank = ScoreRank.S;
+                s.Score.ruleset_id = 3;
+            });
+
+            WaitForDatabaseState<(int?, int?)>("SELECT `a_rank_count`, `s_rank_count` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", (0, 1), CancellationToken, new { userId = 2 });
+        }
+
+        [Fact]
         public void PerformancePointTotalAndRankUpdated()
         {
             WaitForDatabaseState("SELECT `playcount` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", (int?)null, CancellationToken, new { userId = 2 });
