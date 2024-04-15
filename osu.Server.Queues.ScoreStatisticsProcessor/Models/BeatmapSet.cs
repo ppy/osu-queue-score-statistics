@@ -16,6 +16,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     {
         [ExplicitKey]
         public int beatmapset_id { get; set; }
+
         public uint user_id { get; set; }
 
         public string artist { get; set; } = string.Empty;
