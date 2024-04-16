@@ -126,7 +126,7 @@ jobs:
         name: Invoke tag workflow in private repo
         uses: benc-uk/workflow-dispatch@25b02cc069be46d637e8fe2f1e8484008e9e9609 # v1.2.3
         with:
-          token: ${{ secrets.PRIVATE_REPO_ACCESS_TOKEN }}
+          token: ${{ secrets.KUBERNETES_CONFIG_REPO_ACCESS_TOKEN }}
           repo: ppy/osu-queue-score-statistics-private
           workflow: tag.yml
           inputs: '{ "tag": "${{ github.ref_name }}" }'
