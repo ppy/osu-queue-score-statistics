@@ -5,6 +5,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using Dapper.Contrib.Extensions;
 using osu.Game.Beatmaps;
+using osu.Game.Online.API.Requests.Responses;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
@@ -15,6 +16,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     {
         [ExplicitKey]
         public int beatmapset_id { get; set; }
+
+        public uint user_id { get; set; }
+
+        public string artist { get; set; } = string.Empty;
+        public string title { get; set; } = string.Empty;
+        public string creator { get; set; } = string.Empty;
+        public double bpm { get; set; }
+
+        public APIBeatmapSet ToAPIBeatmapSet() => new APIBeatmapSet
+        {
+            OnlineID = beatmapset_id,
+            Artist = artist,
+            Title = title,
+            AuthorString = creator,
+            AuthorID = (int)user_id,
+            BPM = bpm,
+        };
 
         public BeatmapOnlineStatus approved { get; set; }
     }

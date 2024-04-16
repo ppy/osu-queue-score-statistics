@@ -2,8 +2,10 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Dapper;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
 
@@ -38,6 +40,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                         medalId,
                         mode
                     });
+            }
+        }
+
+        protected void AddPackMedal(int medalId, int packId, IReadOnlyList<Beatmap> beatmaps)
+        {
+            AddMedal(medalId);
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                db.Execute($"INSERT INTO osu_beatmappacks (pack_id, url, name, author, tag, date) VALUES ({packId}, 'https://osu.ppy.sh', 'pack', 'wang', 'PACK', NOW())");
+
+                foreach (int setId in beatmaps.GroupBy(b => b.beatmapset_id).Select(g => g.Key))
+                    db.Execute($"INSERT INTO osu_beatmappacks_items (pack_id, beatmapset_id) VALUES ({packId}, {setId})");
             }
         }
 

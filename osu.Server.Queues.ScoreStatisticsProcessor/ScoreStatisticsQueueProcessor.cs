@@ -181,6 +181,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     {
                         BeatmapId = score.BeatmapID
                     })?.ToAPIBeatmap();
+                    score.BeatmapSet = conn.QuerySingleOrDefault<BeatmapSet>("SELECT * FROM `osu_beatmapsets` WHERE `beatmapset_id` = @BeatmapSetId", new
+                    {
+                        BeatmapSetId = score.Beatmap!.OnlineBeatmapSetID
+                    })?.ToAPIBeatmapSet();
 
                     using (var transaction = conn.BeginTransaction(IsolationLevel.ReadCommitted))
                     {

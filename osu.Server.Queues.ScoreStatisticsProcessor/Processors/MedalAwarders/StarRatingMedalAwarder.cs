@@ -11,7 +11,6 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 {
@@ -38,17 +37,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             if (context.Score.RulesetID == 3 && mods.Any(isManiaDisallowedMod))
                 yield break;
 
-            Beatmap? beatmap = await context.BeatmapStore.GetBeatmapAsync((uint)context.Score.BeatmapID, context.Connection, context.Transaction);
+            var beatmap = context.Score.Beatmap;
             if (beatmap == null)
                 yield break;
 
             // Make sure the map isn't Qualified or Loved, as those maps may occasionally have SR-breaking/aspire aspects
-            if (beatmap.approved == BeatmapOnlineStatus.Qualified || beatmap.approved == BeatmapOnlineStatus.Loved)
+            if (beatmap.Status == BeatmapOnlineStatus.Qualified || beatmap.Status == BeatmapOnlineStatus.Loved)
                 yield break;
 
             // Get map star rating (including mods)
-            APIBeatmap apiBeatmap = beatmap.ToAPIBeatmap();
-            DifficultyAttributes? difficultyAttributes = await context.BeatmapStore.GetDifficultyAttributesAsync(apiBeatmap, ruleset, mods, context.Connection, context.Transaction);
+            DifficultyAttributes? difficultyAttributes = await context.BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, context.Connection, context.Transaction);
 
             if (difficultyAttributes == null)
                 yield break;
