@@ -30,9 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
         private static readonly uint memory_cache_size_limit = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SIZE_LIMIT") ?? "1000");
-        private static readonly uint memory_cache_sliding_expiration_seconds = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SLIDING_EXPIRATION_SECONDS") ?? "3600");
-
-        private static TimeSpan memoryCacheSlidingExpiration => TimeSpan.FromSeconds(memory_cache_sliding_expiration_seconds);
+        private static readonly TimeSpan memory_cache_sliding_expiration = TimeSpan.FromSeconds(uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SLIDING_EXPIRATION_SECONDS") ?? "3600"));
 
         private readonly MemoryCache attributeMemoryCache;
         private readonly MemoryCache beatmapMemoryCache;
@@ -106,7 +104,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 key,
                 async cacheEntry =>
                 {
-                    cacheEntry.SetSlidingExpiration(memoryCacheSlidingExpiration);
+                    cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
                     cacheEntry.SetSize(1);
 
                     return (await connection.QueryAsync<BeatmapDifficultyAttribute>(
@@ -158,7 +156,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 beatmapId,
                 cacheEntry =>
                 {
-                    cacheEntry.SetSlidingExpiration(memoryCacheSlidingExpiration);
+                    cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
                     cacheEntry.SetSize(1);
 
                     return connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
