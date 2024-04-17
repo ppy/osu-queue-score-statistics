@@ -128,5 +128,6 @@ jobs:
         with:
           token: ${{ secrets.KUBERNETES_CONFIG_REPO_ACCESS_TOKEN }}
           repo: ppy/osu-queue-score-statistics-private
+          ref: master
           workflow: tag.yml
           inputs: '{ "tag": "${{ github.ref_name }}" }'
