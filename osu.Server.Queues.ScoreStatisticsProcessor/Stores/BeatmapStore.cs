@@ -29,18 +29,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     {
         private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
-        private static readonly uint memory_cache_size_limit = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SIZE_LIMIT") ?? "100");
+        private static readonly uint memory_cache_size_limit = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SIZE_LIMIT") ?? "1000000");
         private static readonly TimeSpan memory_cache_sliding_expiration = TimeSpan.FromSeconds(uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SLIDING_EXPIRATION_SECONDS") ?? "3600"));
 
         /// <summary>
-        /// The size of a <see cref="BeatmapDifficultyAttribute"/> in megabytes. Used for tracking memory usage.
+        /// The size of a <see cref="BeatmapDifficultyAttribute"/> in bytes. Used for tracking memory usage.
         /// </summary>
-        private const int beatmap_difficulty_attribute_size = 24 / 1024 / 1024;
+        private const int beatmap_difficulty_attribute_size = 24;
 
         /// <summary>
-        /// The size of a <see cref="Beatmap"/> in megabytes. Used for tracking memory usage.
+        /// The size of a <see cref="Beatmap"/> in bytes. Used for tracking memory usage.
         /// </summary>
-        private const int beatmap_size = 72 / 1024 / 1024;
+        private const int beatmap_size = 72;
 
         private readonly MemoryCache attributeMemoryCache;
         private readonly MemoryCache beatmapMemoryCache;
