@@ -29,8 +29,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     {
         private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
-        private static readonly uint memory_cache_size_limit = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SIZE_LIMIT") ?? "1000");
+        private static readonly uint memory_cache_size_limit = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SIZE_LIMIT") ?? "100");
         private static readonly TimeSpan memory_cache_sliding_expiration = TimeSpan.FromSeconds(uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SLIDING_EXPIRATION_SECONDS") ?? "3600"));
+
+        /// <summary>
+        /// The size of a <see cref="BeatmapDifficultyAttribute"/> in megabytes. Used for tracking memory usage.
+        /// </summary>
+        private const int beatmap_difficulty_attribute_size = 24 / 1024 / 1024;
+
+        /// <summary>
+        /// The size of a <see cref="Beatmap"/> in megabytes. Used for tracking memory usage.
+        /// </summary>
+        private const int beatmap_size = 72 / 1024 / 1024;
 
         private readonly MemoryCache attributeMemoryCache;
         private readonly MemoryCache beatmapMemoryCache;
@@ -105,15 +115,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 async cacheEntry =>
                 {
                     cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
-                    cacheEntry.SetSize(1);
 
-                    return (await connection.QueryAsync<BeatmapDifficultyAttribute>(
+                    BeatmapDifficultyAttribute[]? attributes = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
                         "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
                         {
                             key.BeatmapId,
                             key.RulesetId,
                             key.ModValue
                         }, transaction: transaction)).ToArray();
+
+                    cacheEntry.SetSize(beatmap_difficulty_attribute_size * attributes.Length);
+
+                    return attributes;
                 });
 
             if (rawDifficultyAttributes == null || rawDifficultyAttributes.Length == 0)
@@ -157,7 +170,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 cacheEntry =>
                 {
                     cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
-                    cacheEntry.SetSize(1);
+                    cacheEntry.SetSize(beatmap_size);
 
                     return connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
                     {
