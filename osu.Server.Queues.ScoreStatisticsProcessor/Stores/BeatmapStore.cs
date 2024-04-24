@@ -116,7 +116,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 {
                     cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
 
-                    BeatmapDifficultyAttribute[]? attributes = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
+                    BeatmapDifficultyAttribute[] attributes = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
                         "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
                         {
                             key.BeatmapId,
