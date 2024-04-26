@@ -124,9 +124,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             try
             {
-                var beatmap = score.Beatmap;
+                score.Beatmap ??= (await beatmapStore.GetBeatmapAsync((uint)score.BeatmapID, connection, transaction))?.ToAPIBeatmap();
 
-                if (beatmap == null)
+                if (score.Beatmap is not APIBeatmap beatmap)
                     return;
 
                 if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, (uint)score.RulesetID))
