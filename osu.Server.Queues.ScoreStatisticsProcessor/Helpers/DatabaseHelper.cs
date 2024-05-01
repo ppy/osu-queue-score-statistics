@@ -6,10 +6,8 @@ using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
-using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
@@ -146,31 +144,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 throw new InvalidOperationException($"Unable to retrieve count '{key}'.");
 
             return res.Value;
-        }
-
-        /// <summary>
-        /// Returns <see langword="true"/> if the beatmap with the given <paramref name="beatmapId"/>
-        /// is valid to be included in ranked counts, such as total ranked score and user rank (grade) counts.
-        /// </summary>
-        /// <seealso cref="RankedScoreProcessor"/>
-        /// <seealso cref="UserRankCountProcessor"/>
-        /// <param name="beatmapId">The ID of the beatmap to check.</param>
-        /// <param name="conn">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">The current transaction, if applicable.</param>
-        /// <exception cref="InvalidOperationException">The beatmap with the supplied <paramref name="beatmapId"/> could not be found.</exception>
-        public static bool IsBeatmapValidForRankedCounts(uint beatmapId, MySqlConnection conn, MySqlTransaction? transaction = null)
-        {
-            var status = conn.QuerySingleOrDefault<BeatmapOnlineStatus?>("SELECT `approved` FROM osu_beatmaps WHERE `beatmap_id` = @beatmap_id",
-                new { beatmap_id = beatmapId },
-                transaction);
-
-            if (status == null)
-                throw new InvalidOperationException($"Cannot find beatmap with ID = {beatmapId} in database.");
-
-            // see https://osu.ppy.sh/wiki/en/Gameplay/Score/Ranked_score
-            return status == BeatmapOnlineStatus.Ranked
-                   || status == BeatmapOnlineStatus.Approved
-                   || status == BeatmapOnlineStatus.Loved;
         }
 
         /// <summary>

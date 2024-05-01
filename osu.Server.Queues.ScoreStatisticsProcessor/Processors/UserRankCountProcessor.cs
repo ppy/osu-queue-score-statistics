@@ -22,7 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.beatmap_id, conn, transaction))
+            if (!score.BeatmapValidForRankedCounts())
                 return;
 
             if (previousVersion >= 7)
@@ -47,7 +47,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.beatmap_id, conn, transaction))
+            if (!score.BeatmapValidForRankedCounts())
                 return;
 
             var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);

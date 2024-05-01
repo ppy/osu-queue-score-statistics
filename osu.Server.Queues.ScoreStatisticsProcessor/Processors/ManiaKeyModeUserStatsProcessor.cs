@@ -113,7 +113,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         // it's a bit unfortunate but it is the only way this can implemented for now until `preserve = 0` is set on lazer scores correctly.
         private void updateRankCounts(SoloScore score, UserStatsManiaKeyCount keymodeStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.beatmap_id, conn, transaction))
+            if (!score.BeatmapValidForRankedCounts())
                 return;
 
             var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);

@@ -4,6 +4,7 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
+using osu.Game.Beatmaps;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
@@ -32,6 +33,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                    || (lengthInSeconds >= 8
                        && score.total_score >= 5000
                        && totalObjectsJudged >= Math.Min(0.1f * totalObjects, 20));
+        }
+
+        /// <summary>
+        /// Returns <see langword="true"/> if the beatmap with the given <paramref name="beatmapId"/>
+        /// is valid to be included in ranked counts, such as total ranked score and user rank (grade) counts.
+        /// </summary>
+        /// <seealso cref="RankedScoreProcessor"/>
+        /// <seealso cref="UserRankCountProcessor"/>
+        /// <seealso cref="ManiaKeyModeUserStatsProcessor"/>
+        public static bool BeatmapValidForRankedCounts(this SoloScore score)
+        {
+            // see https://osu.ppy.sh/wiki/en/Gameplay/Score/Ranked_score
+            var status = score.beatmap?.approved;
+            return status == BeatmapOnlineStatus.Ranked
+                   || status == BeatmapOnlineStatus.Approved
+                   || status == BeatmapOnlineStatus.Loved;
         }
 
         /// <summary>
