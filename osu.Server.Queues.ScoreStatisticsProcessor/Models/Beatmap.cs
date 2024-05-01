@@ -66,7 +66,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         int? IBeatmapOnlineInfo.MaxCombo => throw new NotSupportedException();
         int IBeatmapOnlineInfo.PassCount => throw new NotSupportedException();
-        APIFailTimes? IBeatmapOnlineInfo.FailTimes => throw new NotSupportedException();
+        APIFailTimes IBeatmapOnlineInfo.FailTimes => throw new NotSupportedException();
 
         #endregion
     }

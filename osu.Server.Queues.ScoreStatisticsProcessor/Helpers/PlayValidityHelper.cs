@@ -36,7 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         }
 
         /// <summary>
-        /// Returns <see langword="true"/> if the beatmap with the given <paramref name="beatmapId"/>
+        /// Returns <see langword="true"/> if the beatmap on which <paramref name="score"/> was set
         /// is valid to be included in ranked counts, such as total ranked score and user rank (grade) counts.
         /// </summary>
         /// <seealso cref="RankedScoreProcessor"/>
