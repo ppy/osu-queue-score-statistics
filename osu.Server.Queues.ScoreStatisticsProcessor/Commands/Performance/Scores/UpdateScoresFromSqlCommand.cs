@@ -22,10 +22,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
-            int[] userIds;
+            uint[] userIds;
 
             using (var db = DatabaseAccess.GetConnection())
-                userIds = (await db.QueryAsync<int>(Statement)).ToArray();
+                userIds = (await db.QueryAsync<uint>(Statement)).ToArray();
 
             await ProcessUserScores(userIds, cancellationToken);
             return 0;

@@ -39,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
         /// </summary>
         /// <param name="input">The input string.</param>
         /// <returns>The IDs.</returns>
-        protected static int[] ParseIntIds(string input) => input.Split(',').Select(int.Parse).ToArray();
+        protected static uint[] ParseIntIds(string input) => input.Split(',').Select(uint.Parse).ToArray();
 
         /// <summary>
         /// Parses a comma-separated list of IDs from a given input string.
@@ -48,7 +48,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
         /// <returns>The IDs.</returns>
         protected static ulong[] ParseLongIds(string input) => input.Split(',').Select(ulong.Parse).ToArray();
 
-        protected async Task ProcessUserTotals(int[] userIds, CancellationToken cancellationToken)
+        protected async Task ProcessUserTotals(uint[] userIds, CancellationToken cancellationToken)
         {
             if (userIds.Length == 0)
             {
@@ -77,7 +77,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
             }, cancellationToken);
         }
 
-        protected async Task ProcessUserScores(int[] userIds, CancellationToken cancellationToken)
+        protected async Task ProcessUserScores(uint[] userIds, CancellationToken cancellationToken)
         {
             if (userIds.Length == 0)
             {

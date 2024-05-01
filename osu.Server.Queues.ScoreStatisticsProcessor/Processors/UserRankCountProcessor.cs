@@ -4,7 +4,6 @@
 using System.Diagnostics;
 using JetBrains.Annotations;
 using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -21,9 +20,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.BeatmapID, conn, transaction))
+            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.beatmap_id, conn, transaction))
                 return;
 
             if (previousVersion >= 7)
@@ -34,39 +33,39 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
 
                 // If this score isn't the user's best on the beatmap, nothing needs to be reverted.
-                if (bestScore?.ID != score.ID)
+                if (bestScore?.id != score.id)
                     return;
 
                 // If it is, remove the rank before applying the next-best.
-                removeRank(userStats, score.Rank);
+                removeRank(userStats, score.rank);
 
                 var secondBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction, offset: 1);
                 if (secondBestScore != null)
-                    addRank(userStats, secondBestScore.Rank);
+                    addRank(userStats, secondBestScore.rank);
             }
         }
 
-        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.BeatmapID, conn, transaction))
+            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.beatmap_id, conn, transaction))
                 return;
 
             var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
 
             // If there's already another higher score than this one, nothing needs to be done.
-            if (bestScore?.ID != score.ID)
+            if (bestScore?.id != score.id)
                 return;
 
             // If this score is the new best and there's a previous higher score, that score's rank should be removed before we apply the new one.
             var secondBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction, offset: 1);
             if (secondBestScore != null)
-                removeRank(userStats, secondBestScore.Rank);
+                removeRank(userStats, secondBestScore.rank);
 
             Debug.Assert(bestScore != null);
-            addRank(userStats, bestScore.Rank);
+            addRank(userStats, bestScore.rank);
         }
 
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
         }
 

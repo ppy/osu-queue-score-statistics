@@ -20,7 +20,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             // Do a global check to see if this beatmapset is contained in *any* pack.
             var validPacksForBeatmapSet = context.Connection.Query<int>("SELECT pack_id FROM osu_beatmappacks_items WHERE beatmapset_id = @beatmapSetId", new
             {
-                beatmapSetId = context.Score.Beatmap!.OnlineBeatmapSetID,
+                beatmapSetId = context.Score.beatmap!.beatmapset_id,
             }, transaction: context.Transaction);
 
             foreach (var medal in medals)

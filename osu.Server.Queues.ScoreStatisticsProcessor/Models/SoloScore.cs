@@ -3,10 +3,14 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Dapper.Contrib.Extensions;
 using Newtonsoft.Json;
+using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Rulesets;
 using osu.Game.Scoring;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
@@ -63,27 +67,41 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public ushort? build_id { get; set; }
 
-        public SoloScoreInfo ToScoreInfo() => new SoloScoreInfo
+        [Computed]
+        public Beatmap? beatmap { get; set; }
+
+        [Computed]
+        public bool is_legacy_score => legacy_score_id != null;
+
+        public ScoreInfo ToScoreInfo()
         {
-            BeatmapID = (int)beatmap_id,
-            RulesetID = ruleset_id,
-            BuildID = build_id,
-            Passed = passed,
-            TotalScore = total_score,
-            Accuracy = accuracy,
-            UserID = (int)user_id,
-            MaxCombo = (int)max_combo,
-            Rank = rank,
-            StartedAt = started_at,
-            EndedAt = ended_at,
-            Mods = ScoreData.Mods,
-            Statistics = ScoreData.Statistics,
-            MaximumStatistics = ScoreData.MaximumStatistics,
-            LegacyTotalScore = (int?)legacy_total_score,
-            LegacyScoreId = legacy_score_id,
-            ID = id,
-            PP = pp,
-            HasReplay = has_replay
-        };
+            var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(ruleset_id);
+
+            return new ScoreInfo
+            {
+                OnlineID = (long)id,
+                LegacyOnlineID = (long?)legacy_score_id ?? -1,
+                IsLegacyScore = is_legacy_score,
+                User = new APIUser { Id = (int)user_id },
+                BeatmapInfo = new BeatmapInfo
+                {
+                    OnlineID = (int)beatmap_id
+                },
+                Ruleset = new RulesetInfo { OnlineID = ruleset_id },
+                Passed = passed,
+                TotalScore = total_score,
+                LegacyTotalScore = legacy_total_score,
+                Accuracy = accuracy,
+                MaxCombo = (int)max_combo,
+                Rank = rank,
+                Statistics = ScoreData.Statistics,
+                MaximumStatistics = ScoreData.MaximumStatistics,
+                Date = ended_at,
+                HasOnlineReplay = has_replay,
+                Mods = ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray(),
+                PP = pp,
+                Ranked = ranked,
+            };
+        }
     }
 }

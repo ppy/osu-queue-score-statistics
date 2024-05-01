@@ -12,7 +12,6 @@ using MySqlConnector;
 using osu.Framework.IO.Network;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Legacy;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
@@ -64,11 +63,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
-        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(APIBeatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
+        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             if (use_realtime_difficulty_calculation)
             {
-                using var req = new WebRequest(string.Format(beatmap_download_path, beatmap.OnlineID))
+                using var req = new WebRequest(string.Format(beatmap_download_path, beatmap.beatmap_id))
                 {
                     AllowInsecureRequests = true
                 };
@@ -76,7 +75,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 await req.PerformAsync().ConfigureAwait(false);
 
                 if (req.ResponseStream.Length == 0)
-                    throw new Exception($"Retrieved zero-length beatmap ({beatmap.OnlineID})!");
+                    throw new Exception($"Retrieved zero-length beatmap ({beatmap.beatmap_id})!");
 
                 var workingBeatmap = new StreamedWorkingBeatmap(req.ResponseStream);
                 var calculator = ruleset.CreateDifficultyCalculator(workingBeatmap);
@@ -87,7 +86,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
 
             LegacyMods legacyModValue = getLegacyModsForAttributeLookup(beatmap, ruleset, mods);
-            DifficultyAttributeKey key = new DifficultyAttributeKey((uint)beatmap.OnlineID, (uint)ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
+            DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, (uint)ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
 
             if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
             {
@@ -116,7 +115,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// Moreover, the set of <see cref="LegacyMods"/> returned is constrained to mods that actually affect difficulty in the legacy sense.
         /// The entirety of this workaround is not used / unnecessary if <see cref="use_realtime_difficulty_calculation"/> is <see langword="true"/>.
         /// </remarks>
-        private static LegacyMods getLegacyModsForAttributeLookup(APIBeatmap beatmap, Ruleset ruleset, Mod[] mods)
+        private static LegacyMods getLegacyModsForAttributeLookup(Beatmap beatmap, Ruleset ruleset, Mod[] mods)
         {
             var legacyMods = ruleset.ConvertToLegacyMods(mods);
 
@@ -124,7 +123,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             if (mods.Any(mod => mod is ModDaycore))
                 legacyMods |= LegacyMods.HalfTime;
 
-            return LegacyModsHelper.MaskRelevantMods(legacyMods, ruleset.RulesetInfo.OnlineID != beatmap.RulesetID, ruleset.RulesetInfo.OnlineID);
+            return LegacyModsHelper.MaskRelevantMods(legacyMods, ruleset.RulesetInfo.OnlineID != beatmap.playmode, ruleset.RulesetInfo.OnlineID);
         }
 
         /// <summary>
@@ -150,12 +149,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// </summary>
         /// <param name="beatmap">The beatmap.</param>
         /// <param name="rulesetId">The ruleset.</param>
-        public bool IsBeatmapValidForPerformance(APIBeatmap beatmap, uint rulesetId)
+        public bool IsBeatmapValidForPerformance(Beatmap beatmap, uint rulesetId)
         {
-            if (blacklist.ContainsKey(new BlacklistEntry((uint)beatmap.OnlineID, rulesetId)))
+            if (blacklist.ContainsKey(new BlacklistEntry(beatmap.beatmap_id, rulesetId)))
                 return false;
 
-            switch (beatmap.Status)
+            switch (beatmap.approved)
             {
                 case BeatmapOnlineStatus.Ranked:
                 case BeatmapOnlineStatus.Approved:

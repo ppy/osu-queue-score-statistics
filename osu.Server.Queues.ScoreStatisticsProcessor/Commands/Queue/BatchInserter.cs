@@ -381,7 +381,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     BeatmapId = beatmapId
                 });
 
-                return difficulty_info_cache[beatmapId] = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
+                return difficulty_info_cache[beatmapId] = beatmap.GetLegacyBeatmapConversionDifficultyInfo();
             }
         }
 

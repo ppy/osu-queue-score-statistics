@@ -7,7 +7,6 @@ using System.Linq;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -22,19 +21,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public bool RunOnFailedScores => false;
         public bool RunOnLegacyScores => true;
 
-        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
 
-        public void ApplyToUserStats(SoloScoreInfo score, UserStats fullRulesetStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats fullRulesetStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (score.RulesetID != 3)
+            if (score.ruleset_id != 3)
                 return;
 
-            if (score.Beatmap == null)
+            if (score.beatmap == null)
                 return;
 
-            int keyCount = (int)score.Beatmap.CircleSize;
+            int keyCount = (int)score.beatmap.diff_size;
             // TODO: reconsider when handling key conversion mods in the future?
             if (keyCount != 4 && keyCount != 7)
                 return;
@@ -42,14 +41,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             string keyCountTableName = $"osu_user_stats_mania_{keyCount}k";
             var keymodeStats = new UserStatsManiaKeyCount
             {
-                user_id = (uint)score.UserID
+                user_id = score.user_id
             };
 
             var existingRow = conn.QueryFirstOrDefault<UserStatsManiaKeyCount>($"SELECT * FROM `{keyCountTableName}` WHERE `user_id` = @user_id", keymodeStats, transaction);
 
             // this should really not be necessary, but there is no real good way to expose the value of `preserve` *inside* a processor
             // as it does not have access to the raw database row anymore...
-            bool preserve = conn.QuerySingle<bool>("SELECT `preserve` FROM `scores` WHERE `id` = @id", new { id = score.ID }, transaction);
+            bool preserve = conn.QuerySingle<bool>("SELECT `preserve` FROM `scores` WHERE `id` = @id", new { id = score.id }, transaction);
 
             if (preserve || existingRow == null)
             {
@@ -68,7 +67,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     + "ORDER BY pp DESC LIMIT 1000", new
                     {
                         UserId = keymodeStats.user_id,
-                        RulesetId = score.RulesetID,
+                        RulesetId = score.ruleset_id,
                         KeyCount = keyCount,
                     }, transaction: transaction).ToList();
 
@@ -95,8 +94,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                         new
                         {
                             playcount = fullRulesetStats.playcount,
-                            userId = score.UserID,
-                            rulesetId = score.RulesetID,
+                            userId = score.user_id,
+                            rulesetId = score.ruleset_id,
                             keyCount = keyCount,
                         }, transaction) ?? 1;
 
@@ -116,24 +115,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         // local reimplementation of `UserRankCountProcessor` for keymodes.
         // it's a bit unfortunate but it is the only way this can implemented for now until `preserve = 0` is set on lazer scores correctly.
-        private void updateRankCounts(SoloScoreInfo score, UserStatsManiaKeyCount keymodeStats, MySqlConnection conn, MySqlTransaction transaction)
+        private void updateRankCounts(SoloScore score, UserStatsManiaKeyCount keymodeStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.BeatmapID, conn, transaction))
+            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.beatmap_id, conn, transaction))
                 return;
 
             var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
 
             // If there's already another higher score than this one, nothing needs to be done.
-            if (bestScore?.ID != score.ID)
+            if (bestScore?.id != score.id)
                 return;
 
             // If this score is the new best and there's a previous higher score, that score's rank should be removed before we apply the new one.
             var secondBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction, offset: 1);
             if (secondBestScore != null)
-                updateRankCounts(keymodeStats, secondBestScore.Rank, revert: true);
+                updateRankCounts(keymodeStats, secondBestScore.rank, revert: true);
 
             Debug.Assert(bestScore != null);
-            updateRankCounts(keymodeStats, bestScore.Rank, revert: false);
+            updateRankCounts(keymodeStats, bestScore.rank, revert: false);
         }
 
         private static void updateRankCounts(UserStatsManiaKeyCount stats, ScoreRank rank, bool revert)
@@ -164,7 +163,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
         }
 
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
         }
     }

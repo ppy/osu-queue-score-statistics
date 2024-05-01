@@ -4,7 +4,6 @@
 using System.Diagnostics;
 using JetBrains.Annotations;
 using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -19,9 +18,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.BeatmapID, conn, transaction))
+            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.beatmap_id, conn, transaction))
                 return;
 
             if (previousVersion >= 9)
@@ -32,7 +31,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
 
                 // If this score isn't the user's best on the beatmap, nothing needs to be reverted.
-                if (bestScore?.ID != score.ID)
+                if (bestScore?.id != score.id)
                     return;
 
                 // If it is, unapply from total ranked score before applying the next-best.
@@ -44,9 +43,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
         }
 
-        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.BeatmapID, conn, transaction))
+            if (!DatabaseHelper.IsBeatmapValidForRankedCounts(score.beatmap_id, conn, transaction))
                 return;
 
             // Note that most of the below code relies on the fact that classic scoring mode
@@ -58,7 +57,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
 
             // If there's already another higher score than this one, nothing needs to be done.
-            if (bestScore?.ID != score.ID)
+            if (bestScore?.id != score.id)
                 return;
 
             // If this score is the new best and there's a previous higher score,
@@ -72,13 +71,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             updateRankedScore(bestScore, userStats, revert: false);
         }
 
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
         }
 
-        private static void updateRankedScore(SoloScoreInfo soloScoreInfo, UserStats stats, bool revert)
+        private static void updateRankedScore(SoloScore soloScore, UserStats stats, bool revert)
         {
-            long delta = soloScoreInfo.GetDisplayScore(ScoringMode.Classic) * (revert ? -1 : 1);
+            long delta = soloScore.ToScoreInfo().GetDisplayScore(ScoringMode.Classic) * (revert ? -1 : 1);
             stats.ranked_score += delta;
         }
     }

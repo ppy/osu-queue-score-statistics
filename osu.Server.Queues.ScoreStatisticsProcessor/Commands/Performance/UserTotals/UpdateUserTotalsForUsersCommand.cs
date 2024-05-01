@@ -19,7 +19,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTo
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
-            int[] userIds = ParseIntIds(UsersString);
+            uint[] userIds = ParseIntIds(UsersString);
             await ProcessUserTotals(userIds, cancellationToken);
             return 0;
         }

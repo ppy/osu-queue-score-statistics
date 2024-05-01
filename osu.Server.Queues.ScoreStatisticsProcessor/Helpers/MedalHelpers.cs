@@ -78,7 +78,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
             if (packRulesetId != null)
             {
-                if (context.Score.RulesetID != packRulesetId)
+                if (context.Score.ruleset_id != packRulesetId)
                     return false;
 
                 rulesetCriteria = $"AND ruleset_id = {packRulesetId}";
@@ -91,7 +91,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 + "FROM osu_beatmappacks_items p "
                 + "JOIN osu_beatmaps b USING (beatmapset_id) "
                 + "JOIN scores s USING (beatmap_id)"
-                + $"WHERE s.user_id = {context.Score.UserID} AND s.passed = 1 AND s.preserve = 1 AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: context.Transaction);
+                + $"WHERE s.user_id = {context.Score.user_id} AND s.passed = 1 AND s.preserve = 1 AND pack_id = {packId} {rulesetCriteria} {modsCriteria}", transaction: context.Transaction);
 
             int countForPack = context.Connection.QuerySingle<int>($"SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = {packId}", transaction: context.Transaction);
 

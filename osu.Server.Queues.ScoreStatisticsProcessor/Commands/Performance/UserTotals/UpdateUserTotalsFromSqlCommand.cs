@@ -30,7 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTo
 
             Console.WriteLine($"Fetching scoped users ({Query})...");
 
-            int[] userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE {Query}")).ToArray();
+            uint[] userIds = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE {Query}")).ToArray();
 
             Console.WriteLine($"Fetched {userIds.Length} users");
 
