@@ -46,11 +46,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             var existingRow = conn.QueryFirstOrDefault<UserStatsManiaKeyCount>($"SELECT * FROM `{keyCountTableName}` WHERE `user_id` = @user_id", keymodeStats, transaction);
 
-            // this should really not be necessary, but there is no real good way to expose the value of `preserve` *inside* a processor
-            // as it does not have access to the raw database row anymore...
-            bool preserve = conn.QuerySingle<bool>("SELECT `preserve` FROM `scores` WHERE `id` = @id", new { id = score.id }, transaction);
-
-            if (preserve || existingRow == null)
+            if (score.preserve || existingRow == null)
             {
                 keymodeStats = existingRow ?? keymodeStats;
 
