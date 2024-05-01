@@ -67,6 +67,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public ushort? build_id { get; set; }
 
+        /// <summary>
+        /// The beatmap that this score was set on.
+        /// </summary>
+        /// <remarks>
+        /// Importantly, this is the <b>raw database row</b> corresponding to <see cref="beatmap_id"/>.
+        /// This means that all properties pertaining to difficulty or ruleset in this model <b>will use the original beatmap data, excluding potential effects
+        /// of ruleset conversion and active mods.</b>
+        /// </remarks>
         [Computed]
         public Beatmap? beatmap { get; set; }
 
