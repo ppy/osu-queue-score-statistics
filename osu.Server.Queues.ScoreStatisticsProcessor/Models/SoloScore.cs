@@ -93,7 +93,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
                 User = new APIUser { Id = (int)user_id },
                 BeatmapInfo = new BeatmapInfo
                 {
-                    OnlineID = (int)beatmap_id
+                    OnlineID = (int)beatmap_id,
+                    Ruleset = new RulesetInfo { OnlineID = beatmap!.playmode }
                 },
                 Ruleset = new RulesetInfo { OnlineID = ruleset_id },
                 Passed = passed,

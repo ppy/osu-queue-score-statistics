@@ -170,7 +170,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         /// <param name="offset">How many records to skip in the sort order.</param>
         public static SoloScore? GetUserBestScoreFor(SoloScore score, MySqlConnection conn, MySqlTransaction? transaction = null, int offset = 0)
         {
-            return conn.QueryFirstOrDefault<SoloScore?>(
+            var result = conn.QueryFirstOrDefault<SoloScore?>(
                 "SELECT * FROM scores WHERE `user_id` = @user_id "
                 + "AND `beatmap_id` = @beatmap_id "
                 + "AND `ruleset_id` = @ruleset_id "
@@ -188,6 +188,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                     new_score_id = score.id,
                     offset = offset,
                 }, transaction);
+
+            // since the beatmaps for the two scores are the same by definition of the method,
+            // we can just copy them across without a refetch.
+            if (result != null)
+                result.beatmap = score.beatmap;
+
+            return result;
         }
     }
 }
