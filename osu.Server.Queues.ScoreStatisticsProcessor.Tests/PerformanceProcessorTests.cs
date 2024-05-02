@@ -15,6 +15,7 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Rulesets.Taiko.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
@@ -87,6 +88,46 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             // 165pp from the single score above + 4pp from playcount bonus
             WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 169, CancellationToken);
+        }
+
+        /// <summary>
+        /// Dear reader:
+        /// This test will likely appear very random to you. However it in fact exercises a very particular code path.
+        /// Both client- and server-side components do some rather gnarly juggling to convert between the various score-shaped models
+        /// (`SoloScore`, `ScoreInfo`, `SoloScoreInfo`...)
+        /// For most difficulty calculators this doesn't matter because they access fairly simple properties.
+        /// However taiko pp calculation code has _convert detection_ inside.
+        /// Therefore it is _very_ important that the single particular access path that the taiko pp calculator uses right now
+        /// (https://github.com/ppy/osu/blob/555305bf7f650a3461df1e23832ff99b94ca710e/osu.Game.Rulesets.Taiko/Difficulty/TaikoPerformanceCalculator.cs#L44-L45)
+        /// has the ID of the ruleset for the beatmap BEFORE CONVERSION.
+        /// This attempts to exercise that requirement in a bit of a dodgy way so that nobody silently breaks taiko pp on accident.
+        /// </summary>
+        [Fact]
+        public void TestTaikoNonConvertsCalculatePPCorrectly()
+        {
+            AddBeatmap(b => b.playmode = 1);
+            AddBeatmapAttributes<TaikoDifficultyAttributes>(setup: attr =>
+            {
+                attr.StaminaDifficulty = 3;
+                attr.RhythmDifficulty = 3;
+                attr.ColourDifficulty = 3;
+                attr.PeakDifficulty = 3;
+                attr.GreatHitWindow = 15;
+            }, mode: 1);
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ruleset_id = 1;
+                score.Score.ScoreData.Mods = [new APIMod(new TaikoModHidden())];
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.preserve = true;
+            });
+
+            // 298pp from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 300, CancellationToken);
         }
 
         [Fact]
