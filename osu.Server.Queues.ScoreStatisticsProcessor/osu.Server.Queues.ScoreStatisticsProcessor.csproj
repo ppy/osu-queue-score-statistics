@@ -18,7 +18,7 @@
         <PackageReference Include="ppy.osu.Game.Rulesets.Mania" Version="2024.412.1" />
         <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="2024.412.1" />
         <PackageReference Include="ppy.osu.Game.Rulesets.Taiko" Version="2024.412.1" />
-        <PackageReference Include="ppy.osu.Server.OsuQueueProcessor" Version="2024.506.1" />
+        <PackageReference Include="ppy.osu.Server.OsuQueueProcessor" Version="2024.506.2" />
     </ItemGroup>
 
 </Project>
