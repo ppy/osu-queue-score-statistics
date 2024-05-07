@@ -83,7 +83,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // Usually osu-web would do this.
             using (var db = Processor.GetDatabaseConnection())
             {
-                db.Execute($"INSERT INTO osu_user_achievements (achievement_id, user_id, beatmap_id) VALUES ({awarded.Medal.achievement_id}, {awarded.Score.UserID}, {awarded.Score.BeatmapID})");
+                db.Execute($"INSERT INTO osu_user_achievements (achievement_id, user_id, beatmap_id) VALUES ({awarded.Medal.achievement_id}, {awarded.Score.user_id}, {awarded.Score.beatmap_id})");
             }
         }
 

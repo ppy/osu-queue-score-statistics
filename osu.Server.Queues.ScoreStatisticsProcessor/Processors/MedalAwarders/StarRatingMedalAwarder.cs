@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using osu.Game.Beatmaps;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
@@ -26,23 +25,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
         private async IAsyncEnumerable<Medal> checkAsync(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
-            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(context.Score.RulesetID);
-            Mod[] mods = context.Score.Mods.Select(m => m.ToMod(ruleset)).ToArray();
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(context.Score.ruleset_id);
+            Mod[] mods = context.Score.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray();
 
             // Ensure the score isn't using any difficulty reducing mods
             if (mods.Any(MedalHelpers.IsDifficultyReductionMod))
                 yield break;
 
             // On mania, these medals cannot be triggered with key mods and Dual Stages
-            if (context.Score.RulesetID == 3 && mods.Any(isManiaDisallowedMod))
+            if (context.Score.ruleset_id == 3 && mods.Any(isManiaDisallowedMod))
                 yield break;
 
-            var beatmap = context.Score.Beatmap;
+            var beatmap = context.Score.beatmap;
             if (beatmap == null)
                 yield break;
 
             // Make sure the map isn't Qualified or Loved, as those maps may occasionally have SR-breaking/aspire aspects
-            if (beatmap.Status == BeatmapOnlineStatus.Qualified || beatmap.Status == BeatmapOnlineStatus.Loved)
+            if (beatmap.approved == BeatmapOnlineStatus.Qualified || beatmap.approved == BeatmapOnlineStatus.Loved)
                 yield break;
 
             // Get map star rating (including mods)
@@ -59,7 +58,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             }
 
             // Check for FC and award FC medals if necessary
-            if (context.Score.MaxCombo == context.Score.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Sum(kvp => kvp.Value))
+            if (context.Score.max_combo == context.Score.ScoreData.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Sum(kvp => kvp.Value))
             {
                 foreach (var medal in medals)
                 {
@@ -69,7 +68,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             }
         }
 
-        private bool checkMedalPass(SoloScoreInfo score, Medal medal, double starRating)
+        private bool checkMedalPass(SoloScore score, Medal medal, double starRating)
         {
             // osu!standard 1-8*
             if (checkMedalRange(55, medal.achievement_id, starRating))
@@ -77,7 +76,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
             // osu!taiko 1-8*
             // Has an exception for https://osu.ppy.sh/beatmapsets/2626#taiko/19990
-            if (score.BeatmapID != 19990 && checkMedalRange(71, medal.achievement_id, starRating))
+            if (score.beatmap_id != 19990 && checkMedalRange(71, medal.achievement_id, starRating))
                 return true;
 
             // osu!catch 1-8*
@@ -104,7 +103,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             }
         }
 
-        private bool checkMedalFc(SoloScoreInfo score, Medal medal, double starRating)
+        private bool checkMedalFc(SoloScore score, Medal medal, double starRating)
         {
             // osu!standard 1-8*
             if (checkMedalRange(63, medal.achievement_id, starRating))
@@ -112,7 +111,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
             // osu!taiko 1-8*
             // Has an exception for https://osu.ppy.sh/beatmapsets/2626#taiko/19990
-            if (score.BeatmapID != 19990 && checkMedalRange(95, medal.achievement_id, starRating))
+            if (score.beatmap_id != 19990 && checkMedalRange(95, medal.achievement_id, starRating))
                 return true;
 
             // osu!catch 1-8*

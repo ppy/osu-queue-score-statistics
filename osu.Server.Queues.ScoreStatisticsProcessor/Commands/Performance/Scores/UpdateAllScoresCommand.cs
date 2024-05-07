@@ -56,11 +56,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                int[] userIds;
+                uint[] userIds;
 
                 using (var db = DatabaseAccess.GetConnection())
                 {
-                    userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE `user_id` > @UserId ORDER BY `user_id` LIMIT @Limit", new
+                    userIds = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE `user_id` > @UserId ORDER BY `user_id` LIMIT @Limit", new
                     {
                         UserId = currentUserId,
                         Limit = max_users_per_query

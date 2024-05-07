@@ -2,7 +2,6 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
@@ -17,7 +16,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     /// <param name="Connection">MySQL connection for manual retrieval from database.</param>
     /// <param name="Transaction">MySQL transaction for manual retrieval from database.</param>
     public record MedalAwarderContext(
-        SoloScoreInfo Score,
+        SoloScore Score,
         UserStats UserStats,
         BeatmapStore BeatmapStore,
         MySqlConnection Connection,

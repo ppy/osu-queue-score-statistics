@@ -3,7 +3,6 @@
 
 using JetBrains.Annotations;
 using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
@@ -18,17 +17,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public bool RunOnFailedScores => true;
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
 
-        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (userStats.last_played < score.EndedAt || userStats.playcount == 0)
-                userStats.last_played = score.EndedAt;
+            if (userStats.last_played < score.ended_at || userStats.playcount == 0)
+                userStats.last_played = score.ended_at;
         }
 
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
         }
     }
