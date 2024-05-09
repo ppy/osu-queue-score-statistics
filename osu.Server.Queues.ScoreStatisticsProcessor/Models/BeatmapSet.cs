@@ -16,6 +16,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         [ExplicitKey]
         public int beatmapset_id { get; set; }
 
+        public uint user_id { get; set; }
+
+        public string artist { get; set; } = string.Empty;
+        public string title { get; set; } = string.Empty;
+        public string creator { get; set; } = string.Empty;
+        public double bpm { get; set; }
+
         public BeatmapOnlineStatus approved { get; set; }
     }
 }

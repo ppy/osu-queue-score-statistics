@@ -123,7 +123,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             using (var db = Processor.GetDatabaseConnection())
             using (var transaction = await db.BeginTransactionAsync())
             {
-                var userStats = await DatabaseHelper.GetUserStatsAsync(score.Score.ToScoreInfo(), db, transaction);
+                var userStats = await DatabaseHelper.GetUserStatsAsync(score.Score, db, transaction);
 
                 Debug.Assert(userStats != null);
                 userStats.total_score = score.Score.total_score;

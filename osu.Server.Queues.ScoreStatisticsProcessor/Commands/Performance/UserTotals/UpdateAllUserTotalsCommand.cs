@@ -19,12 +19,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTo
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 
-            int[] userIds;
+            uint[] userIds;
 
             Console.WriteLine("Fetching all users...");
 
             using (var db = DatabaseAccess.GetConnection())
-                userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
+                userIds = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
 
             Console.WriteLine($"Fetched {userIds.Length} users");
 

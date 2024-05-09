@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -24,13 +23,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => true;
 
-        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
 
-        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.RulesetID);
+            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
 
             int warnings = conn.QuerySingleOrDefault<int>($"SELECT `user_warnings` FROM {dbInfo.UsersTable} WHERE `user_id` = @UserId", new
             {
@@ -40,10 +39,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (warnings > 0)
                 return;
 
-            UpdateUserStatsAsync(userStats, score.RulesetID, conn, transaction).Wait();
+            UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
         }
 
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
         }
 

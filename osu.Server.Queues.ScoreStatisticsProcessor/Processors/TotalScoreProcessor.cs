@@ -5,7 +5,6 @@ using System;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Beatmaps;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -23,19 +22,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (previousVersion < 2)
                 return;
 
             if (previousVersion < 8)
             {
-                userStats.total_score -= score.TotalScore;
+                userStats.total_score -= score.total_score;
                 userStats.level = calculateLevel(userStats.total_score);
                 return;
             }
 
-            long classicTotalScore = score.GetDisplayScore(ScoringMode.Classic);
+            long classicTotalScore = score.ToScoreInfo().GetDisplayScore(ScoringMode.Classic);
 
             if (previousVersion >= 11 && !shouldIncludePlayInTotalScore(score, classicTotalScore))
                 return;
@@ -44,9 +43,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             userStats.level = calculateLevel(userStats.total_score);
         }
 
-        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            long classicTotalScore = score.GetDisplayScore(ScoringMode.Classic);
+            long classicTotalScore = score.ToScoreInfo().GetDisplayScore(ScoringMode.Classic);
 
             if (!shouldIncludePlayInTotalScore(score, classicTotalScore))
                 return;
@@ -55,13 +54,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             userStats.level = calculateLevel(userStats.total_score);
         }
 
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
         }
 
-        private static bool shouldIncludePlayInTotalScore(SoloScoreInfo score, long classicScore)
+        private static bool shouldIncludePlayInTotalScore(SoloScore score, long classicScore)
         {
-            if (score.Beatmap?.Status >= BeatmapOnlineStatus.Ranked)
+            if (score.beatmap?.approved >= BeatmapOnlineStatus.Ranked)
                 return true;
 
             int playLength = PlayValidityHelper.GetPlayLength(score);

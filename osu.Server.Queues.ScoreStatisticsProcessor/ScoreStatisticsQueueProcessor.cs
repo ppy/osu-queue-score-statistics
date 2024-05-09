@@ -12,7 +12,6 @@ using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -174,13 +173,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                 using (var conn = GetDatabaseConnection())
                 {
-                    var scoreRow = item.Score;
-                    var score = scoreRow.ToScoreInfo();
+                    var score = item.Score;
 
-                    score.Beatmap = conn.QuerySingleOrDefault<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                    score.beatmap = conn.QuerySingleOrDefault<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
                     {
-                        BeatmapId = score.BeatmapID
-                    })?.ToAPIBeatmap();
+                        BeatmapId = score.beatmap_id
+                    });
+                    score.beatmap!.beatmapset = conn.QuerySingleOrDefault<BeatmapSet>("SELECT * FROM `osu_beatmapsets` WHERE `beatmapset_id` = @BeatmapSetId", new
+                    {
+                        BeatmapSetId = score.beatmap.beatmapset_id
+                    });
 
                     using (var transaction = conn.BeginTransaction(IsolationLevel.ReadCommitted))
                     {
@@ -227,10 +229,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     // TODO: this can be removed after https://github.com/ppy/osu-web/issues/10942 is closed out.
                     // Intentionally not part of the transaction to avoid deadlocks.
                     // See https://discord.com/channels/90072389919997952/983550677794050108/1199725169573380136
-                    if (score.Passed)
+                    if (score.passed)
                     {
                         // For now, just assume all passing scores are to be preserved.
-                        conn.Execute("UPDATE scores SET preserve = 1 WHERE id = @Id", new { Id = score.ID });
+                        conn.Execute("UPDATE scores SET preserve = 1 WHERE id = @Id", new { Id = score.id });
                     }
 
                     foreach (var p in enumerateValidProcessors(score))
@@ -254,14 +256,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             }
         }
 
-        private IEnumerable<IProcessor> enumerateValidProcessors(SoloScoreInfo score)
+        private IEnumerable<IProcessor> enumerateValidProcessors(SoloScore score)
         {
             IEnumerable<IProcessor> result = processors;
 
-            if (!score.Passed)
+            if (!score.passed)
                 result = result.Where(p => p.RunOnFailedScores);
 
-            if (score.IsLegacyScore)
+            if (score.is_legacy_score)
                 result = result.Where(p => p.RunOnLegacyScores);
 
             return result;

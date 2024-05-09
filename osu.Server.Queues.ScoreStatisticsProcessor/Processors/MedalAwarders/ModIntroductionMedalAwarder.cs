@@ -1,5 +1,4 @@
 ﻿using JetBrains.Annotations;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu.Mods;
@@ -17,10 +16,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
 
         public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
-            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(context.Score.RulesetID);
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(context.Score.ruleset_id);
 
             // Select score mods, ignoring certain mods that can be included in the combination for mod introduction medals
-            Mod[] mods = context.Score.Mods.Select(m => m.ToMod(ruleset)).Where(m => !isIgnoredForIntroductionMedal(m)).ToArray();
+            Mod[] mods = context.Score.ScoreData.Mods.Select(m => m.ToMod(ruleset)).Where(m => !MedalHelpers.IsPermittedInNoModContext(m)).ToArray();
 
             // Ensure the mod is the only one selected
             if (mods.Length != 1)
@@ -37,7 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             }
         }
 
-        private bool checkMedal(SoloScoreInfo score, Medal medal, Mod mod)
+        private bool checkMedal(SoloScore score, Medal medal, Mod mod)
         {
             switch (medal.achievement_id)
             {

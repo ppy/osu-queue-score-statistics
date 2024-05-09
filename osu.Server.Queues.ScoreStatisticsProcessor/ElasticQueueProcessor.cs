@@ -16,13 +16,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         {
             using (var redis = RedisAccess.GetConnection())
             {
-                string[] schemas = redis.GetActiveSchemas();
+                string?[] schemas = redis.GetActiveSchemas();
 
                 foreach (string? schema in schemas)
                 {
                     // Old schemas that don't have the prefix in the active list.
                     // We don't want to push to them.
-                    if (schema.Length > 2)
+                    if (schema?.Length > 2)
                         processors.Add(new ElasticQueueProcessor(schema));
                 }
             }

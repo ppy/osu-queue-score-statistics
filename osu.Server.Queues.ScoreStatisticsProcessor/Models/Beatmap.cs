@@ -6,18 +6,21 @@ using System.Diagnostics.CodeAnalysis;
 using Dapper.Contrib.Extensions;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Rulesets.Scoring.Legacy;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]
     [Table("osu_beatmaps")]
-    public class Beatmap
+    public class Beatmap : IBeatmapOnlineInfo
     {
         [ExplicitKey]
         public uint beatmap_id { get; set; }
 
         public uint beatmapset_id { get; set; }
+
+        public uint user_id { get; set; }
 
         public uint countTotal { get; set; }
         public uint countNormal { get; set; }
@@ -32,23 +35,39 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public int playcount { get; set; }
         public BeatmapOnlineStatus approved { get; set; }
         public float difficultyrating { get; set; }
+        public uint hit_length { get; set; }
+        public float bpm { get; set; }
 
-        public APIBeatmap ToAPIBeatmap() => new APIBeatmap
+        [Computed]
+        public BeatmapSet? beatmapset { get; set; }
+
+        public LegacyBeatmapConversionDifficultyInfo GetLegacyBeatmapConversionDifficultyInfo() => new LegacyBeatmapConversionDifficultyInfo
         {
-            OnlineID = (int)beatmap_id,
-            OnlineBeatmapSetID = (int)beatmapset_id,
-            CircleCount = (int)countNormal,
-            SliderCount = (int)countSlider,
-            SpinnerCount = (int)countSpinner,
+            SourceRuleset = new APIBeatmap.APIRuleset { OnlineID = playmode },
             DrainRate = diff_drain,
-            Length = total_length,
+            ApproachRate = diff_approach,
             CircleSize = diff_size,
             OverallDifficulty = diff_overall,
-            ApproachRate = diff_approach,
-            RulesetID = playmode,
-            StarRating = difficultyrating,
-            PlayCount = playcount,
-            Status = approved,
+            EndTimeObjectCount = (int)(countSlider + countSpinner),
+            TotalObjectCount = (int)countTotal,
         };
+
+        #region IBeatmapOnlineInfo
+
+        float IBeatmapOnlineInfo.ApproachRate => diff_approach;
+        float IBeatmapOnlineInfo.CircleSize => diff_size;
+        float IBeatmapOnlineInfo.DrainRate => diff_drain;
+        float IBeatmapOnlineInfo.OverallDifficulty => diff_overall;
+        int IBeatmapOnlineInfo.CircleCount => (int)countNormal;
+        int IBeatmapOnlineInfo.SliderCount => (int)countSlider;
+        int IBeatmapOnlineInfo.SpinnerCount => (int)countSpinner;
+        double IBeatmapOnlineInfo.HitLength => hit_length;
+        int IBeatmapOnlineInfo.PlayCount => playcount;
+
+        int? IBeatmapOnlineInfo.MaxCombo => throw new NotSupportedException();
+        int IBeatmapOnlineInfo.PassCount => throw new NotSupportedException();
+        APIFailTimes IBeatmapOnlineInfo.FailTimes => throw new NotSupportedException();
+
+        #endregion
     }
 }
