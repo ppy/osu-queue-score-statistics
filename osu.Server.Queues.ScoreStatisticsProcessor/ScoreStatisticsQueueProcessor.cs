@@ -18,6 +18,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models.Messages;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
+using Sentry;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
@@ -160,6 +161,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
             try
             {
+                SentrySdk.ConfigureScope(scope =>
+                {
+                    scope.SetTag("score_id", item.Score.id.ToString());
+                    scope.User = new SentryUser
+                    {
+                        Id = item.Score.user_id.ToString(),
+                    };
+                });
+
                 tags.Add($"ruleset:{item.Score.ruleset_id}");
 
                 if (item.Score.legacy_score_id != null)
