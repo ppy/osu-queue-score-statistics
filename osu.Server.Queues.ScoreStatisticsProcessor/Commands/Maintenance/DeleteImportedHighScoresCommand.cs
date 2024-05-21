@@ -91,8 +91,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                         }
 
-                        lastId = highScores.Max(s => s.id);
+                        lastId = highScores.Max(s => s.id) + 1;
                         Console.WriteLine($"Processed up to {lastId} ({deleted} deleted)");
+
+                        await transaction.CommitAsync(cancellationToken);
                     }
                 }
             }
