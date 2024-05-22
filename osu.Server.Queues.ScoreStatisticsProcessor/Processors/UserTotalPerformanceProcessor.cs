@@ -1,11 +1,13 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
+using osu.Framework.Utils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -83,12 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private static async Task updateGlobalRank(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
         {
             // User's current global rank.
-            userStats.rank_score_index = await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > @rankScoreCutoff AND user_id != @userId",
-                new
-                {
-                    userId = userStats.user_id,
-                    rankScoreCutoff = userStats.rank_score,
-                }, transaction: transaction) + 1;
+            userStats.rank_score_index = await getUserRankScoreIndex(userStats, connection, transaction, dbInfo);
 
             // User's historical best rank (ever).
             int userHistoricalHighestRank = await connection.QuerySingleOrDefaultAsync<int?>("SELECT `rank` FROM `osu_user_performance_rank_highest` WHERE `user_id` = @userId AND `mode` = @mode",
@@ -127,6 +124,39 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     mode = dbInfo.RulesetId,
                     rank = userStats.rank_score_index
                 }, transaction);
+        }
+
+        // [ruleset_id, [rank_score, count_users_above]]
+        private static readonly ConcurrentDictionary<int, ConcurrentDictionary<int, int>> rank_score_index_partition_cache =
+            new ConcurrentDictionary<int, ConcurrentDictionary<int, int>>();
+
+        private static async Task<int> getUserRankScoreIndex(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
+        {
+            var rulesetCache = rank_score_index_partition_cache.GetOrAdd(dbInfo.RulesetId, _ => new ConcurrentDictionary<int, int>());
+
+            const int partition_size = 100;
+
+            int partitionCutoff = ((int)(userStats.rank_score / partition_size) + 1) * partition_size;
+
+            // Simple cache invalidation: 0.1% chance of re-querying the partition's cache. So basically every 1000 queries.
+            if (RNG.NextSingle() > 0.999) rulesetCache.Remove(partitionCutoff, out int _);
+
+            // This query is indexed as much as it can be, but for COUNT(*) across millions of rows it can still be slow.
+            // Cache the majority lookup by partitioning over `pp` reduces the per-query lookup overhead.
+            int partitionCount = rulesetCache.GetOrAdd(partitionCutoff, cutoff => connection.QuerySingle<int>(
+                $"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > @cutoff",
+                new { cutoff }, transaction: transaction));
+
+            int remainingCount = await connection.QuerySingleAsync<int>(
+                $"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score BETWEEN @rankScoreCutoff AND @partitionCutoff AND user_id != @userId",
+                new
+                {
+                    userId = userStats.user_id,
+                    rankScoreCutoff = userStats.rank_score,
+                    partitionCutoff
+                }, transaction: transaction);
+
+            return partitionCount + remainingCount + 1;
         }
     }
 }
