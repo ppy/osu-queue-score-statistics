@@ -449,6 +449,69 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public async Task RankIndexPartitionCaching()
+        {
+            // simulate fake users to beat as we climb up ranks.
+            // this is going to be a bit of a chonker query...
+            using var db = Processor.GetDatabaseConnection();
+
+            var stringBuilder = new StringBuilder();
+
+            stringBuilder.Append("INSERT INTO osu_user_stats (`user_id`, `rank_score`, `rank_score_index`, "
+                                 + "`accuracy_total`, `accuracy_count`, `accuracy`, `accuracy_new`, `playcount`, `ranked_score`, `total_score`, "
+                                 + "`x_rank_count`, `xh_rank_count`, `s_rank_count`, `sh_rank_count`, `a_rank_count`, `rank`, `level`) VALUES ");
+
+            // Each fake user is spaced 25 pp apart.
+            // This knowledge can be used to deduce expected values of following assertions.
+            for (int i = 0; i < 1000; ++i)
+            {
+                if (i > 0)
+                    stringBuilder.Append(',');
+
+                stringBuilder.Append($"({1000 + i}, {25 * (1000 - i)}, {i + 1}, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)");
+            }
+
+            await db.ExecuteAsync(stringBuilder.ToString());
+
+            var firstBeatmap = AddBeatmap(b => b.beatmap_id = 1);
+
+            SetScoreForBeatmap(firstBeatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 150; // ~152 pp total, including bonus pp
+            });
+
+            WaitForDatabaseState("SELECT `rank_score_index` FROM `osu_user_stats` WHERE `user_id` = @userId", 995, CancellationToken, new
+            {
+                userId = 2,
+            });
+
+            SetScoreForBeatmap(firstBeatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 180; // ~184 pp total, including bonus pp
+            });
+
+            WaitForDatabaseState("SELECT `rank_score_index` FROM `osu_user_stats` WHERE `user_id` = @userId", 994, CancellationToken, new
+            {
+                userId = 2,
+            });
+
+            var secondBeatmap = AddBeatmap(b => b.beatmap_id = 2);
+
+            SetScoreForBeatmap(secondBeatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 300; // ~486 pp total, including bonus pp
+            });
+
+            WaitForDatabaseState("SELECT `rank_score_index` FROM `osu_user_stats` WHERE `user_id` = @userId", 982, CancellationToken, new
+            {
+                userId = 2,
+            });
+        }
+
+        [Fact]
         public async Task UserDailyRankUpdates()
         {
             // simulate fake users to beat as we climb up ranks.
