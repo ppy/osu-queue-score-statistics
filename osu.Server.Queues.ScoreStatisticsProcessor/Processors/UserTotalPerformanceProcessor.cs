@@ -25,6 +25,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => true;
 
+        // [ruleset_id, [rank_score, count_users_above]]
+        private readonly ConcurrentDictionary<int, ConcurrentDictionary<int, int>> rankScoreIndexPartitionCache =
+            new ConcurrentDictionary<int, ConcurrentDictionary<int, int>>();
+
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -82,7 +86,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 await updateGlobalRank(userStats, connection, transaction, dbInfo);
         }
 
-        private static async Task updateGlobalRank(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
+        private async Task updateGlobalRank(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
         {
             // User's current global rank.
             userStats.rank_score_index = await getUserRankScoreIndex(userStats, connection, transaction, dbInfo);
@@ -126,13 +130,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 }, transaction);
         }
 
-        // [ruleset_id, [rank_score, count_users_above]]
-        private static readonly ConcurrentDictionary<int, ConcurrentDictionary<int, int>> rank_score_index_partition_cache =
-            new ConcurrentDictionary<int, ConcurrentDictionary<int, int>>();
-
-        private static async Task<int> getUserRankScoreIndex(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
+        private async Task<int> getUserRankScoreIndex(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
         {
-            var rulesetCache = rank_score_index_partition_cache.GetOrAdd(dbInfo.RulesetId, _ => new ConcurrentDictionary<int, int>());
+            var rulesetCache = rankScoreIndexPartitionCache.GetOrAdd(dbInfo.RulesetId, _ => new ConcurrentDictionary<int, int>());
 
             const int partition_size = 100;
 
