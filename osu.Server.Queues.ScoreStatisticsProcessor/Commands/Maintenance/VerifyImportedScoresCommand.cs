@@ -37,6 +37,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
         public bool Verbose { get; set; }
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-q|--quiet", Description = "Reduces output.")]
+        public bool Quiet { get; set; }
+
         /// <summary>
         /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
         /// </summary>
@@ -244,14 +247,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     }
                 }
 
-                Console.Write($"Processed up to {importedScores.Max(s => s.id)} ({deleted} deleted {fail} failed)");
-                Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
+                if (!Quiet)
+                {
+                    Console.Write($"Processed up to {importedScores.Max(s => s.id)} ({deleted} deleted {fail} failed)");
+                    Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
+                }
 
                 lastId += (ulong)BatchSize;
                 flush(conn);
             }
 
             flush(conn, true);
+
+            Console.WriteLine($"Finished ({deleted} deleted {fail} failed)");
 
             return 0;
         }
