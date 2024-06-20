@@ -47,8 +47,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             if (double.IsNegative(totalPp) || double.IsNaN(totalPp) || double.IsInfinity(totalPp))
                 throw new InvalidOperationException($"Calculating total PP for user_id:{scores.First().user_id} resulted in invalid value ({totalPp}");
 
-            if (double.IsNegative(totalAccuracy) || totalAccuracy > 100 || double.IsNaN(totalAccuracy) || double.IsInfinity(totalAccuracy))
+            if (double.IsNaN(totalAccuracy) || double.IsInfinity(totalAccuracy))
                 throw new InvalidOperationException($"Calculating total accuracy for user_id:{scores.First().user_id} resulted in invalid value ({totalAccuracy}");
+
+            // handle floating point precision edge cases.
+            totalAccuracy = Math.Clamp(totalAccuracy, 0, 100);
 
             return ((float)totalPp, (float)totalAccuracy);
         }
