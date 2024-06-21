@@ -81,7 +81,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     RulesetId = rulesetId
                 }, transaction: transaction)).ToList();
 
-            (userStats.rank_score, userStats.accuracy_new) = UserTotalPerformanceAggregateHelper.CalculateUserTotalPerformanceAggregates(scores);
+            (userStats.rank_score, userStats.accuracy_new) = UserTotalPerformanceAggregateHelper.CalculateUserTotalPerformanceAggregates(userStats.user_id, scores);
 
             if (updateIndex)
                 await updateGlobalRank(userStats, connection, transaction, dbInfo);
