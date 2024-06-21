@@ -2,12 +2,12 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
+using Microsoft.Extensions.Caching.Memory;
 using MySqlConnector;
 using osu.Framework.IO.Network;
 using osu.Game.Beatmaps;
@@ -28,14 +28,37 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     {
         private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
+        private static readonly uint memory_cache_size_limit = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SIZE_LIMIT") ?? "1000000");
+        private static readonly TimeSpan memory_cache_sliding_expiration = TimeSpan.FromSeconds(uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SLIDING_EXPIRATION_SECONDS") ?? "3600"));
 
-        private readonly ConcurrentDictionary<uint, Beatmap?> beatmapCache = new ConcurrentDictionary<uint, Beatmap?>();
-        private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
+        /// <summary>
+        /// The size of a <see cref="BeatmapDifficultyAttribute"/> in bytes. Used for tracking memory usage.
+        /// </summary>
+        private const int beatmap_difficulty_attribute_size = 24;
+
+        /// <summary>
+        /// The size of a <see cref="Beatmap"/> in bytes. Used for tracking memory usage.
+        /// </summary>
+        private const int beatmap_size = 72;
+
+        private readonly MemoryCache attributeMemoryCache;
+        private readonly MemoryCache beatmapMemoryCache;
+
         private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
 
         private BeatmapStore(IEnumerable<KeyValuePair<BlacklistEntry, byte>> blacklist)
         {
             this.blacklist = new Dictionary<BlacklistEntry, byte>(blacklist);
+
+            attributeMemoryCache = new MemoryCache(new MemoryCacheOptions
+            {
+                SizeLimit = memory_cache_size_limit,
+            });
+
+            beatmapMemoryCache = new MemoryCache(new MemoryCacheOptions
+            {
+                SizeLimit = memory_cache_size_limit,
+            });
         }
 
         /// <summary>
@@ -83,21 +106,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 return calculator.Calculate(mods);
             }
 
-            BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
-
             LegacyMods legacyModValue = getLegacyModsForAttributeLookup(beatmap, ruleset, mods);
             DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, (uint)ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
 
-            if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
-            {
-                rawDifficultyAttributes = attributeCache[key] = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
-                    "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
-                    {
-                        key.BeatmapId,
-                        key.RulesetId,
-                        key.ModValue
-                    }, transaction: transaction)).ToArray();
-            }
+            BeatmapDifficultyAttribute[]? rawDifficultyAttributes = await attributeMemoryCache.GetOrCreateAsync(
+                key,
+                async cacheEntry =>
+                {
+                    cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
+
+                    BeatmapDifficultyAttribute[] attributes = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
+                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
+                        {
+                            key.BeatmapId,
+                            key.RulesetId,
+                            key.ModValue
+                        }, transaction: transaction)).ToArray();
+
+                    cacheEntry.SetSize(beatmap_difficulty_attribute_size * attributes.Length);
+
+                    return attributes;
+                });
 
             if (rawDifficultyAttributes == null || rawDifficultyAttributes.Length == 0)
                 return null;
@@ -133,15 +162,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The retrieved beatmap, or <c>null</c> if not existing.</returns>
-        public async Task<Beatmap?> GetBeatmapAsync(uint beatmapId, MySqlConnection connection, MySqlTransaction? transaction = null)
+        public Task<Beatmap?> GetBeatmapAsync(uint beatmapId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            if (beatmapCache.TryGetValue(beatmapId, out var beatmap))
-                return beatmap;
+            return beatmapMemoryCache.GetOrCreateAsync(
+                beatmapId,
+                cacheEntry =>
+                {
+                    cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
+                    cacheEntry.SetSize(beatmap_size);
 
-            return beatmapCache[beatmapId] = await connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
-            {
-                BeatmapId = beatmapId
-            }, transaction: transaction);
+                    return connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                    {
+                        BeatmapId = beatmapId
+                    }, transaction: transaction);
+                });
         }
 
         /// <summary>
