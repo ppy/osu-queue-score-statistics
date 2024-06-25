@@ -99,6 +99,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
                 Ruleset = new RulesetInfo { OnlineID = ruleset_id },
                 Passed = passed,
                 TotalScore = total_score,
+                // `TotalScoreWithoutMods` was added to the json after the `scores` table went live.
+                // while we've gone through the effort of backpopulating old rows so that the value in theory should be present on all rows,
+                // keep this nullable for the very first run of the process so that this properly dies
+                // in case there is an oversight and there is in fact a row with this missing, rather than silently substituting in zero.
+                TotalScoreWithoutMods = ScoreData.TotalScoreWithoutMods ?? throw new InvalidOperationException($"Score with ID {id} has missing `total_score_without_mods`."),
                 LegacyTotalScore = legacy_total_score,
                 Accuracy = accuracy,
                 MaxCombo = (int)max_combo,
