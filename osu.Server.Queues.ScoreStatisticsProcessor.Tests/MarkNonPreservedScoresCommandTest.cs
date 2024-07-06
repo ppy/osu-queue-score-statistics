@@ -71,7 +71,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.total_score = 500_000;
                 s.Score.pp = 85;
             });
-            await db.ExecuteAsync("INSERT INTO `score_pins` (`user_id`, `score_type`, `score_id`, `ruleset_id`, `display_order`) VALUES (2, 'solo_score', 2, 0, 0)");
+            await db.ExecuteAsync("INSERT INTO `score_pins` (`user_id`, `score_id`, `ruleset_id`, `display_order`) VALUES (2, 2, 0, 0)");
 
             WaitForDatabaseState("SELECT COUNT(1) FROM `scores` WHERE `preserve` = 1", 2, CancellationToken);
             WaitForDatabaseState("SELECT COUNT(1) FROM `scores` WHERE `preserve` = 0", 0, CancellationToken);
