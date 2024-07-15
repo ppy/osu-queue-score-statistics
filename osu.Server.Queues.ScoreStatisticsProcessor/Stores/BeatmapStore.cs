@@ -97,7 +97,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                     $"mods:{string.Join("", mods.Select(x => x.Acronym))}"
                 };
 
-                DogStatsd.Timer($"calculate-realtime-difficulty-attributes", stopwatch.ElapsedMilliseconds, tags: tags);
+                DogStatsd.Timer("calculate-realtime-difficulty-attributes", stopwatch.ElapsedMilliseconds, tags: tags);
 
                 return attributes;
             }
