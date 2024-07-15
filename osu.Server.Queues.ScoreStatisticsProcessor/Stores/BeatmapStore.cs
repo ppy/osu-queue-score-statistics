@@ -69,8 +69,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         {
             // database attributes are stored using the default mod configurations
             // if we want to support mods with non-default configurations (i.e non-1.5x rates on DT/NC)
+            // or non-legacy mods which aren't populated into the database
             // then we must calculate difficulty attributes in real-time.
-            bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration);
+            bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration || !isLegacyMod(m));
 
             if (always_use_realtime_difficulty_calculation || mustUseRealtimeDifficulty)
             {
@@ -125,6 +126,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
 
             return difficultyAttributes;
         }
+
+        /// <remarks>
+        /// This method attempts to create a simple solution to deciding if a <see cref="Mod"/> can be considered a "legacy" mod.
+        /// Used by <see cref="GetDifficultyAttributesAsync"/> to decide if the current mod combination's difficulty attributes
+        /// can be fetched from the database.
+        /// </remarks>
+        private static bool isLegacyMod(Mod mod) =>
+            mod is ModNoFail
+                or ModEasy
+                or ModHidden
+                or ModHardRock
+                or ModPerfect
+                or ModSuddenDeath
+                or ModNightcore
+                or ModDoubleTime
+                or ModRelax
+                or ModHalfTime
+                or ModFlashlight
+                or ModCinema
+                or ModAutoplay
+                or ModScoreV2;
 
         /// <remarks>
         /// This method attempts to choose the best possible set of <see cref="LegacyMods"/> to use for looking up stored difficulty attributes.
