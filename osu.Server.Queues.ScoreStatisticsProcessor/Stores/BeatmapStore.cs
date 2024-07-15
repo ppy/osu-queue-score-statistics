@@ -69,9 +69,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         {
             // database attributes are stored using the default mod configurations
             // if we want to support mods with non-default configurations (i.e non-1.5x rates on DT/NC)
-            // or non-legacy mods which aren't populated into the database
+            // or non-legacy mods which aren't populated into the database (with exception to CL)
             // then we must calculate difficulty attributes in real-time.
-            bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration || !isLegacyMod(m));
+            bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration || (!isLegacyMod(m) && m is not ModClassic));
 
             if (always_use_realtime_difficulty_calculation || mustUseRealtimeDifficulty)
             {
