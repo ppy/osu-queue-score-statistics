@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,6 +18,7 @@ using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
@@ -26,7 +28,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     /// </summary>
     public class BeatmapStore
     {
-        private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
+        private static readonly bool always_use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("ALWAYS_REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
 
         private readonly ConcurrentDictionary<uint, Beatmap?> beatmapCache = new ConcurrentDictionary<uint, Beatmap?>();
@@ -65,8 +67,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
         public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            if (use_realtime_difficulty_calculation)
+            // database attributes are stored using the default mod configurations
+            // if we want to support mods with non-default configurations (i.e non-1.5x rates on DT/NC)
+            // then we must calculate difficulty attributes in real-time.
+            bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration);
+
+            if (always_use_realtime_difficulty_calculation || mustUseRealtimeDifficulty)
             {
+                var stopwatch = Stopwatch.StartNew();
+
                 using var req = new WebRequest(string.Format(beatmap_download_path, beatmap.beatmap_id));
 
                 req.AllowInsecureRequests = true;
@@ -79,7 +88,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 var workingBeatmap = new StreamedWorkingBeatmap(req.ResponseStream);
                 var calculator = ruleset.CreateDifficultyCalculator(workingBeatmap);
 
-                return calculator.Calculate(mods);
+                var attributes = calculator.Calculate(mods);
+
+                string[] tags =
+                {
+                    $"ruleset:{ruleset.RulesetInfo.OnlineID}",
+                    $"mods:{string.Join("", mods.Select(x => x.Acronym))}"
+                };
+
+                DogStatsd.Timer($"calculate-realtime-difficulty-attributes", stopwatch.ElapsedMilliseconds, tags: tags);
+
+                return attributes;
             }
 
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
@@ -112,7 +131,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// The match is not always exact; for some mods that award pp but do not exist in stable
         /// (such as <see cref="ModHalfTime"/>) the closest available approximation is used.
         /// Moreover, the set of <see cref="LegacyMods"/> returned is constrained to mods that actually affect difficulty in the legacy sense.
-        /// The entirety of this workaround is not used / unnecessary if <see cref="use_realtime_difficulty_calculation"/> is <see langword="true"/>.
+        /// The entirety of this workaround is not used / unnecessary if <see cref="always_use_realtime_difficulty_calculation"/> is <see langword="true"/>.
         /// </remarks>
         private static LegacyMods getLegacyModsForAttributeLookup(Beatmap beatmap, Ruleset ruleset, Mod[] mods)
         {
