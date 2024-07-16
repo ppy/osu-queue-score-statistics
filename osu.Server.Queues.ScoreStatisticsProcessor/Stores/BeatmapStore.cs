@@ -14,10 +14,12 @@ using osu.Framework.IO.Network;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu.Mods;
+using osu.Game.Rulesets.Taiko.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using StatsdClient;
@@ -138,7 +140,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             mod is ModNoFail
                 or ModEasy
                 or ModHidden // this also catches ManiaModFadeIn
-                or ModHardRock
                 or ModPerfect
                 or ModSuddenDeath
                 or ModNightcore
@@ -146,7 +147,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 or ModHalfTime
                 or ModFlashlight
                 or ModTouchDevice
+                or OsuModHardRock
                 or OsuModSpunOut
+                or TaikoModHardRock
+                or CatchModHardRock
                 or ManiaModKey4
                 or ManiaModKey5
                 or ManiaModKey6
