@@ -15,6 +15,7 @@ using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
+using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -71,7 +72,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             // if we want to support mods with non-default configurations (i.e non-1.5x rates on DT/NC)
             // or non-legacy mods which aren't populated into the database (with exception to CL)
             // then we must calculate difficulty attributes in real-time.
-            bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration || (!isLegacyMod(m) && m is not ModClassic));
+            bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration || (!isRankedLegacyMod(m) && m is not ModClassic));
 
             if (always_use_realtime_difficulty_calculation || mustUseRealtimeDifficulty)
             {
@@ -128,25 +129,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         }
 
         /// <remarks>
-        /// This method attempts to create a simple solution to deciding if a <see cref="Mod"/> can be considered a "legacy" mod.
+        /// This method attempts to create a simple solution to deciding if a <see cref="Mod"/> can be considered a ranked "legacy" mod.
         /// Used by <see cref="GetDifficultyAttributesAsync"/> to decide if the current mod combination's difficulty attributes
         /// can be fetched from the database.
         /// </remarks>
-        private static bool isLegacyMod(Mod mod) =>
+        private static bool isRankedLegacyMod(Mod mod) =>
             mod is ModNoFail
                 or ModEasy
-                or ModHidden
+                or ModHidden // this also catches ManiaModFadeIn
                 or ModHardRock
                 or ModPerfect
                 or ModSuddenDeath
                 or ModNightcore
                 or ModDoubleTime
-                or ModRelax
                 or ModHalfTime
                 or ModFlashlight
-                or ModCinema
-                or ModAutoplay
-                or ModScoreV2;
+                or ModTouchDevice
+                or ManiaModKey4
+                or ManiaModKey5
+                or ManiaModKey6
+                or ManiaModKey7
+                or ManiaModKey8
+                or ManiaModKey9
+                or ManiaModMirror;
 
         /// <remarks>
         /// This method attempts to choose the best possible set of <see cref="LegacyMods"/> to use for looking up stored difficulty attributes.
