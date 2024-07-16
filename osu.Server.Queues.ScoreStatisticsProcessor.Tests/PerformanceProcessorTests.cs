@@ -576,6 +576,37 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
         }
 
+        [Fact]
+        public void EnforcedRealtimeDifficultyModsAwardPP()
+        {
+            AddBeatmap(b => b.beatmap_id = 315);
+
+            // difficulty attributes are intentionally not added to the database
+            // so if pp was populated, it had to go through the realtime calculations
+
+            ScoreItem score;
+
+            using (MySqlConnection conn = Processor.GetDatabaseConnection())
+            {
+                score = CreateTestScore(rulesetId: 0, beatmapId: 315);
+
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.ScoreData.Mods = new[] { new APIMod(new OsuModMuted()), new APIMod(new OsuModTraceable()) };
+                score.Score.preserve = true;
+
+                conn.Insert(score.Score);
+                PushToQueueAndWaitForProcess(score);
+            }
+
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL", 1, CancellationToken, new
+            {
+                ScoreId = score.Score.id
+            });
+        }
+
         private class InvalidMod : Mod
         {
             public override string Name => "Invalid";
