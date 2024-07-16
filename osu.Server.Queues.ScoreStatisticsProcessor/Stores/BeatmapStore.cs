@@ -17,6 +17,7 @@ using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using StatsdClient;
@@ -145,6 +146,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 or ModHalfTime
                 or ModFlashlight
                 or ModTouchDevice
+                or OsuModSpunOut
                 or ManiaModKey4
                 or ManiaModKey5
                 or ManiaModKey6
