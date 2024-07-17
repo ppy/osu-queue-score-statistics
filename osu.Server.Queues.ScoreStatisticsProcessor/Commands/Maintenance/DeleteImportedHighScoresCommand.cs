@@ -93,6 +93,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                         lastId = highScores.Max(s => s.id);
                         Console.WriteLine($"Processed up to {lastId} ({deleted} deleted)");
+
+                        await transaction.CommitAsync(cancellationToken);
+                        lastId++;
                     }
                 }
             }

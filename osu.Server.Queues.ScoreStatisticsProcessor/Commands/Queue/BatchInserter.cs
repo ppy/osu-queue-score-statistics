@@ -104,7 +104,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         using (var conn = DatabaseAccess.GetConnection())
                         {
-                            conn.Execute("DELETE FROM score_pins WHERE score_type = 'solo_score' AND user_id = @new_user_id AND id = @new_id;"
+                            conn.Execute("DELETE FROM score_pins WHERE user_id = @new_user_id AND score_id = @new_id;"
                                          + "DELETE FROM scores WHERE id = @new_id", new
                             {
                                 highScore.new_id,

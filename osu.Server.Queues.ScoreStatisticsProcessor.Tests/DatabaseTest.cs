@@ -223,10 +223,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var rulesetStore = new AssemblyRulesetStore();
             var rulesetInfo = rulesetStore.GetRuleset(mode)!;
-            // `AssemblyRulesetStore` does not mark `Available = true` on the `RulesetInfo` instances it exposes
-            // even though they actually are.
-            // TODO: fix game-side, remove this once fixed
-            rulesetInfo.Available = true;
             var ruleset = rulesetInfo.CreateInstance();
 
             using (var db = Processor.GetDatabaseConnection())

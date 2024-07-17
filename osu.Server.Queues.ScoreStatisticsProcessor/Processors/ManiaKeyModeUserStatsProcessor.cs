@@ -67,8 +67,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                         KeyCount = keyCount,
                     }, transaction: transaction).ToList();
 
-                (keymodeStats.rank_score, keymodeStats.accuracy_new) = UserTotalPerformanceAggregateHelper.CalculateUserTotalPerformanceAggregates(scores);
+                (keymodeStats.rank_score, keymodeStats.accuracy_new) = UserTotalPerformanceAggregateHelper.CalculateUserTotalPerformanceAggregates(keymodeStats.user_id, scores);
 
+                // TODO: partitioned caching similar to UserTotalPerformanceProcessor.
                 keymodeStats.rank_score_index = conn.QuerySingle<int>($"SELECT COUNT(*) FROM {keyCountTableName} WHERE rank_score > {keymodeStats.rank_score}", transaction: transaction) + 1;
 
                 if (existingRow != null)

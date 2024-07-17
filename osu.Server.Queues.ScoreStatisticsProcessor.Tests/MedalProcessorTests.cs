@@ -652,7 +652,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             // This shouldn't award a medal
             AssertNoMedalsAwarded();
 
-            // Set a score with the a modified key count, which also shouldn't award the medal
+            // Set a score with a modified key count, which also shouldn't award the medal
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
                 s.Score.ruleset_id = 3;

@@ -63,7 +63,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (!scores.Any())
                 return;
 
-            IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId AND score_type = 'solo_score'", parameters);
+            IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId", parameters);
 
             Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
 
