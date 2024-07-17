@@ -32,7 +32,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     /// </summary>
     public class BeatmapStore
     {
-        private static readonly bool always_use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("ALWAYS_REALTIME_DIFFICULTY") != "0";
+        private static readonly bool prefer_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("PREFER_REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
 
         private readonly ConcurrentDictionary<uint, Beatmap?> beatmapCache = new ConcurrentDictionary<uint, Beatmap?>();
@@ -77,7 +77,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             // then we must calculate difficulty attributes in real-time.
             bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration || (!isRankedLegacyMod(m) && m is not ModClassic));
 
-            if (always_use_realtime_difficulty_calculation || mustUseRealtimeDifficulty)
+            if (prefer_realtime_difficulty_calculation || mustUseRealtimeDifficulty)
             {
                 var stopwatch = Stopwatch.StartNew();
 
@@ -164,7 +164,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// The match is not always exact; for some mods that award pp but do not exist in stable
         /// (such as <see cref="ModHalfTime"/>) the closest available approximation is used.
         /// Moreover, the set of <see cref="LegacyMods"/> returned is constrained to mods that actually affect difficulty in the legacy sense.
-        /// The entirety of this workaround is not used / unnecessary if <see cref="always_use_realtime_difficulty_calculation"/> is <see langword="true"/>.
+        /// The entirety of this workaround is not used / unnecessary if <see cref="prefer_realtime_difficulty_calculation"/> is <see langword="true"/>.
         /// </remarks>
         private static LegacyMods getLegacyModsForAttributeLookup(Beatmap beatmap, Ruleset ruleset, Mod[] mods)
         {
