@@ -222,6 +222,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
                 Statistics = referenceScore.Statistics,
                 MaximumStatistics = referenceScore.MaximumStatistics,
+                TotalScoreWithoutMods = referenceScore.TotalScoreWithoutMods,
             }, new JsonSerializerSettings
             {
                 DefaultValueHandling = DefaultValueHandling.Ignore
