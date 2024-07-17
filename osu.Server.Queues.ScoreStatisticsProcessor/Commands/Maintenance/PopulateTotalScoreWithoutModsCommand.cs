@@ -28,6 +28,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
         public bool DryRun { get; set; }
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Per-score output.")]
+        public bool Verbose { get; set; }
+
         private readonly StringBuilder sqlBuffer = new StringBuilder();
 
         [UsedImplicitly]
@@ -82,7 +85,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     var scoreInfo = score.ToScoreInfo();
                     LegacyScoreDecoder.PopulateTotalScoreWithoutMods(scoreInfo);
 
-                    Console.WriteLine($"Updating score {score.id} to {scoreInfo.TotalScoreWithoutMods} (without mods) / {score.total_score} (with mods)");
+                    if (Verbose)
+                        Console.WriteLine($"Updating score {score.id} to {scoreInfo.TotalScoreWithoutMods} (without mods) / {score.total_score} (with mods)");
 
                     // `JSON_SET` is used because it inserts the key-value pair if the key is completely missing
                     // and replaces the value (presumed NULL due to the filter above) if the key is present.
