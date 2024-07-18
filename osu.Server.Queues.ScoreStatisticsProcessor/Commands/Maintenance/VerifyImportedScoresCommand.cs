@@ -164,6 +164,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         {
                             if (importedScore.legacy_score_id > 0)
                             {
+                                // don't delete pinned scores
+                                int countPinned = conn.QuerySingle<int>($"SELECT COUNT(*) FROM `score_pins` WHERE score_id = {importedScore.id}");
+                                if (countPinned > 0)
+                                    continue;
+
                                 Interlocked.Increment(ref deleted);
                                 requiresIndexing = true;
 
