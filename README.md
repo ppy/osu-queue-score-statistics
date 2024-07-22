@@ -119,9 +119,9 @@ Whether to process user total stats. Set to `0` to disable processing.
 
 Default is unset (processing enabled).
 
-### PREFER_REALTIME_DIFFICULTY
+### ALWAYS_REALTIME_DIFFICULTY
 
-Whether to prefer realtime processing (download beatmaps and compute their difficulty attributes on every processed score), or to rely on database data when possible. Set to `0` to disable processing.
+Whether to always use realtime processing (download beatmaps and compute their difficulty attributes on every processed score), or to rely on database data when possible. Set to `0` to disable processing.
 
 Default is unset (processing enabled).
 
