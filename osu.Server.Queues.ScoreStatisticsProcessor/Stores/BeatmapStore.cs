@@ -139,7 +139,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private static bool isRankedLegacyMod(Mod mod) =>
             mod is ModNoFail
                 or ModEasy
-                or ModHidden // this also catches ManiaModFadeIn
                 or ModPerfect
                 or ModSuddenDeath
                 or ModNightcore
@@ -149,15 +148,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 or ModTouchDevice
                 or OsuModHardRock
                 or OsuModSpunOut
+                or OsuModHidden
                 or TaikoModHardRock
+                or TaikoModHidden
                 or CatchModHardRock
+                or CatchModHidden
                 or ManiaModKey4
                 or ManiaModKey5
                 or ManiaModKey6
                 or ManiaModKey7
                 or ManiaModKey8
                 or ManiaModKey9
-                or ManiaModMirror;
+                or ManiaModMirror
+                or ManiaModHidden
+                or ManiaModFadeIn;
 
         /// <remarks>
         /// This method attempts to choose the best possible set of <see cref="LegacyMods"/> to use for looking up stored difficulty attributes.
