@@ -75,7 +75,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             // if we want to support mods with non-default configurations (i.e non-1.5x rates on DT/NC)
             // or non-legacy mods which aren't populated into the database (with exception to CL)
             // then we must calculate difficulty attributes in real-time.
-            bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration || (!isRankedLegacyMod(m) && m is not ModClassic));
+            bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration || (!IsRankedLegacyMod(m) && m is not ModClassic));
 
             if (always_use_realtime_difficulty_calculation || mustUseRealtimeDifficulty)
             {
@@ -136,7 +136,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// Used by <see cref="GetDifficultyAttributesAsync"/> to decide if the current mod combination's difficulty attributes
         /// can be fetched from the database.
         /// </remarks>
-        private static bool isRankedLegacyMod(Mod mod) =>
+        public static bool IsRankedLegacyMod(Mod mod) =>
             mod is ModNoFail
                 or ModEasy
                 or ModPerfect
