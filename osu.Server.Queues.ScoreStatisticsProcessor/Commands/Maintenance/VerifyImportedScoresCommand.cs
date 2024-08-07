@@ -280,14 +280,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             {
                 if (!DryRun)
                 {
-                    Console.WriteLine();
-                    Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
+                    if (!Quiet)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
+                    }
+
                     conn.Execute(sqlBuffer.ToString());
 
                     if (elasticItems.Count > 0)
                     {
                         elasticQueueProcessor.PushToQueue(elasticItems.ToList());
-                        Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+
+                        if (!Quiet)
+                            Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+
                         elasticItems.Clear();
                     }
                 }
