@@ -37,6 +37,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
         public bool Verbose { get; set; }
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-q|--quiet", Description = "Reduces output.")]
+        public bool Quiet { get; set; }
+
         /// <summary>
         /// The number of scores to run in each batch. Setting this higher will cause larger SQL statements for insert.
         /// </summary>
@@ -161,6 +164,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         {
                             if (importedScore.legacy_score_id > 0)
                             {
+                                // don't delete pinned scores
+                                int countPinned = conn.QuerySingle<int>($"SELECT COUNT(*) FROM `score_pins` WHERE score_id = {importedScore.id}");
+                                if (countPinned > 0)
+                                    continue;
+
                                 Interlocked.Increment(ref deleted);
                                 requiresIndexing = true;
 
@@ -244,14 +252,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     }
                 }
 
-                Console.Write($"Processed up to {importedScores.Max(s => s.id)} ({deleted} deleted {fail} failed)");
-                Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
+                if (!Quiet)
+                {
+                    Console.Write($"Processed up to {importedScores.Max(s => s.id)} ({deleted} deleted {fail} failed)");
+                    Console.SetCursorPosition(0, Console.GetCursorPosition().Top);
+                }
 
                 lastId += (ulong)BatchSize;
                 flush(conn);
             }
 
             flush(conn, true);
+
+            Console.WriteLine($"Finished ({deleted} deleted {fail} failed)");
 
             return 0;
         }
@@ -267,14 +280,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             {
                 if (!DryRun)
                 {
-                    Console.WriteLine();
-                    Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
+                    if (!Quiet)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
+                    }
+
                     conn.Execute(sqlBuffer.ToString());
 
                     if (elasticItems.Count > 0)
                     {
                         elasticQueueProcessor.PushToQueue(elasticItems.ToList());
-                        Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+
+                        if (!Quiet)
+                            Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+
                         elasticItems.Clear();
                     }
                 }

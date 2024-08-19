@@ -67,10 +67,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         {
             if (use_realtime_difficulty_calculation)
             {
-                using var req = new WebRequest(string.Format(beatmap_download_path, beatmap.beatmap_id))
-                {
-                    AllowInsecureRequests = true
-                };
+                using var req = new WebRequest(string.Format(beatmap_download_path, beatmap.beatmap_id));
+
+                req.AllowInsecureRequests = true;
 
                 await req.PerformAsync().ConfigureAwait(false);
 
