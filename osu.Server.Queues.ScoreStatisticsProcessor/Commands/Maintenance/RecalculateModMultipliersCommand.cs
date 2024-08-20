@@ -81,6 +81,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     score.beatmap = beatmapsById[score.beatmap_id];
                     var scoreInfo = score.ToScoreInfo();
 
+                    if (scoreInfo.TotalScoreWithoutMods == 0 && scoreInfo.TotalScore != 0)
+                    {
+                        throw new InvalidOperationException($"Score with ID {score.id} has {scoreInfo.TotalScore} total score but {scoreInfo.TotalScoreWithoutMods} total score without mods. "
+                                                            + $"This is likely to indicate that {nameof(scoreInfo.TotalScoreWithoutMods)} was not correctly backpopulated on all scores "
+                                                            + "(or there is a process pushing new scores that was not updated to populate the field).");
+                    }
+
                     double multiplier = 1;
 
                     foreach (var mod in scoreInfo.Mods)
