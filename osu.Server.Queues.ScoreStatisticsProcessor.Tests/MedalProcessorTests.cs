@@ -136,6 +136,47 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AssertNoMedalsAwarded();
         }
 
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestConvertsNotAllowedForPackMedals(int medalId, int packId)
+        {
+            var firstBeatmap = AddBeatmap(b =>
+            {
+                b.beatmap_id = 1234;
+                b.playmode = 0;
+            }, s => s.beatmapset_id = 4321);
+            var secondBeatmap = AddBeatmap(b =>
+            {
+                b.beatmap_id = 5678;
+                b.playmode = 0;
+            }, s => s.beatmapset_id = 8765);
+
+            AddPackMedal(medalId, packId, [firstBeatmap, secondBeatmap]);
+            setUpBeatmapsForPackMedal([firstBeatmap, secondBeatmap]);
+
+            AssertNoMedalsAwarded();
+
+            SetScoreForBeatmap(firstBeatmap.beatmap_id, s =>
+            {
+                s.Score.passed = true;
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+                s.Score.ruleset_id = 3;
+                s.Score.pp = 10;
+            });
+            AssertNoMedalsAwarded();
+
+            SetScoreForBeatmap(secondBeatmap.beatmap_id, s =>
+            {
+                s.Score.passed = true;
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+                s.Score.ruleset_id = 0;
+                s.Score.pp = 10;
+            });
+            AssertNoMedalsAwarded();
+        }
+
         /// <summary>
         /// This tests the simplest case of a medal being awarded for completing a pack.
         /// This mimics the "video game" pack, but is intended to test the process rather than the
