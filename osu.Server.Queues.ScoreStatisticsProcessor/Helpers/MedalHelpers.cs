@@ -58,7 +58,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         public static bool UserPassedPack(MedalAwarderContext context, bool noReductionMods, int packId)
         {
             string modsCriteria = string.Empty;
-            string rulesetCriteria = string.Empty;
+            string rulesetCriteria;
 
             if (noReductionMods)
             {
@@ -82,6 +82,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                     return false;
 
                 rulesetCriteria = $"AND ruleset_id = {packRulesetId}";
+            }
+            else
+            {
+                rulesetCriteria = "AND `s`.`ruleset_id` = `b`.`playmode`";
             }
 
             // TODO: no index on (beatmap_id, user_id) may mean this is too slow.
