@@ -45,15 +45,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 switch (result)
                 {
                     case HitResult.Miss:
+                    case HitResult.LargeTickMiss when score.ruleset_id == 2:
                         userStats.countMiss += multiplier * count;
                         break;
 
                     case HitResult.Meh:
+                    case HitResult.SmallTickHit when score.ruleset_id == 2:
                         userStats.count50 += multiplier * count;
                         break;
 
                     case HitResult.Ok:
                     case HitResult.Good:
+                    case HitResult.LargeTickHit when score.ruleset_id == 2:
                         userStats.count100 += multiplier * count;
                         break;
 
