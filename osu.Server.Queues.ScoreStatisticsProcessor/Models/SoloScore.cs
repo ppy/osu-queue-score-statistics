@@ -99,6 +99,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
                 Ruleset = new RulesetInfo { OnlineID = ruleset_id },
                 Passed = passed,
                 TotalScore = total_score,
+                TotalScoreWithoutMods = ScoreData.TotalScoreWithoutMods ?? 0,
                 LegacyTotalScore = legacy_total_score,
                 Accuracy = accuracy,
                 MaxCombo = (int)max_combo,
