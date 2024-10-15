@@ -33,7 +33,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnFailedScores => false;
 
-        public bool RunOnLegacyScores => false;
+        public bool RunOnLegacyScores => true;
 
         private static readonly bool write_legacy_score_pp = Environment.GetEnvironmentVariable("WRITE_LEGACY_SCORE_PP") != "0";
 
