@@ -92,7 +92,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
             await ProcessPartitioned(userIds, async userId =>
             {
                 using (var db = DatabaseAccess.GetConnection())
-                    await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
+                    await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db, cancellationToken: cancellationToken);
 
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);

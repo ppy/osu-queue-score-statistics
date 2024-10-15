@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
@@ -57,7 +58,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="rulesetId">The ruleset for which scores should be processed.</param>
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
-        public async Task ProcessUserScoresAsync(uint userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
+        /// <param name="cancellationToken">The cancellation token.</param>
+        public async Task ProcessUserScoresAsync(uint userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null, CancellationToken cancellationToken = default)
         {
             var scores = (await connection.QueryAsync<SoloScore>("SELECT * FROM scores WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
             {
@@ -66,7 +68,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }, transaction: transaction)).ToArray();
 
             foreach (SoloScore score in scores)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
                 await ProcessScoreAsync(score, connection, transaction);
+            }
         }
 
         /// <summary>
