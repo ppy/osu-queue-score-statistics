@@ -75,7 +75,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                     using (var db = DatabaseAccess.GetConnection())
                         await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db, cancellationToken: cancellationToken);
 
-                    Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
+                    if (Interlocked.Increment(ref processedCount) % 1000 == 0)
+                        Console.WriteLine($"Processed {processedCount} of {totalCount}");
                 }, cancellationToken);
 
                 currentUserId = userIds.Max();

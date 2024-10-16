@@ -67,6 +67,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 RulesetId = rulesetId
             }, transaction: transaction)).ToArray();
 
+            Console.WriteLine($"Processing {userId} ({scores.Length} scores)...");
+
             foreach (SoloScore score in scores)
             {
                 if (cancellationToken.IsCancellationRequested)
