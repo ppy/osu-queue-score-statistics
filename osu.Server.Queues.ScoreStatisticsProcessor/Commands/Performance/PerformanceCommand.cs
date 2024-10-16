@@ -103,7 +103,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
             await Task.WhenAll(Partitioner
                                .Create(values)
                                .GetPartitions(Threads)
-                               .AsParallel()
                                .Select(processPartition));
 
             async Task processPartition(IEnumerator<T> partition)
