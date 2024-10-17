@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,39 +17,39 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
     [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateAllScoresCommand : PerformanceCommand
     {
-        private const int max_scores_per_query = 50000;
+        private const int max_scores_per_query = 100000;
 
         [Option(Description = "Score ID to start processing from.")]
         public ulong From { get; set; }
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
-            ulong? totalCount;
-            ulong currentScoreId = From;
+            using var db = DatabaseAccess.GetConnection();
 
-            using (var db = DatabaseAccess.GetConnection())
-            {
-                totalCount = await db.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores");
-            }
+            ulong currentScoreId = From;
+            ulong? totalCount = await db.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores");
 
             Console.WriteLine($"Processing all {totalCount} scores starting from {currentScoreId}");
 
             int processedCount = 0;
 
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                SoloScore[] scores;
+            var scoresQuery = db.Query<SoloScore>("SELECT * FROM scores WHERE `id` > @ScoreId ORDER BY `id`", new { ScoreId = currentScoreId, Limit = max_scores_per_query }, buffered: false);
+            using var scoresEnum = scoresQuery.GetEnumerator();
 
-                using (var db = DatabaseAccess.GetConnection())
+            while (!cancellationToken.IsCancellationRequested)
+
+            {
+                List<SoloScore> scores = new List<SoloScore>();
+
+                for (int i = 0; i < 10240; i++)
                 {
-                    scores = (await db.QueryAsync<SoloScore>("SELECT * FROM scores WHERE `id` > @ScoreId ORDER BY `id` LIMIT @Limit", new
-                    {
-                        ScoreId = currentScoreId,
-                        Limit = max_scores_per_query
-                    })).ToArray();
+                    if (!scoresEnum.MoveNext())
+                        break;
+
+                    scores.Add(scoresEnum.Current);
                 }
 
-                if (scores.Length == 0)
+                if (scores.Count == 0)
                     break;
 
                 await Task.WhenAll(Partitioner
