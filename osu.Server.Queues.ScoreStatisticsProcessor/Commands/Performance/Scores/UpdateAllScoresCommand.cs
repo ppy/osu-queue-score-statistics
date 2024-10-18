@@ -17,7 +17,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
     [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateAllScoresCommand : PerformanceCommand
     {
-        private const int max_scores_per_query = 100000;
+        private const int max_scores_per_query = 10000;
 
         [Option(Description = "Score ID to start processing from.")]
         public ulong From { get; set; }
@@ -31,23 +31,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             Console.WriteLine($"Processing all {totalCount} scores starting from {currentScoreId}");
 
-            int processedCount = 0;
+            ulong processedCount = 0;
 
-            var scoresQuery = db.Query<SoloScore>("SELECT * FROM scores WHERE `id` > @ScoreId ORDER BY `id`", new { ScoreId = currentScoreId, Limit = max_scores_per_query }, buffered: false);
+            var scoresQuery = db.Query<SoloScore>("SELECT * FROM scores WHERE `id` > @ScoreId ORDER BY `id`", new { ScoreId = currentScoreId }, buffered: false);
             using var scoresEnum = scoresQuery.GetEnumerator();
 
+            Task<List<SoloScore>> nextScores = getNextScores();
+
             while (!cancellationToken.IsCancellationRequested)
-
             {
-                List<SoloScore> scores = new List<SoloScore>();
-
-                for (int i = 0; i < 10240; i++)
-                {
-                    if (!scoresEnum.MoveNext())
-                        break;
-
-                    scores.Add(scoresEnum.Current);
-                }
+                var scores = await nextScores;
+                nextScores = getNextScores();
 
                 if (scores.Count == 0)
                     break;
@@ -66,17 +60,28 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                                                    return;
 
                                                await ScoreProcessor.ProcessScoreAsync(partition.Current, connection);
-
-                                               if (Interlocked.Increment(ref processedCount) % 1000 == 0)
-                                                   Console.WriteLine($"Processed {processedCount} of {totalCount}");
                                            }
                                        }
                                    }));
 
+                Interlocked.Add(ref processedCount, (ulong)scores.Count);
                 currentScoreId = scores.Last().id;
+                Console.WriteLine($"Processed {processedCount} of {totalCount} (up to {currentScoreId})");
             }
 
             return 0;
+
+            Task<List<SoloScore>> getNextScores() => Task.Run(() =>
+            {
+                List<SoloScore> scores = new List<SoloScore>();
+
+                scores.Clear();
+
+                for (int i = 0; i < max_scores_per_query && scoresEnum.MoveNext(); i++)
+                    scores.Add(scoresEnum.Current);
+
+                return scores;
+            }, cancellationToken);
         }
     }
 }
