@@ -61,7 +61,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
-        public async Task ProcessUserScoresAsync(uint userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null, CancellationToken cancellationToken = default)
+        /// <returns>The number of scores which had their performance values updated.</returns>
+        public async Task<int> ProcessUserScoresAsync(uint userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null, CancellationToken cancellationToken = default)
         {
             var scores = (await connection.QueryAsync<SoloScore>("SELECT * FROM scores WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
             {
@@ -70,17 +71,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }, transaction: transaction)).ToArray();
 
             if (!scores.Any())
-                return;
+                return 0;
 
             Console.WriteLine($"Processing {userId} ({scores.Length} scores)...");
+
+            int totalUpdated = 0;
 
             foreach (SoloScore score in scores)
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
-                await ProcessScoreAsync(score, connection, transaction);
+                if (await ProcessScoreAsync(score, connection, transaction))
+                    totalUpdated++;
             }
+
+            return totalUpdated;
         }
 
         /// <summary>

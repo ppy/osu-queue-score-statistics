@@ -37,22 +37,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 }
             }
 
-            int? totalCount;
+            ulong? totalUsers = 0;
+            ulong totalScores = 0;
 
             using (var db = DatabaseAccess.GetConnection())
             {
-                totalCount = await db.QuerySingleAsync<int?>($"SELECT COUNT(`user_id`) FROM {databaseInfo.UserStatsTable} WHERE `user_id` >= @UserId", new
+                totalUsers = await db.QuerySingleAsync<ulong?>($"SELECT COUNT(`user_id`) FROM {databaseInfo.UserStatsTable} WHERE `user_id` >= @UserId", new
                 {
                     UserId = currentUserId
                 });
 
-                if (totalCount == null)
+                if (totalUsers == null)
                     throw new InvalidOperationException("Could not find user ID count.");
             }
 
             Console.WriteLine($"Processing all users starting from UserID {currentUserId}");
 
-            int processedCount = 0;
+            int processedUsers = 0;
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -73,10 +74,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 await ProcessPartitioned(userIds, async userId =>
                 {
                     using (var db = DatabaseAccess.GetConnection())
-                        await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db, cancellationToken: cancellationToken);
+                        Interlocked.Add(ref totalScores, (ulong)(await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db, cancellationToken: cancellationToken)));
 
-                    if (Interlocked.Increment(ref processedCount) % 1000 == 0)
-                        Console.WriteLine($"Processed {processedCount} of {totalCount}");
+                    if (Interlocked.Increment(ref processedUsers) % 1000 == 0)
+                        Console.WriteLine($"Processed {processedUsers:N0} of {totalUsers:N0} ({totalScores:N0} scores)");
                 }, cancellationToken);
 
                 currentUserId = userIds.Max();
