@@ -9,7 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
-using MySqlConnector;
 using osu.Game.Rulesets;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -66,19 +65,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         private long lastCommitTimestamp;
         private long startupTimestamp;
-        private long lastLatencyCheckTimestamp;
 
         private ElasticQueuePusher? elasticQueueProcessor;
-
-        /// <summary>
-        /// The number of seconds between checks for slave latency.
-        /// </summary>
-        private const int seconds_between_latency_checks = 60;
-
-        /// <summary>
-        /// The latency a slave is allowed to fall behind before we start to panic.
-        /// </summary>
-        private const int maximum_slave_latency_seconds = 120;
 
         private ulong maxProcessableId;
         private ulong lastProcessedId;
@@ -113,7 +101,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     if (CheckSlaveLatency)
-                        await checkSlaveLatency(db, cancellationToken);
+                        await SlaveLatencyChecker.CheckSlaveLatency(db, cancellationToken);
 
                     Console.WriteLine($"Fetching next scores from {lastProcessedId}...");
                     var highScores = await db.QueryAsync<HighScore>($"SELECT h.*, s.id as new_id, s.user_id as new_user_id FROM {highScoreTable} h "
@@ -268,34 +256,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     return db.QuerySingle<ulong>($"SELECT MAX(score_id) FROM {highScoreTable}");
                 }
             }
-        }
-
-        private async Task checkSlaveLatency(MySqlConnection db, CancellationToken cancellationToken)
-        {
-            long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-
-            if (currentTimestamp - lastLatencyCheckTimestamp < seconds_between_latency_checks)
-                return;
-
-            lastLatencyCheckTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-
-            int? latency;
-
-            do
-            {
-                // This latency is best-effort, and randomly queried from available hosts (with rough precedence of the importance of the host).
-                // When we detect a high latency value, a recovery period should be introduced where we are pretty sure that we're back in a good
-                // state before resuming operations.
-                latency = db.QueryFirstOrDefault<int?>("SELECT `count` FROM `osu_counts` WHERE NAME = 'slave_latency'");
-
-                if (latency == null || latency < maximum_slave_latency_seconds)
-                    return;
-
-                Console.WriteLine($"Current slave latency of {latency} seconds exceeded maximum of {maximum_slave_latency_seconds} seconds.");
-                Console.WriteLine("Sleeping to allow catch-up.");
-
-                await Task.Delay(maximum_slave_latency_seconds * 1000, cancellationToken);
-            } while (latency > maximum_slave_latency_seconds);
         }
     }
 }
