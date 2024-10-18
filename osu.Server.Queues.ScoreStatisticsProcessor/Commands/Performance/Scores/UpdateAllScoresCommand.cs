@@ -55,6 +55,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 await Task.WhenAll(Partitioner.Create(scores).GetPartitions(Threads).Select(async partition =>
                 {
                     using (var connection = DatabaseAccess.GetConnection())
+                    using (var transaction = await connection.BeginTransactionAsync(cancellationToken))
                     using (partition)
                     {
                         while (partition.MoveNext())
@@ -62,11 +63,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                             if (cancellationToken.IsCancellationRequested)
                                 return;
 
-                            bool changed = await ScoreProcessor.ProcessScoreAsync(partition.Current, connection);
+                            bool changed = await ScoreProcessor.ProcessScoreAsync(partition.Current, connection, transaction);
 
                             if (changed)
                                 Interlocked.Increment(ref changedPp);
                         }
+
+                        await transaction.CommitAsync(cancellationToken);
                     }
                 }));
 
