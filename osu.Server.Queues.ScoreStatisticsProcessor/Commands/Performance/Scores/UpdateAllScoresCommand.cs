@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -55,7 +56,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 await Task.WhenAll(Partitioner.Create(scores).GetPartitions(Threads).Select(async partition =>
                 {
                     using (var connection = DatabaseAccess.GetConnection())
-                    using (var transaction = await connection.BeginTransactionAsync(cancellationToken))
+                    using (var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadUncommitted, cancellationToken))
                     using (partition)
                     {
                         while (partition.MoveNext())
