@@ -18,7 +18,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
     [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateAllScoresCommand : PerformanceCommand
     {
-        private const int max_scores_per_query = 50000;
+        private const int max_scores_per_query = 5000;
 
         [Option(Description = "Score ID to start processing from.")]
         public ulong From { get; set; }
@@ -30,17 +30,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             ulong currentScoreId = From;
             ulong? totalCount = await db.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores");
 
-            Console.WriteLine($"Processing all {totalCount} scores starting from {currentScoreId}");
-
             ulong processedCount = 0;
             double rate = 0;
+            Stopwatch sw = new Stopwatch();
 
             var scoresQuery = db.Query<SoloScore>("SELECT * FROM scores WHERE `id` > @ScoreId ORDER BY `id`", new { ScoreId = currentScoreId }, buffered: false);
             using var scoresEnum = scoresQuery.GetEnumerator();
 
-            Task<List<SoloScore>> nextScores = getNextScores();
+            Console.WriteLine($"Processing all {totalCount} scores starting from {currentScoreId}");
 
-            Stopwatch sw = new Stopwatch();
+            Task<List<SoloScore>> nextScores = getNextScores();
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -52,23 +51,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 if (scores.Count == 0)
                     break;
 
-                await Task.WhenAll(Partitioner
-                                   .Create(scores)
-                                   .GetPartitions(Threads)
-                                   .Select(async partition =>
-                                   {
-                                       using (var connection = DatabaseAccess.GetConnection())
-                                       using (partition)
-                                       {
-                                           while (partition.MoveNext())
-                                           {
-                                               if (cancellationToken.IsCancellationRequested)
-                                                   return;
+                await Task.WhenAll(Partitioner.Create(scores).GetPartitions(Threads).Select(async partition =>
+                {
+                    using (var connection = DatabaseAccess.GetConnection())
+                    using (partition)
+                    {
+                        while (partition.MoveNext())
+                        {
+                            if (cancellationToken.IsCancellationRequested)
+                                return;
 
-                                               await ScoreProcessor.ProcessScoreAsync(partition.Current, connection);
-                                           }
-                                       }
-                                   }));
+                            await ScoreProcessor.ProcessScoreAsync(partition.Current, connection);
+                        }
+                    }
+                }));
 
                 Interlocked.Add(ref processedCount, (ulong)scores.Count);
 
@@ -79,7 +75,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 if (rate == 0)
                     rate = ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
                 else
-                    rate = rate * 0.9 + 0.1 * ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
+                    rate = rate * 0.95 + 0.05 * ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
 
                 Console.WriteLine(ScoreProcessor.BeatmapStore?.GetCacheStats());
                 Console.WriteLine($"id: {currentScoreId:N0} ({processedCount:N0} of {totalCount:N0} {(float)processedCount / totalCount:P1}) {rate:N0}/s");
