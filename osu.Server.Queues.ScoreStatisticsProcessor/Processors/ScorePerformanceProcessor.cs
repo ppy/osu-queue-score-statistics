@@ -166,20 +166,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (score.pp != null && Math.Abs(score.pp.Value - performanceAttributes.Total) < 0.1)
                     return false;
 
-                await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
-                {
-                    ScoreId = score.id,
-                    Pp = performanceAttributes.Total
-                }, transaction: transaction);
-
                 // for the following code to take effect, `RunOnLegacyScores` must also be true (currently is false).
                 if (score.is_legacy_score && write_legacy_score_pp)
                 {
                     var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
-                    await connection.ExecuteAsync($"UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
+                    await connection.ExecuteAsync($"UPDATE scores SET pp = @Pp WHERE id = @ScoreId; UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
                     {
+                        ScoreId = score.id,
                         LegacyScoreId = score.legacy_score_id,
                         Pp = performanceAttributes.Total,
+                    }, transaction: transaction);
+                }
+                else
+                {
+                    await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
+                    {
+                        ScoreId = score.id,
+                        Pp = performanceAttributes.Total
                     }, transaction: transaction);
                 }
 
