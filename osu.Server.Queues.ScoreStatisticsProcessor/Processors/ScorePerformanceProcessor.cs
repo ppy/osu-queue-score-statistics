@@ -38,6 +38,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private static readonly bool write_legacy_score_pp = Environment.GetEnvironmentVariable("WRITE_LEGACY_SCORE_PP") != "0";
 
+        private static readonly bool refresh_stores_periodically = Environment.GetEnvironmentVariable("REFRESH_STORES_PERIODICALLY") != "0";
+
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -117,7 +119,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            if (buildStore == null || BeatmapStore == null || currentTimestamp - lastStoreRefresh > 60_000)
+            if (buildStore == null || BeatmapStore == null || (refresh_stores_periodically && currentTimestamp - lastStoreRefresh > 60_000))
             {
                 buildStore = await BuildStore.CreateAsync(connection, transaction);
                 BeatmapStore = await BeatmapStore.CreateAsync(connection, transaction);
