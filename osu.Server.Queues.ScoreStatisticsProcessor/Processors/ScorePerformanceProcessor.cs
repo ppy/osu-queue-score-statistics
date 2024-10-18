@@ -73,8 +73,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (!scores.Any())
                 return 0;
 
-            Console.WriteLine($"Processing {userId} ({scores.Length} scores)...");
-
             int totalUpdated = 0;
 
             foreach (SoloScore score in scores)
