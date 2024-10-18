@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.QueueProcessor;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
@@ -23,6 +24,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
         [Option(Description = "Score ID to start processing from.")]
         public ulong From { get; set; }
+
+        /// <summary>
+        /// Whether to adjust processing rate based on slave latency. Defaults to <c>false</c>.
+        /// </summary>
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--check-slave-latency")]
+        public bool CheckSlaveLatency { get; set; }
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
@@ -45,6 +52,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             while (!cancellationToken.IsCancellationRequested)
             {
+                if (CheckSlaveLatency)
+                    await SlaveLatencyChecker.CheckSlaveLatency(db, cancellationToken);
+
                 sw.Restart();
 
                 var scores = await nextScores;
