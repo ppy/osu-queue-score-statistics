@@ -15,22 +15,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     public static class LegacyDatabaseHelper
     {
+        private static readonly RulesetDatabaseInfo osu_info = new RulesetDatabaseInfo(0, "osu", false);
+        private static readonly RulesetDatabaseInfo taiko_info = new RulesetDatabaseInfo(1, "taiko", true);
+        private static readonly RulesetDatabaseInfo fruits_info = new RulesetDatabaseInfo(2, "fruits", true);
+        private static readonly RulesetDatabaseInfo mania_info = new RulesetDatabaseInfo(3, "mania", true);
+
         public static RulesetDatabaseInfo GetRulesetSpecifics(int rulesetId)
         {
             switch (rulesetId)
             {
                 default:
                 case 0:
-                    return new RulesetDatabaseInfo(0, "osu", false);
+                    return osu_info;
 
                 case 1:
-                    return new RulesetDatabaseInfo(1, "taiko", true);
+                    return taiko_info;
 
                 case 2:
-                    return new RulesetDatabaseInfo(2, "fruits", true);
+                    return fruits_info;
 
                 case 3:
-                    return new RulesetDatabaseInfo(3, "mania", true);
+                    return mania_info;
             }
         }
 
