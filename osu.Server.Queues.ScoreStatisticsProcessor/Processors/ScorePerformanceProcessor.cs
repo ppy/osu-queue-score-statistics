@@ -111,11 +111,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="score">The score to process.</param>
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
-        public async Task ProcessScoreAsync(SoloScore score, MySqlConnection connection, MySqlTransaction? transaction = null)
+        public async Task<bool> ProcessScoreAsync(SoloScore score, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             // Usually checked via "RunOnFailedScores", but this method is also used by the CLI batch processor.
             if (!score.passed)
-                return;
+                return false;
 
             long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
@@ -132,32 +132,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 score.beatmap ??= (await BeatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction));
 
                 if (score.beatmap is not Beatmap beatmap)
-                    return;
+                    return false;
 
                 if (!BeatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
-                    return;
+                    return false;
 
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
                 Mod[] mods = score.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray();
 
                 if (!AllModsValidForPerformance(score, mods))
-                    return;
+                    return false;
 
                 DifficultyAttributes? difficultyAttributes = await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
 
                 // Performance needs to be allowed for the build.
                 // legacy scores don't need a build id
                 if (score.legacy_score_id == null && (score.build_id == null || buildStore.GetBuild(score.build_id.Value)?.allow_performance != true))
-                    return;
+                    return false;
 
                 if (difficultyAttributes == null)
-                    return;
+                    return false;
 
                 ScoreInfo scoreInfo = score.ToScoreInfo();
                 PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
 
                 if (performanceAttributes == null)
-                    return;
+                    return false;
+
+                if (score.pp != null && Math.Abs(score.pp.Value - performanceAttributes.Total) < 0.1)
+                    return false;
 
                 await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
                 {
@@ -175,10 +178,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                         Pp = performanceAttributes.Total,
                     }, transaction: transaction);
                 }
+
+                return true;
             }
             catch (Exception ex)
             {
                 await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
+                return false;
             }
         }
 

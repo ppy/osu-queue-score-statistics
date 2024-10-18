@@ -31,6 +31,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             ulong? totalCount = await db.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores");
 
             ulong processedCount = 0;
+            ulong changedPp = 0;
             double rate = 0;
             Stopwatch sw = new Stopwatch();
 
@@ -61,7 +62,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                             if (cancellationToken.IsCancellationRequested)
                                 return;
 
-                            await ScoreProcessor.ProcessScoreAsync(partition.Current, connection);
+                            bool changed = await ScoreProcessor.ProcessScoreAsync(partition.Current, connection);
+
+                            if (changed)
+                                Interlocked.Increment(ref changedPp);
                         }
                     }
                 }));
@@ -70,15 +74,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
                 currentScoreId = scores.Last().id;
 
-                double elapsed = sw.ElapsedMilliseconds;
-
                 if (rate == 0)
                     rate = ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
                 else
                     rate = rate * 0.95 + 0.05 * ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
 
                 Console.WriteLine(ScoreProcessor.BeatmapStore?.GetCacheStats());
-                Console.WriteLine($"id: {currentScoreId:N0} ({processedCount:N0} of {totalCount:N0} {(float)processedCount / totalCount:P1}) {rate:N0}/s");
+                Console.WriteLine($"id: {currentScoreId:N0} changed: {changedPp:N0} ({processedCount:N0} of {totalCount:N0} {(float)processedCount / totalCount:P1}) {rate:N0}/s");
             }
 
             return 0;
