@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,7 +18,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
     [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateAllScoresCommand : PerformanceCommand
     {
-        private const int max_scores_per_query = 10000;
+        private const int max_scores_per_query = 50000;
 
         [Option(Description = "Score ID to start processing from.")]
         public ulong From { get; set; }
@@ -32,14 +33,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             Console.WriteLine($"Processing all {totalCount} scores starting from {currentScoreId}");
 
             ulong processedCount = 0;
+            double rate = 0;
 
             var scoresQuery = db.Query<SoloScore>("SELECT * FROM scores WHERE `id` > @ScoreId ORDER BY `id`", new { ScoreId = currentScoreId }, buffered: false);
             using var scoresEnum = scoresQuery.GetEnumerator();
 
             Task<List<SoloScore>> nextScores = getNextScores();
 
+            Stopwatch sw = new Stopwatch();
+
             while (!cancellationToken.IsCancellationRequested)
             {
+                sw.Restart();
+
                 var scores = await nextScores;
                 nextScores = getNextScores();
 
@@ -65,8 +71,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                                    }));
 
                 Interlocked.Add(ref processedCount, (ulong)scores.Count);
+
                 currentScoreId = scores.Last().id;
-                Console.WriteLine($"Processed {processedCount} of {totalCount} (up to {currentScoreId})");
+
+                double elapsed = sw.ElapsedMilliseconds;
+
+                if (rate == 0)
+                    rate = ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
+                else
+                    rate = rate * 0.9 + 0.1 * ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
+
+                Console.WriteLine(ScoreProcessor.BeatmapStore?.GetCacheStats());
+                Console.WriteLine($"id: {currentScoreId:N0} ({processedCount:N0} of {totalCount:N0} {(float)processedCount / totalCount:P1}) {rate:N0}/s");
             }
 
             return 0;

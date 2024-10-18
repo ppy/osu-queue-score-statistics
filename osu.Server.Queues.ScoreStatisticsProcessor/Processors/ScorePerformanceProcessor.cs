@@ -25,7 +25,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     {
         public const int ORDER = 0;
 
-        private BeatmapStore? beatmapStore;
+        public BeatmapStore? BeatmapStore { get; private set; }
         private BuildStore? buildStore;
 
         private long lastStoreRefresh;
@@ -117,22 +117,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            if (buildStore == null || beatmapStore == null || currentTimestamp - lastStoreRefresh > 60_000)
+            if (buildStore == null || BeatmapStore == null || currentTimestamp - lastStoreRefresh > 60_000)
             {
                 buildStore = await BuildStore.CreateAsync(connection, transaction);
-                beatmapStore = await BeatmapStore.CreateAsync(connection, transaction);
+                BeatmapStore = await BeatmapStore.CreateAsync(connection, transaction);
 
                 lastStoreRefresh = currentTimestamp;
             }
 
             try
             {
-                score.beatmap ??= (await beatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction));
+                score.beatmap ??= (await BeatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction));
 
                 if (score.beatmap is not Beatmap beatmap)
                     return;
 
-                if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
+                if (!BeatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
                     return;
 
                 Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
@@ -141,7 +141,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (!AllModsValidForPerformance(score, mods))
                     return;
 
-                DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
+                DifficultyAttributes? difficultyAttributes = await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
 
                 // Performance needs to be allowed for the build.
                 // legacy scores don't need a build id
