@@ -36,17 +36,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             using var db = DatabaseAccess.GetConnection();
 
             ulong currentScoreId = From;
-            ulong? totalCount = await db.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores");
+            ulong? lastScoreId = await db.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores");
 
             ulong processedCount = 0;
             ulong changedPp = 0;
             double rate = 0;
             Stopwatch sw = new Stopwatch();
 
-            var scoresQuery = db.Query<SoloScore>("SELECT * FROM scores WHERE `id` > @ScoreId ORDER BY `id`", new { ScoreId = currentScoreId }, buffered: false);
+            var scoresQuery = db.Query<SoloScore>("SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId ORDER BY `id`", new
+            {
+                ScoreId = currentScoreId,
+                LastScoreId = lastScoreId,
+            }, buffered: false);
+
             using var scoresEnum = scoresQuery.GetEnumerator();
 
-            Console.WriteLine($"Processing all {totalCount} scores starting from {currentScoreId}");
+            Console.WriteLine($"Processing all scores up to {lastScoreId}, starting from {currentScoreId}");
 
             Task<List<SoloScore>> nextScores = getNextScores();
 
@@ -94,7 +99,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                     rate = rate * 0.95 + 0.05 * ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
 
                 Console.WriteLine(ScoreProcessor.BeatmapStore?.GetCacheStats());
-                Console.WriteLine($"id: {currentScoreId:N0} changed: {changedPp:N0} ({processedCount:N0} of {totalCount:N0} {(float)processedCount / totalCount:P1}) {rate:N0}/s");
+                Console.WriteLine($"id: {currentScoreId:N0} changed: {changedPp:N0} ({processedCount:N0} of {lastScoreId:N0} {(float)processedCount / lastScoreId:P1}) {rate:N0}/s");
             }
 
             return 0;
