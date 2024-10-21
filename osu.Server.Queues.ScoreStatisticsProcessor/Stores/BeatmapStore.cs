@@ -30,7 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
 
         private readonly ConcurrentDictionary<uint, Beatmap?> beatmapCache = new ConcurrentDictionary<uint, Beatmap?>();
-        private readonly ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, BeatmapDifficultyAttribute[]?>();
+        private readonly ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes?>();
         private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
 
         private BeatmapStore(IEnumerable<KeyValuePair<BlacklistEntry, byte>> blacklist)
@@ -82,29 +82,34 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 return calculator.Calculate(mods);
             }
 
-            BeatmapDifficultyAttribute[]? rawDifficultyAttributes;
-
             LegacyMods legacyModValue = getLegacyModsForAttributeLookup(beatmap, ruleset, mods);
+
             DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, (uint)ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
 
-            if (!attributeCache.TryGetValue(key, out rawDifficultyAttributes))
+            if (attributeCache.TryGetValue(key, out DifficultyAttributes? difficultyAttributes))
+                return difficultyAttributes;
+
+            BeatmapDifficultyAttribute[] dbAttribs = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
+                "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
+                {
+                    key.BeatmapId,
+                    key.RulesetId,
+                    key.ModValue
+                }, transaction: transaction)).ToArray();
+
+            try
             {
-                rawDifficultyAttributes = attributeCache[key] = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
-                    "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
-                    {
-                        key.BeatmapId,
-                        key.RulesetId,
-                        key.ModValue
-                    }, transaction: transaction)).ToArray();
+                if (dbAttribs.Length == 0)
+                    return difficultyAttributes;
+
+                difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
+                difficultyAttributes.FromDatabaseAttributes(dbAttribs.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
+                return difficultyAttributes;
             }
-
-            if (rawDifficultyAttributes == null || rawDifficultyAttributes.Length == 0)
-                return null;
-
-            DifficultyAttributes difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
-            difficultyAttributes.FromDatabaseAttributes(rawDifficultyAttributes.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
-
-            return difficultyAttributes;
+            finally
+            {
+                attributeCache[key] = difficultyAttributes;
+            }
         }
 
         /// <remarks>
