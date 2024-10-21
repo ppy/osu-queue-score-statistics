@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
@@ -32,6 +33,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private readonly ConcurrentDictionary<uint, Beatmap?> beatmapCache = new ConcurrentDictionary<uint, Beatmap?>();
         private readonly ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes?>();
         private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
+
+        private int beatmapCacheMiss;
+        private int attribCacheMiss;
+
+        public string GetCacheStats()
+        {
+            string output = $"caches: [beatmap {beatmapCache.Count:N0} +{beatmapCacheMiss:N0}] [attrib {attributeCache.Count:N0} +{attribCacheMiss:N0}]";
+
+            Interlocked.Exchange(ref beatmapCacheMiss, 0);
+            Interlocked.Exchange(ref attribCacheMiss, 0);
+
+            return output;
+        }
 
         private BeatmapStore(IEnumerable<KeyValuePair<BlacklistEntry, byte>> blacklist)
         {
@@ -108,6 +122,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             }
             finally
             {
+                Interlocked.Increment(ref attribCacheMiss);
                 attributeCache[key] = difficultyAttributes;
             }
         }
@@ -142,6 +157,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             if (beatmapCache.TryGetValue(beatmapId, out var beatmap))
                 return beatmap;
 
+            Interlocked.Increment(ref beatmapCacheMiss);
             return beatmapCache[beatmapId] = await connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
             {
                 BeatmapId = beatmapId
