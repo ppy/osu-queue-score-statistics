@@ -89,6 +89,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                     }
                 }));
 
+                if (cancellationToken.IsCancellationRequested)
+                    return -1;
+
                 Interlocked.Add(ref processedCount, (ulong)scores.Count);
 
                 currentScoreId = scores.Last().id;
