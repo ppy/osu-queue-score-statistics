@@ -106,9 +106,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             Task<List<SoloScore>> getNextScores() => Task.Run(() =>
             {
-                List<SoloScore> scores = new List<SoloScore>();
-
-                scores.Clear();
+                List<SoloScore> scores = new List<SoloScore>(max_scores_per_query);
 
                 for (int i = 0; i < max_scores_per_query && scoresEnum.MoveNext(); i++)
                     scores.Add(scoresEnum.Current);
