@@ -73,8 +73,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 165pp from the single score above + 2pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 167, CancellationToken);
+            // 160pp from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 162, CancellationToken);
 
             // purposefully identical to score above, to confirm that you don't get pp for two scores on the same map twice
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
@@ -86,8 +86,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 165pp from the single score above + 4pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 169, CancellationToken);
+            // 160pp from the single score above + 4pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 164, CancellationToken);
         }
 
         /// <summary>
@@ -113,6 +113,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 attr.ColourDifficulty = 3;
                 attr.PeakDifficulty = 3;
                 attr.GreatHitWindow = 15;
+                attr.OkHitWindow = 50;
             }, mode: 1);
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
@@ -126,8 +127,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 298pp from the single score above + 2pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 300, CancellationToken);
+            // 374pp from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 376, CancellationToken);
         }
 
         [Fact]
