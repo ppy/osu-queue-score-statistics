@@ -19,6 +19,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(DeleteImportedHighScoresCommand))]
     [Subcommand(typeof(VerifyReplaysExistCommand))]
     [Subcommand(typeof(PopulateTotalScoreWithoutModsCommand))]
+    [Subcommand(typeof(RecalculateModMultipliersCommand))]
     public sealed class MaintenanceCommands
     {
         public Task<int> OnExecuteAsync(CommandLineApplication app, CancellationToken cancellationToken)
