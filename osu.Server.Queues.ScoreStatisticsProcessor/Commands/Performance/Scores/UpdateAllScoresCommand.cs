@@ -22,6 +22,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
     {
         private const int max_scores_per_query = 5000;
 
+        [Option(Description = "Process from the newest score backwards.")]
+        public bool Backwards { get; set; }
+
         [Option(Description = "Score ID to start processing from.")]
         public ulong From { get; set; }
 
@@ -45,7 +48,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             double rate = 0;
             Stopwatch sw = new Stopwatch();
 
-            var scoresQuery = db.Query<SoloScore>("SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId ORDER BY `id`", new
+            string sort = Backwards ? "DESC" : "ASC";
+
+            var scoresQuery = db.Query<SoloScore>($"SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId ORDER BY `id` {sort}", new
             {
                 ScoreId = currentScoreId,
                 LastScoreId = lastScoreId,
@@ -53,7 +58,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             using var scoresEnum = scoresQuery.GetEnumerator();
 
-            Console.WriteLine($"Processing all scores up to {lastScoreId}, starting from {currentScoreId}");
+            Console.WriteLine(Backwards
+                ? $"Processing all scores down from {lastScoreId}, starting from {currentScoreId}"
+                : $"Processing all scores up to {lastScoreId}, starting from {currentScoreId}");
 
             Task<List<SoloScore>> nextScores = getNextScores();
 
