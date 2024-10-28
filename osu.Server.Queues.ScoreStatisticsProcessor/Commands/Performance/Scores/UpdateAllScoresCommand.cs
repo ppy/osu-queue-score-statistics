@@ -60,7 +60,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (CheckSlaveLatency)
-                    await SlaveLatencyChecker.CheckSlaveLatency(db, cancellationToken);
+                {
+                    using (var connection = DatabaseAccess.GetConnection())
+                        await SlaveLatencyChecker.CheckSlaveLatency(connection, cancellationToken);
+                }
 
                 sw.Restart();
 
