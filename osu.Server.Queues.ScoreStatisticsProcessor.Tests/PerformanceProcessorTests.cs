@@ -41,7 +41,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void PerformanceIndexUpdates()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -305,7 +304,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void FailedScoreDoesNotProcess()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -325,7 +323,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void LegacyScoreIsProcessedAndPpIsWrittenBackToLegacyTables()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             using (MySqlConnection conn = Processor.GetDatabaseConnection())
                 conn.Execute("INSERT INTO osu_scores_high (score_id, user_id) VALUES (1, 0)");
@@ -354,7 +351,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void NonLegacyScoreWithNoBuildIdIsNotRanked()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -374,7 +370,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void ScoresThatHavePpButInvalidModsGetsNoPP()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score;
 
@@ -585,34 +580,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             var beatmap = AddBeatmap();
 
+            // Delete attributes - this could happen either as a result of diffcalc not being run or being out of date and not inserting some required attributes.
             using (var db = Processor.GetDatabaseConnection())
-            {
-                var beatmapStore = await BeatmapStore.CreateAsync(db);
-
-                await Assert.ThrowsAnyAsync<Exception>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
-                await Assert.ThrowsAnyAsync<Exception>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
-                await Assert.ThrowsAnyAsync<Exception>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
-            }
-
-            Assert.ThrowsAny<Exception>(() => SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
-            {
-                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
-                score.Score.max_combo = 100;
-                score.Score.accuracy = 1;
-                score.Score.build_id = TestBuildID;
-                score.Score.preserve = true;
-            }));
-        }
-
-        [Fact]
-        public async Task InvalidAttributesThrowsError()
-        {
-            var beatmap = AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
-
-            // Delete some attributes - this should happen as a result of an outdated diffcalc (missing attributes).
-            using (var db = Processor.GetDatabaseConnection())
-                await db.ExecuteAsync("DELETE FROM osu_beatmap_difficulty_attribs WHERE attrib_id != 9");
+                await db.ExecuteAsync("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
 
             using (var db = Processor.GetDatabaseConnection())
             {
