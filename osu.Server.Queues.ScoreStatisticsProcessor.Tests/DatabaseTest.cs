@@ -243,7 +243,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 db.Execute("DELETE FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @Mode AND mods = @Mods", new
                 {
-                    BeatmapId = beatmapId,
+                    BeatmapId = beatmapId.Value,
                     Mode = mode,
                     Mods = modsInt
                 });
@@ -254,7 +254,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     {
                         beatmap_id = beatmapId.Value,
                         mode = mode,
-                        mods = (uint)ruleset.ConvertToLegacyMods(attribs.Mods),
+                        mods = modsInt,
                         attrib_id = (ushort)a.attributeId,
                         value = Convert.ToSingle(a.value),
                     });
