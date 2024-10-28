@@ -113,16 +113,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
 
             try
             {
-                if (dbAttribs.Length == 0)
-                    throw new Exception("Missing attributes.");
-
                 difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
                 difficultyAttributes.FromDatabaseAttributes(dbAttribs.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
                 return attributeCache[key] = difficultyAttributes;
             }
             catch (Exception ex)
             {
-                throw new Exception($"Failed to load difficulty attributes ({key}).", ex);
+                throw new DifficultyAttributesMissingException(key, ex);
             }
             finally
             {
@@ -188,9 +185,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             }
         }
 
-        private record struct DifficultyAttributeKey(uint BeatmapId, uint RulesetId, uint ModValue);
+        public record struct DifficultyAttributeKey(uint BeatmapId, uint RulesetId, uint ModValue);
 
         [SuppressMessage("ReSharper", "NotAccessedPositionalProperty.Local")]
         private record struct BlacklistEntry(uint BeatmapId, uint RulesetId);
+    }
+
+    public class DifficultyAttributesMissingException : Exception
+    {
+        public DifficultyAttributesMissingException(BeatmapStore.DifficultyAttributeKey key, Exception? inner)
+            : base(key.ToString(), inner)
+        {
+        }
     }
 }
