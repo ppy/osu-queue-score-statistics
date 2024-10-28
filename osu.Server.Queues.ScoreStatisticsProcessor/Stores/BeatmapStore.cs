@@ -114,16 +114,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             try
             {
                 if (dbAttribs.Length == 0)
-                    return difficultyAttributes;
+                    throw new Exception("Missing attributes.");
 
                 difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
                 difficultyAttributes.FromDatabaseAttributes(dbAttribs.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
-                return difficultyAttributes;
+                return attributeCache[key] = difficultyAttributes;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to load difficulty attributes ({key}).", ex);
             }
             finally
             {
                 Interlocked.Increment(ref attribCacheMiss);
-                attributeCache[key] = difficultyAttributes;
             }
         }
 
