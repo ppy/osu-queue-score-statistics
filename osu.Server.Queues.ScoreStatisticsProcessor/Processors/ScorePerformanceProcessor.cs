@@ -23,6 +23,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     /// </summary>
     public class ScorePerformanceProcessor : IProcessor
     {
+        private static readonly bool check_client_version = Environment.GetEnvironmentVariable("CLIENT_CHECK_VERSION") != "0";
+
         public const int ORDER = 0;
 
         public BeatmapStore? BeatmapStore { get; private set; }
@@ -151,7 +153,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                 // Performance needs to be allowed for the build.
                 // legacy scores don't need a build id
-                if (score.legacy_score_id == null && (score.build_id == null || buildStore.GetBuild(score.build_id.Value)?.allow_performance != true))
+                if (check_client_version && score.legacy_score_id == null && (score.build_id == null || buildStore.GetBuild(score.build_id.Value)?.allow_performance != true))
                     return false;
 
                 if (difficultyAttributes == null)
