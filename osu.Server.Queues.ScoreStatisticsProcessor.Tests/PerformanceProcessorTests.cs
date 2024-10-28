@@ -612,7 +612,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             // Delete some attributes - this should happen as a result of an outdated diffcalc (missing attributes).
             using (var db = Processor.GetDatabaseConnection())
-                db.Execute("DELETE FROM osu_beatmap_difficulty_attribs WHERE attrib_id != 9");
+                await db.ExecuteAsync("DELETE FROM osu_beatmap_difficulty_attribs WHERE attrib_id != 9");
 
             using (var db = Processor.GetDatabaseConnection())
             {
