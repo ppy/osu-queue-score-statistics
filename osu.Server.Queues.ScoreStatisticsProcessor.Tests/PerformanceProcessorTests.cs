@@ -1,7 +1,9 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
@@ -12,6 +14,7 @@ using osu.Game.Online.API;
 using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
@@ -19,6 +22,7 @@ using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Rulesets.Taiko.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
@@ -575,6 +579,59 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 userId = 2,
                 mode = 0,
             });
+        }
+
+        [Fact]
+        public async Task MissingAttributesThrowsError()
+        {
+            var beatmap = AddBeatmap();
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                var beatmapStore = await BeatmapStore.CreateAsync(db);
+
+                await Assert.ThrowsAnyAsync<Exception>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<Exception>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<Exception>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+            }
+
+            Assert.ThrowsAny<Exception>(() => SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.preserve = true;
+            }));
+        }
+
+        [Fact]
+        public async Task InvalidAttributesThrowsError()
+        {
+            var beatmap = AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>();
+
+            // Delete some attributes - this should happen as a result of an outdated diffcalc (missing attributes).
+            using (var db = Processor.GetDatabaseConnection())
+                db.Execute("DELETE FROM osu_beatmap_difficulty_attribs WHERE attrib_id != 9");
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                var beatmapStore = await BeatmapStore.CreateAsync(db);
+
+                await Assert.ThrowsAnyAsync<Exception>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<Exception>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<Exception>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+            }
+
+            Assert.ThrowsAny<Exception>(() => SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.preserve = true;
+            }));
         }
 
         private class InvalidMod : Mod
