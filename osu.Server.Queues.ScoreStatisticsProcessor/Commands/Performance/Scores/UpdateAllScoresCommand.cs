@@ -33,6 +33,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
+            // TODO: ruleset parameter is in base class but unused.
+
             using var db = DatabaseAccess.GetConnection();
 
             ulong currentScoreId = From;
