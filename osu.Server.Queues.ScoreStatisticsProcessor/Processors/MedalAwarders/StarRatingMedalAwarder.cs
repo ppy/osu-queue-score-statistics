@@ -45,10 +45,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 yield break;
 
             // Get map star rating (including mods)
-            DifficultyAttributes? difficultyAttributes = await context.BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, context.Connection, context.Transaction);
-
-            if (difficultyAttributes == null)
-                yield break;
+            DifficultyAttributes difficultyAttributes = await context.BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, context.Connection, context.Transaction);
 
             // Award pass medals
             foreach (var medal in medals)

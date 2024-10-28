@@ -31,7 +31,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
 
         private readonly ConcurrentDictionary<uint, Beatmap?> beatmapCache = new ConcurrentDictionary<uint, Beatmap?>();
-        private readonly ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes?>();
+        private readonly ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes>();
         private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
 
         private int beatmapCacheMiss;
@@ -77,7 +77,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
-        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
+        /// <exception cref="DifficultyAttributesMissingException">If the difficulty attributes don't exist in the database.</exception>
+        /// <exception cref="Exception">If realtime difficulty attributes couldn't be computed.</exception>
+        public async Task<DifficultyAttributes> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             if (use_realtime_difficulty_calculation)
             {
