@@ -10,14 +10,12 @@ using Dapper;
 using Dapper.Contrib.Extensions;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API;
-using osu.Game.Rulesets.Mania.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
-using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Utils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
@@ -434,6 +432,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id = 122;
 
             var beatmap = AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, mods: [new OsuModDoubleTime()]);
 
             AddMedal(medal_id);
 
@@ -465,6 +464,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id = 122;
 
             var beatmap = AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, mods: [new OsuModDoubleTime()]);
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, mods: [new OsuModDoubleTime(), new OsuModTouchDevice()]);
 
             AddMedal(medal_id);
 
@@ -492,7 +493,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 b.beatmap_id = getNextBeatmapId();
                 b.approved = onlineStatus;
             });
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             AddMedal(medal_id_pass);
             AddMedal(medal_id_fc);
@@ -548,7 +548,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_fc = 67;
 
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             AddMedal(medal_id_pass);
             AddMedal(medal_id_fc);
@@ -585,7 +584,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_4_star = 58;
 
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             AddMedal(medal_id_5_star);
             AddMedal(medal_id_4_star);
@@ -615,7 +613,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void TestStarRatingMedalsNotAwardedWhenDifficultyReductionOrUnrankedModsAreActive(APIMod[] mods)
         {
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             int[] passMedalIds = { 55, 56, 57, 58, 59, 60, 61, 62, 242, 244 };
             int[] fcMedalIds = { 63, 64, 65, 66, 67, 68, 69, 70, 243, 245 };
@@ -656,7 +653,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             // Taiko medals have an exception for https://osu.ppy.sh/beatmapsets/2626#taiko/19990
             var beatmap = AddBeatmap(b => b.beatmap_id = 19990);
-            AddBeatmapAttributes<TaikoDifficultyAttributes>(beatmap.beatmap_id, mode: 1);
 
             AddMedal(medal_id_5_star);
 
@@ -677,7 +673,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_5_star = 91;
 
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
-            AddBeatmapAttributes<ManiaDifficultyAttributes>(beatmap.beatmap_id, mode: 3);
 
             AddMedal(medal_id_5_star);
 
@@ -726,7 +721,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 b.beatmap_id = getNextBeatmapId();
                 b.approved = onlineStatus;
             });
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             AddMedal(medal_id_5_star);
 

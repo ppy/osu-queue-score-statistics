@@ -31,7 +31,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
 
         private readonly ConcurrentDictionary<uint, Beatmap?> beatmapCache = new ConcurrentDictionary<uint, Beatmap?>();
-        private readonly ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes?> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes?>();
+        private readonly ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes> attributeCache = new ConcurrentDictionary<DifficultyAttributeKey, DifficultyAttributes>();
         private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
 
         private int beatmapCacheMiss;
@@ -77,7 +77,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
-        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
+        /// <exception cref="DifficultyAttributesMissingException">If the difficulty attributes don't exist in the database.</exception>
+        /// <exception cref="Exception">If realtime difficulty attributes couldn't be computed.</exception>
+        public async Task<DifficultyAttributes> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             if (use_realtime_difficulty_calculation)
             {
@@ -113,17 +115,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
 
             try
             {
-                if (dbAttribs.Length == 0)
-                    return difficultyAttributes;
-
                 difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
                 difficultyAttributes.FromDatabaseAttributes(dbAttribs.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
-                return difficultyAttributes;
+                return attributeCache[key] = difficultyAttributes;
+            }
+            catch (Exception ex)
+            {
+                throw new DifficultyAttributesMissingException(key, ex);
             }
             finally
             {
                 Interlocked.Increment(ref attribCacheMiss);
-                attributeCache[key] = difficultyAttributes;
             }
         }
 
@@ -185,9 +187,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             }
         }
 
-        private record struct DifficultyAttributeKey(uint BeatmapId, uint RulesetId, uint ModValue);
+        public record struct DifficultyAttributeKey(uint BeatmapId, uint RulesetId, uint ModValue);
 
         [SuppressMessage("ReSharper", "NotAccessedPositionalProperty.Local")]
         private record struct BlacklistEntry(uint BeatmapId, uint RulesetId);
+    }
+
+    public class DifficultyAttributesMissingException : Exception
+    {
+        public DifficultyAttributesMissingException(BeatmapStore.DifficultyAttributeKey key, Exception? inner)
+            : base(key.ToString(), inner)
+        {
+        }
     }
 }
