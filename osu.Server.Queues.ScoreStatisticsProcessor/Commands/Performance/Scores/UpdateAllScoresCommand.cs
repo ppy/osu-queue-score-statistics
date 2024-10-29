@@ -19,9 +19,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
     [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateAllScoresCommand : PerformanceCommand
     {
-        private const int max_scores_per_query = 5000;
+        [Option(Description = "The size of each batch, which is then distributed to threads.")]
+        public int BatchSize { get; set; } = 1000;
 
-        [Option(Description = "Process from the newest score backwards.")]
+        [Option(Description = "Process from the newest score backwards.", ShortName = "bb")]
         public bool Backwards { get; set; }
 
         [Option(Description = "Score ID to start processing from.")]
@@ -72,14 +73,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                         break;
                 }
 
-                var scores = (await db.QueryAsync<SoloScore>($"SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` {sort} LIMIT @limit", new
-                {
-                    ScoreId = currentScoreId,
-                    LastScoreId = lastScoreId,
-                    minPP = MinPP,
-                    maxPP = MaxPP,
-                    limit = max_scores_per_query
-                })).ToList();
+                var scores = (await db.QueryAsync<SoloScore>(
+                    $"SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` {sort} LIMIT @limit", new
+                    {
+                        ScoreId = currentScoreId,
+                        LastScoreId = lastScoreId,
+                        minPP = MinPP,
+                        maxPP = MaxPP,
+                        limit = BatchSize
+                    })).ToList();
 
                 if (scores.Count == 0)
                     break;
