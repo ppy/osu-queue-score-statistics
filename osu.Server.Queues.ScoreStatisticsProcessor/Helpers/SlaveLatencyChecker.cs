@@ -12,14 +12,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
     public static class SlaveLatencyChecker
     {
         /// <summary>
-        /// The number of seconds between checks for slave latency.
-        /// </summary>
-        private const int seconds_between_latency_checks = 60;
-
-        /// <summary>
         /// The latency a slave is allowed to fall behind before we start to panic.
         /// </summary>
-        private const int maximum_slave_latency_seconds = 120;
+        private static readonly int maximum_slave_latency_seconds = int.Parse(Environment.GetEnvironmentVariable("MAX_SLAVE_LATENCY") ?? "120");
 
         private static long lastLatencyCheckTimestamp;
 
@@ -27,7 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         {
             long currentTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
 
-            if (currentTimestamp - lastLatencyCheckTimestamp < seconds_between_latency_checks)
+            if (currentTimestamp - lastLatencyCheckTimestamp < Math.Max(1, maximum_slave_latency_seconds / 2))
                 return;
 
             lastLatencyCheckTimestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
