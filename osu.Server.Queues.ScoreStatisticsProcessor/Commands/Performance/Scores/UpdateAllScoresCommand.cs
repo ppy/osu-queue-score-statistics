@@ -22,8 +22,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
     {
         private const int max_scores_per_query = 5000;
 
+        [Option(Description = "Process from the newest score backwards.")]
+        public bool Backwards { get; set; }
+
         [Option(Description = "Score ID to start processing from.")]
         public ulong From { get; set; }
+
+        [Option(Description = "The minimum PP of a score to reprocess.", LongName = "min-pp", ShortName = "p1")]
+        public float MinPP { get; set; } = 0;
+
+        [Option(Description = "The maximum PP of a score to reprocess.", LongName = "max-pp", ShortName = "pu")]
+        public float MaxPP { get; set; } = float.MaxValue;
 
         /// <summary>
         /// Whether to adjust processing rate based on slave latency. Defaults to <c>false</c>.
@@ -45,15 +54,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             double rate = 0;
             Stopwatch sw = new Stopwatch();
 
-            var scoresQuery = db.Query<SoloScore>("SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId ORDER BY `id`", new
+            string sort = Backwards ? "DESC" : "ASC";
+
+            var scoresQuery = db.Query<SoloScore>($"SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` {sort}", new
             {
                 ScoreId = currentScoreId,
                 LastScoreId = lastScoreId,
+                minPP = MinPP,
+                maxPP = MaxPP,
             }, buffered: false);
 
             using var scoresEnum = scoresQuery.GetEnumerator();
 
-            Console.WriteLine($"Processing all scores up to {lastScoreId}, starting from {currentScoreId}");
+            Console.WriteLine(Backwards
+                ? $"Processing all scores down from {lastScoreId}, starting from {currentScoreId}"
+                : $"Processing all scores up to {lastScoreId}, starting from {currentScoreId}");
 
             Task<List<SoloScore>> nextScores = getNextScores();
 
