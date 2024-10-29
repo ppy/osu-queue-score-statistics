@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Text;
 using System.Threading.Tasks;
 using Dapper;
@@ -12,6 +13,7 @@ using osu.Game.Online.API;
 using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
@@ -19,6 +21,7 @@ using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Rulesets.Taiko.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
@@ -38,7 +41,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void PerformanceIndexUpdates()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -302,7 +304,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void FailedScoreDoesNotProcess()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -322,7 +323,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void LegacyScoreIsProcessedAndPpIsWrittenBackToLegacyTables()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             using (MySqlConnection conn = Processor.GetDatabaseConnection())
                 conn.Execute("INSERT INTO osu_scores_high (score_id, user_id) VALUES (1, 0)");
@@ -351,7 +351,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void NonLegacyScoreWithNoBuildIdIsNotRanked()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -371,7 +370,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void ScoresThatHavePpButInvalidModsGetsNoPP()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score;
 
@@ -575,6 +573,34 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 userId = 2,
                 mode = 0,
             });
+        }
+
+        [Fact]
+        public async Task MissingAttributesThrowsError()
+        {
+            var beatmap = AddBeatmap();
+
+            // Delete attributes - this could happen either as a result of diffcalc not being run or being out of date and not inserting some required attributes.
+            using (var db = Processor.GetDatabaseConnection())
+                await db.ExecuteAsync("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                var beatmapStore = await BeatmapStore.CreateAsync(db);
+
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+            }
+
+            Assert.ThrowsAny<Exception>(() => SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.preserve = true;
+            }));
         }
 
         private class InvalidMod : Mod
