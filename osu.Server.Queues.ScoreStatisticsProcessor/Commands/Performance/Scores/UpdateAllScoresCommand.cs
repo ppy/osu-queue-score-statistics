@@ -74,6 +74,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             while (!cancellationToken.IsCancellationRequested)
             {
+                sw.Restart();
+
                 if (CheckSlaveLatency)
                 {
                     using (var connection = DatabaseAccess.GetConnection())
@@ -82,8 +84,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                     if (cancellationToken.IsCancellationRequested)
                         break;
                 }
-
-                sw.Restart();
 
                 var scores = await nextScores;
                 nextScores = getNextScores();
