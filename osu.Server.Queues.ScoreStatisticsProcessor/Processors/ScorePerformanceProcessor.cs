@@ -139,6 +139,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (score.beatmap is not Beatmap beatmap)
                     return false;
 
+                // TODO: will fail for newly ranked beatmaps for up to one minute (beatmap store purge).
                 if (!BeatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
                     return false;
 
