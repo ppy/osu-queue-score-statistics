@@ -98,6 +98,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
         protected async Task ProcessPartitioned<T>(IEnumerable<T> values, Func<MySqlConnection, MySqlTransaction, T, Task> processFunc, CancellationToken cancellationToken)
         {
+            const int max_transaction_size = 50;
+
             await Task.WhenAll(Partitioner
                                .Create(values)
                                .GetPartitions(Threads)
@@ -105,8 +107,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
             async Task processPartition(IEnumerator<T> partition)
             {
+                MySqlTransaction? transaction = null;
+                int transactionSize = 0;
+
                 using (var connection = DatabaseAccess.GetConnection())
-                using (var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadUncommitted, cancellationToken))
                 using (partition)
                 {
                     while (partition.MoveNext())
@@ -114,10 +118,36 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                         if (cancellationToken.IsCancellationRequested)
                             return;
 
-                        await processFunc(connection, transaction, partition.Current);
+                        if (transaction == null)
+                            await startTransaction(connection);
+
+                        await processFunc(connection, transaction!, partition.Current);
+
+                        if (++transactionSize >= max_transaction_size)
+                            await commit();
                     }
 
+                    await commit();
+                }
+
+                async Task commit()
+                {
+                    if (transaction == null)
+                        return;
+
                     await transaction.CommitAsync(cancellationToken);
+                    await transaction.DisposeAsync();
+
+                    transaction = null;
+                }
+
+                async Task startTransaction(MySqlConnection connection)
+                {
+                    if (transaction != null)
+                        throw new InvalidOperationException("Previous transaction was not committed");
+
+                    transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadUncommitted, cancellationToken);
+                    transactionSize = 0;
                 }
             }
         }
