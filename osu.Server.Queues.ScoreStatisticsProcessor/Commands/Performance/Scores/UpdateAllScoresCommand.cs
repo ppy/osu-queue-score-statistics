@@ -122,7 +122,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                     rate = rate * 0.95 + 0.05 * ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
 
                 Console.WriteLine(ScoreProcessor.BeatmapStore?.GetCacheStats());
-                Console.WriteLine($"processed up to: {currentScoreId} changed: {changedPp:N0} {(float)processedCount / (lastScoreId - From):P1} {rate:N0}/s");
+                Console.WriteLine($"processed up to: {currentScoreId} changed: {changedPp:N0} {(float)(currentScoreId - From) / (lastScoreId - From):P1} {rate:N0}/s");
             }
 
             return 0;
