@@ -69,8 +69,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                 if (userStats == null)
                     return;
 
+                double rankScoreBefore = userStats.rank_score;
+                double accBefore = userStats.accuracy_new;
+
                 await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, transaction, updateIndex: false);
-                await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
+
+                if (Math.Abs(rankScoreBefore - userStats.rank_score) > 0.1 ||
+                    Math.Abs(accBefore - userStats.accuracy_new) > 0.1)
+                {
+                    await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
+                }
 
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
