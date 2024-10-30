@@ -4,10 +4,12 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
+using MySqlConnector;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
@@ -60,18 +62,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
             int processedCount = 0;
 
-            await ProcessPartitioned(userIds, async userId =>
+            await ProcessPartitioned(userIds, async (db, transaction, userId) =>
             {
-                using (var db = DatabaseAccess.GetConnection())
-                {
-                    var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db);
+                var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db, transaction);
 
-                    if (userStats == null)
-                        return;
+                if (userStats == null)
+                    return;
 
-                    await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, updateIndex: false);
-                    await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
-                }
+                await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, transaction, updateIndex: false);
+                await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
 
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
@@ -89,16 +88,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
             int processedCount = 0;
 
-            await ProcessPartitioned(userIds, async userId =>
+            await ProcessPartitioned(userIds, async (conn, transaction, userId) =>
             {
-                using (var db = DatabaseAccess.GetConnection())
-                    await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db, cancellationToken: cancellationToken);
+                await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, conn, transaction, cancellationToken: cancellationToken);
 
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
         }
 
-        protected async Task ProcessPartitioned<T>(IEnumerable<T> values, Func<T, Task> processFunc, CancellationToken cancellationToken)
+        protected async Task ProcessPartitioned<T>(IEnumerable<T> values, Func<MySqlConnection, MySqlTransaction, T, Task> processFunc, CancellationToken cancellationToken)
         {
             await Task.WhenAll(Partitioner
                                .Create(values)
@@ -107,6 +105,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
             async Task processPartition(IEnumerator<T> partition)
             {
+                using (var connection = DatabaseAccess.GetConnection())
+                using (var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadUncommitted, cancellationToken))
                 using (partition)
                 {
                     while (partition.MoveNext())
@@ -114,8 +114,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                         if (cancellationToken.IsCancellationRequested)
                             return;
 
-                        await processFunc(partition.Current);
+                        await processFunc(connection, transaction, partition.Current);
                     }
+
+                    await transaction.CommitAsync(cancellationToken);
                 }
             }
         }
