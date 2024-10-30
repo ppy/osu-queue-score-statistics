@@ -162,7 +162,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (score.pp != null && Math.Abs(score.pp.Value - performanceAttributes.Total) < 0.1)
                     return false;
 
-                // for the following code to take effect, `RunOnLegacyScores` must also be true (currently is false).
                 if (score.is_legacy_score && write_legacy_score_pp)
                 {
                     var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
