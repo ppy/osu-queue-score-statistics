@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using MySqlConnector;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -40,6 +41,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
         [Option(CommandOptionType.SingleOrNoValue, Template = "--check-slave-latency")]
         public bool CheckSlaveLatency { get; set; }
 
+        /// <summary>
+        /// We have a lot of connection churn. Retrieving connections from the pool is expensive at this point.
+        /// Managing our own connection pool doubles throughput.
+        /// </summary>
+        private readonly ConcurrentQueue<MySqlConnection> connections = new ConcurrentQueue<MySqlConnection>();
+
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
             // TODO: ruleset parameter is in base class but unused.
@@ -56,6 +63,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             string sort = Backwards ? "DESC" : "ASC";
 
+            for (int i = 0; i < Threads; i++)
+                connections.Enqueue(DatabaseAccess.GetConnection());
+
             Console.WriteLine(Backwards
                 ? $"Processing all scores down from {lastScoreId}, starting from {currentScoreId}"
                 : $"Processing all scores up to {lastScoreId}, starting from {currentScoreId}");
@@ -63,6 +73,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             while (!cancellationToken.IsCancellationRequested)
             {
                 sw.Restart();
+
+                handleInput();
 
                 if (CheckSlaveLatency)
                 {
@@ -88,8 +100,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
                 await Task.WhenAll(Partitioner.Create(scores).GetPartitions(Threads).Select(async partition =>
                 {
-                    using (var connection = DatabaseAccess.GetConnection())
-                    using (var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadUncommitted, cancellationToken))
+                    connections.TryDequeue(out var connection);
+
+                    using (var transaction = await connection!.BeginTransactionAsync(IsolationLevel.ReadUncommitted, cancellationToken))
                     using (partition)
                     {
                         while (partition.MoveNext())
@@ -105,6 +118,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
                         await transaction.CommitAsync(cancellationToken);
                     }
+
+                    connections.Enqueue(connection);
                 }));
 
                 if (cancellationToken.IsCancellationRequested)
@@ -124,6 +139,58 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             }
 
             return 0;
+        }
+
+        private void handleInput()
+        {
+            if (!Console.KeyAvailable) return;
+
+            ConsoleKeyInfo key = Console.ReadKey(true);
+
+            switch (key.Key)
+            {
+                case ConsoleKey.A:
+                {
+                    int before = BatchSize;
+                    BatchSize = Math.Max(500, BatchSize - 500);
+                    Console.WriteLine($"!! DECREASING BATCH SIZE {before} => {BatchSize}");
+                    break;
+                }
+
+                case ConsoleKey.S:
+                {
+                    int before = BatchSize;
+                    BatchSize += 500;
+                    Console.WriteLine($"!! INCREASING BATCH SIZE {before} => {BatchSize}");
+                    break;
+                }
+
+                case ConsoleKey.Z:
+                {
+                    int before = Threads;
+                    Threads = Math.Max(1, Threads - 2);
+                    Console.WriteLine($"!! DECREASING THREAD COUNT {before} => {Threads}");
+
+                    for (int i = 0; i < 2; i++)
+                    {
+                        connections.TryDequeue(out var connection);
+                        connection!.Dispose();
+                    }
+
+                    break;
+                }
+
+                case ConsoleKey.X:
+                {
+                    int before = Threads;
+                    Threads += 2;
+                    Console.WriteLine($"!! INCREASING THREAD COUNT {before} => {Threads}");
+
+                    for (int i = 0; i < 2; i++)
+                        connections.Enqueue(DatabaseAccess.GetConnection());
+                    break;
+                }
+            }
         }
     }
 }
