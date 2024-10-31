@@ -124,12 +124,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            BeatmapStore ??= await BeatmapStore.CreateAsync(connection, transaction);
-
-            if (buildStore == null || (refresh_stores_periodically && currentTimestamp - lastStoreRefresh > 60_000))
+            if (buildStore == null || BeatmapStore == null || (refresh_stores_periodically && currentTimestamp - lastStoreRefresh > 60_000))
             {
                 buildStore = await BuildStore.CreateAsync(connection, transaction);
                 BeatmapStore = await BeatmapStore.CreateAsync(connection, transaction);
+
                 lastStoreRefresh = currentTimestamp;
             }
 
