@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Text;
 using System.Threading.Tasks;
 using Dapper;
@@ -9,16 +10,18 @@ using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
 using osu.Framework.Localisation;
 using osu.Game.Online.API;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Rulesets.Taiko.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
@@ -38,7 +41,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void PerformanceIndexUpdates()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -73,8 +75,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 165pp from the single score above + 2pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 167, CancellationToken);
+            // 160pp from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 162, CancellationToken);
 
             // purposefully identical to score above, to confirm that you don't get pp for two scores on the same map twice
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
@@ -86,8 +88,49 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 165pp from the single score above + 4pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 169, CancellationToken);
+            // 160pp from the single score above + 4pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 164, CancellationToken);
+        }
+
+        /// <summary>
+        /// Dear reader:
+        /// This test will likely appear very random to you. However it in fact exercises a very particular code path.
+        /// Both client- and server-side components do some rather gnarly juggling to convert between the various score-shaped models
+        /// (`SoloScore`, `ScoreInfo`, `SoloScoreInfo`...)
+        /// For most difficulty calculators this doesn't matter because they access fairly simple properties.
+        /// However taiko pp calculation code has _convert detection_ inside.
+        /// Therefore it is _very_ important that the single particular access path that the taiko pp calculator uses right now
+        /// (https://github.com/ppy/osu/blob/555305bf7f650a3461df1e23832ff99b94ca710e/osu.Game.Rulesets.Taiko/Difficulty/TaikoPerformanceCalculator.cs#L44-L45)
+        /// has the ID of the ruleset for the beatmap BEFORE CONVERSION.
+        /// This attempts to exercise that requirement in a bit of a dodgy way so that nobody silently breaks taiko pp on accident.
+        /// </summary>
+        [Fact]
+        public void TestTaikoNonConvertsCalculatePPCorrectly()
+        {
+            AddBeatmap(b => b.playmode = 1);
+            AddBeatmapAttributes<TaikoDifficultyAttributes>(setup: attr =>
+            {
+                attr.StaminaDifficulty = 3;
+                attr.RhythmDifficulty = 3;
+                attr.ColourDifficulty = 3;
+                attr.PeakDifficulty = 3;
+                attr.GreatHitWindow = 15;
+                attr.OkHitWindow = 50;
+            }, mode: 1);
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ruleset_id = 1;
+                score.Score.ScoreData.Mods = [new APIMod(new TaikoModHidden())];
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.preserve = true;
+            });
+
+            // 374pp from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 376, CancellationToken);
         }
 
         [Fact]
@@ -144,7 +187,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
+                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScore(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -176,7 +219,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScore(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -204,7 +247,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScore(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
@@ -228,19 +271,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
+                Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScore(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
         public void ClassicAllowedOnLegacyScores()
         {
-            Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo { LegacyScoreId = 1 }, new Mod[] { new OsuModClassic() }));
+            Assert.True(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScore { legacy_score_id = 1 }, new Mod[] { new OsuModClassic() }));
         }
 
         [Fact]
         public void ClassicDisallowedOnNonLegacyScores()
         {
-            Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new Mod[] { new OsuModClassic() }));
+            Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScore(), new Mod[] { new OsuModClassic() }));
         }
 
         [Fact]
@@ -254,14 +297,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             };
 
             foreach (var mod in mods)
-                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScoreInfo(), new[] { mod }), mod.GetType().ReadableName());
+                Assert.False(ScorePerformanceProcessor.AllModsValidForPerformance(new SoloScore(), new[] { mod }), mod.GetType().ReadableName());
         }
 
         [Fact]
         public void FailedScoreDoesNotProcess()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -281,7 +323,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void LegacyScoreIsProcessedAndPpIsWrittenBackToLegacyTables()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             using (MySqlConnection conn = Processor.GetDatabaseConnection())
                 conn.Execute("INSERT INTO osu_scores_high (score_id, user_id) VALUES (1, 0)");
@@ -310,7 +351,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void NonLegacyScoreWithNoBuildIdIsNotRanked()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -330,7 +370,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void ScoresThatHavePpButInvalidModsGetsNoPP()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score;
 
@@ -409,6 +448,69 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public async Task RankIndexPartitionCaching()
+        {
+            // simulate fake users to beat as we climb up ranks.
+            // this is going to be a bit of a chonker query...
+            using var db = Processor.GetDatabaseConnection();
+
+            var stringBuilder = new StringBuilder();
+
+            stringBuilder.Append("INSERT INTO osu_user_stats (`user_id`, `rank_score`, `rank_score_index`, "
+                                 + "`accuracy_total`, `accuracy_count`, `accuracy`, `accuracy_new`, `playcount`, `ranked_score`, `total_score`, "
+                                 + "`x_rank_count`, `xh_rank_count`, `s_rank_count`, `sh_rank_count`, `a_rank_count`, `rank`, `level`) VALUES ");
+
+            // Each fake user is spaced 25 pp apart.
+            // This knowledge can be used to deduce expected values of following assertions.
+            for (int i = 0; i < 1000; ++i)
+            {
+                if (i > 0)
+                    stringBuilder.Append(',');
+
+                stringBuilder.Append($"({1000 + i}, {25 * (1000 - i)}, {i + 1}, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)");
+            }
+
+            await db.ExecuteAsync(stringBuilder.ToString());
+
+            var firstBeatmap = AddBeatmap(b => b.beatmap_id = 1);
+
+            SetScoreForBeatmap(firstBeatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 150; // ~152 pp total, including bonus pp
+            });
+
+            WaitForDatabaseState("SELECT `rank_score_index` FROM `osu_user_stats` WHERE `user_id` = @userId", 995, CancellationToken, new
+            {
+                userId = 2,
+            });
+
+            SetScoreForBeatmap(firstBeatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 180; // ~184 pp total, including bonus pp
+            });
+
+            WaitForDatabaseState("SELECT `rank_score_index` FROM `osu_user_stats` WHERE `user_id` = @userId", 994, CancellationToken, new
+            {
+                userId = 2,
+            });
+
+            var secondBeatmap = AddBeatmap(b => b.beatmap_id = 2);
+
+            SetScoreForBeatmap(secondBeatmap.beatmap_id, s =>
+            {
+                s.Score.preserve = s.Score.ranked = true;
+                s.Score.pp = 300; // ~486 pp total, including bonus pp
+            });
+
+            WaitForDatabaseState("SELECT `rank_score_index` FROM `osu_user_stats` WHERE `user_id` = @userId", 982, CancellationToken, new
+            {
+                userId = 2,
+            });
+        }
+
+        [Fact]
         public async Task UserDailyRankUpdates()
         {
             // simulate fake users to beat as we climb up ranks.
@@ -471,6 +573,34 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 userId = 2,
                 mode = 0,
             });
+        }
+
+        [Fact]
+        public async Task MissingAttributesThrowsError()
+        {
+            var beatmap = AddBeatmap();
+
+            // Delete attributes - this could happen either as a result of diffcalc not being run or being out of date and not inserting some required attributes.
+            using (var db = Processor.GetDatabaseConnection())
+                await db.ExecuteAsync("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                var beatmapStore = await BeatmapStore.CreateAsync(db);
+
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+            }
+
+            Assert.ThrowsAny<Exception>(() => SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.preserve = true;
+            }));
         }
 
         private class InvalidMod : Mod

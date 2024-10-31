@@ -3,7 +3,6 @@
 
 using JetBrains.Annotations;
 using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -19,7 +18,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (!score.IsValidForPlayTracking(out int lengthInSeconds) && previousVersion >= 10)
                 return;
@@ -28,7 +27,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 userStats.total_seconds_played -= lengthInSeconds;
         }
 
-        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (!score.IsValidForPlayTracking(out int lengthInSeconds))
                 return;
@@ -36,7 +35,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             userStats.total_seconds_played += lengthInSeconds;
         }
 
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
         }
     }

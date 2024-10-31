@@ -104,7 +104,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
                         using (var conn = DatabaseAccess.GetConnection())
                         {
-                            conn.Execute("DELETE FROM score_pins WHERE score_type = 'solo_score' AND user_id = @new_user_id AND id = @new_id;"
+                            conn.Execute("DELETE FROM score_pins WHERE user_id = @new_user_id AND score_id = @new_id;"
                                          + "DELETE FROM scores WHERE id = @new_id", new
                             {
                                 highScore.new_id,
@@ -222,6 +222,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
                 Statistics = referenceScore.Statistics,
                 MaximumStatistics = referenceScore.MaximumStatistics,
+                TotalScoreWithoutMods = referenceScore.TotalScoreWithoutMods,
             }, new JsonSerializerSettings
             {
                 DefaultValueHandling = DefaultValueHandling.Ignore
@@ -381,7 +382,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     BeatmapId = beatmapId
                 });
 
-                return difficulty_info_cache[beatmapId] = LegacyBeatmapConversionDifficultyInfo.FromAPIBeatmap(beatmap.ToAPIBeatmap());
+                return difficulty_info_cache[beatmapId] = beatmap.GetLegacyBeatmapConversionDifficultyInfo();
             }
         }
 

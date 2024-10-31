@@ -1,12 +1,14 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
+using Microsoft.Extensions.Caching.Memory;
 using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -24,13 +26,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => true;
 
-        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        // [ruleset_id, [rank_score, count_users_above]]
+        private readonly ConcurrentDictionary<int, MemoryCache> rankScoreIndexPartitionCache =
+            new ConcurrentDictionary<int, MemoryCache>();
+
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
 
-        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.RulesetID);
+            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
 
             int warnings = conn.QuerySingleOrDefault<int>($"SELECT `user_warnings` FROM {dbInfo.UsersTable} WHERE `user_id` = @UserId", new
             {
@@ -40,10 +46,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (warnings > 0)
                 return;
 
-            UpdateUserStatsAsync(userStats, score.RulesetID, conn, transaction).Wait();
+            UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
         }
 
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
         }
 
@@ -75,21 +81,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     RulesetId = rulesetId
                 }, transaction: transaction)).ToList();
 
-            (userStats.rank_score, userStats.accuracy_new) = UserTotalPerformanceAggregateHelper.CalculateUserTotalPerformanceAggregates(scores);
+            (userStats.rank_score, userStats.accuracy_new) = UserTotalPerformanceAggregateHelper.CalculateUserTotalPerformanceAggregates(userStats.user_id, scores);
 
             if (updateIndex)
                 await updateGlobalRank(userStats, connection, transaction, dbInfo);
         }
 
-        private static async Task updateGlobalRank(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
+        private async Task updateGlobalRank(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
         {
             // User's current global rank.
-            userStats.rank_score_index = await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > @rankScoreCutoff AND user_id != @userId",
-                new
-                {
-                    userId = userStats.user_id,
-                    rankScoreCutoff = userStats.rank_score,
-                }, transaction: transaction) + 1;
+            userStats.rank_score_index = await getUserRankScoreIndex(userStats, connection, transaction, dbInfo);
 
             // User's historical best rank (ever).
             int userHistoricalHighestRank = await connection.QuerySingleOrDefaultAsync<int?>("SELECT `rank` FROM `osu_user_performance_rank_highest` WHERE `user_id` = @userId AND `mode` = @mode",
@@ -128,6 +129,41 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     mode = dbInfo.RulesetId,
                     rank = userStats.rank_score_index
                 }, transaction);
+        }
+
+        private async Task<int> getUserRankScoreIndex(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
+        {
+            var rulesetCache = rankScoreIndexPartitionCache.GetOrAdd(dbInfo.RulesetId, _ => new MemoryCache(new MemoryCacheOptions()));
+
+            const int partition_size = 100;
+
+            int partitionCutoff = ((int)(userStats.rank_score / partition_size) + 1) * partition_size;
+
+            // This query is indexed as much as it can be, but for COUNT(*) across millions of rows it can still be slow.
+            // Cache the majority lookup by partitioning over `pp` reduces the per-query lookup overhead.
+            int partitionCount = await rulesetCache.GetOrCreateAsync(partitionCutoff, async entry =>
+            {
+                int cutoff = await connection.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > @partitionCutoff",
+                    new { partitionCutoff }, transaction: transaction);
+
+                // Expire faster for results with lower user counts. Queries will be faster for lower counts so this isn't a huge concern.
+                int expiryMinutes = Math.Clamp(cutoff / 100, 1, 120);
+
+                entry.SetAbsoluteExpiration(TimeSpan.FromMinutes(expiryMinutes));
+
+                return cutoff;
+            });
+
+            int remainingCount = await connection.QuerySingleAsync<int>(
+                $"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > @rankScoreCutoff AND rank_score <= @partitionCutoff AND user_id != @userId",
+                new
+                {
+                    userId = userStats.user_id,
+                    rankScoreCutoff = userStats.rank_score,
+                    partitionCutoff
+                }, transaction: transaction);
+
+            return partitionCount + remainingCount + 1;
         }
     }
 }

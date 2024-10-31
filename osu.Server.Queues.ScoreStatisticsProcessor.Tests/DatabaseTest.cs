@@ -12,8 +12,13 @@ using MySqlConnector;
 using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Beatmaps;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Catch.Difficulty;
 using osu.Game.Rulesets.Difficulty;
+using osu.Game.Rulesets.Mania.Difficulty;
+using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
@@ -207,37 +212,49 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     db.Insert(beatmapSet);
             }
 
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
+            AddBeatmapAttributes<TaikoDifficultyAttributes>(beatmap.beatmap_id, mode: 1);
+            AddBeatmapAttributes<CatchDifficultyAttributes>(beatmap.beatmap_id, mode: 2);
+            AddBeatmapAttributes<ManiaDifficultyAttributes>(beatmap.beatmap_id, mode: 3);
+
             return beatmap;
         }
 
-        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null, ushort mode = 0)
+        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null, ushort mode = 0, Mod[]? mods = null)
             where TDifficultyAttributes : DifficultyAttributes, new()
         {
             var attribs = new TDifficultyAttributes
             {
                 StarRating = 5,
                 MaxCombo = 5,
+                Mods = mods ?? []
             };
 
             setup?.Invoke(attribs);
 
             var rulesetStore = new AssemblyRulesetStore();
             var rulesetInfo = rulesetStore.GetRuleset(mode)!;
-            // `AssemblyRulesetStore` does not mark `Available = true` on the `RulesetInfo` instances it exposes
-            // even though they actually are.
-            // TODO: fix game-side, remove this once fixed
-            rulesetInfo.Available = true;
             var ruleset = rulesetInfo.CreateInstance();
+
+            beatmapId ??= TEST_BEATMAP_ID;
+            uint modsInt = (uint)ruleset.ConvertToLegacyMods(attribs.Mods);
 
             using (var db = Processor.GetDatabaseConnection())
             {
+                db.Execute("DELETE FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @Mode AND mods = @Mods", new
+                {
+                    BeatmapId = beatmapId.Value,
+                    Mode = mode,
+                    Mods = modsInt
+                });
+
                 foreach (var a in attribs.ToDatabaseAttributes())
                 {
                     db.Insert(new BeatmapDifficultyAttribute
                     {
-                        beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
+                        beatmap_id = beatmapId.Value,
                         mode = mode,
-                        mods = (uint)ruleset.ConvertToLegacyMods(attribs.Mods),
+                        mods = modsInt,
                         attrib_id = (ushort)a.attributeId,
                         value = Convert.ToSingle(a.value),
                     });

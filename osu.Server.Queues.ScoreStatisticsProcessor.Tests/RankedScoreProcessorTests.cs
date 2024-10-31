@@ -3,6 +3,7 @@
 
 using osu.Game.Beatmaps;
 using osu.Game.Rulesets.Scoring;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
@@ -44,6 +45,28 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID);
             waitForRankedScore("osu_user_stats", 10081);
+        }
+
+        /// <summary>
+        /// This test attempts to cover ranked score accounting using the correct score conversion algorithm to classic for all of the rulesets.
+        /// Generally, the values aren't supposed to be human-explainable; the goal of this tests is to be a canary.
+        /// If the test ever starts to fail, it should be investigated as to whether the conversion algorithm has changed in some way (in which case the values can just be adjusted to match),
+        /// or if there is a possible data error that leads the queue processor to use the wrong ruleset for conversion somehow (which is a bug and should be fixed).
+        /// </summary>
+        [Theory]
+        [InlineData(0, 10081)]
+        [InlineData(1, 10554)]
+        [InlineData(2, 10005)]
+        [InlineData(3, 100000)]
+        public void TestRankedScoreConversionToClassic(ushort rulesetId, int expectedRankedScore)
+        {
+            var specifics = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
+
+            AddBeatmap(b => b.approved = BeatmapOnlineStatus.Ranked);
+            waitForRankedScore(specifics.UserStatsTable, 0);
+
+            SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.ruleset_id = rulesetId);
+            waitForRankedScore(specifics.UserStatsTable, expectedRankedScore);
         }
 
         [Fact]
@@ -101,11 +124,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                var scoreInfo = score.Score.ToScoreInfo();
-
-                scoreInfo.TotalScore = 50000;
-                scoreInfo.Statistics[HitResult.Perfect] = 0;
-                scoreInfo.Statistics[HitResult.Ok] = 5;
+                score.Score.total_score = 50000;
+                score.Score.ScoreData.Statistics[HitResult.Perfect] = 0;
+                score.Score.ScoreData.Statistics[HitResult.Ok] = 5;
             });
             waitForRankedScore("osu_user_stats", 10081);
         }

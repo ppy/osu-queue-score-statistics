@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Extensions.Caching.Memory;
@@ -12,7 +13,6 @@ using MySqlConnector;
 using osu.Framework.IO.Network;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Legacy;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
@@ -43,9 +43,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private const int beatmap_size = 72;
 
         private readonly MemoryCache attributeMemoryCache;
-        private readonly MemoryCache beatmapMemoryCache;
 
+        private readonly MemoryCache beatmapMemoryCache;
         private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
+
+        private int beatmapCacheMiss;
+        private int attribCacheMiss;
+
+        public string GetCacheStats()
+        {
+            string output = $"caches: [beatmap {beatmapMemoryCache.Count:N0} +{beatmapCacheMiss:N0}] [attrib {attributeMemoryCache.Count:N0} +{attribCacheMiss:N0}]";
+
+            Interlocked.Exchange(ref beatmapCacheMiss, 0);
+            Interlocked.Exchange(ref attribCacheMiss, 0);
+
+            return output;
+        }
 
         private BeatmapStore(IEnumerable<KeyValuePair<BlacklistEntry, byte>> blacklist)
         {
@@ -87,19 +100,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
-        public async Task<DifficultyAttributes?> GetDifficultyAttributesAsync(APIBeatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
+        /// <exception cref="DifficultyAttributesMissingException">If the difficulty attributes don't exist in the database.</exception>
+        /// <exception cref="Exception">If realtime difficulty attributes couldn't be computed.</exception>
+        public async Task<DifficultyAttributes> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             if (use_realtime_difficulty_calculation)
             {
-                using var req = new WebRequest(string.Format(beatmap_download_path, beatmap.OnlineID))
-                {
-                    AllowInsecureRequests = true
-                };
+                using var req = new WebRequest(string.Format(beatmap_download_path, beatmap.beatmap_id));
+
+                req.AllowInsecureRequests = true;
 
                 await req.PerformAsync().ConfigureAwait(false);
 
                 if (req.ResponseStream.Length == 0)
-                    throw new Exception($"Retrieved zero-length beatmap ({beatmap.OnlineID})!");
+                    throw new Exception($"Retrieved zero-length beatmap ({beatmap.beatmap_id})!");
 
                 var workingBeatmap = new StreamedWorkingBeatmap(req.ResponseStream);
                 var calculator = ruleset.CreateDifficultyCalculator(workingBeatmap);
@@ -108,7 +122,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             }
 
             LegacyMods legacyModValue = getLegacyModsForAttributeLookup(beatmap, ruleset, mods);
-            DifficultyAttributeKey key = new DifficultyAttributeKey((uint)beatmap.OnlineID, (uint)ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
+
+            DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, (uint)ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
 
             BeatmapDifficultyAttribute[]? rawDifficultyAttributes = await attributeMemoryCache.GetOrCreateAsync(
                 key,
@@ -145,7 +160,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// Moreover, the set of <see cref="LegacyMods"/> returned is constrained to mods that actually affect difficulty in the legacy sense.
         /// The entirety of this workaround is not used / unnecessary if <see cref="use_realtime_difficulty_calculation"/> is <see langword="true"/>.
         /// </remarks>
-        private static LegacyMods getLegacyModsForAttributeLookup(APIBeatmap beatmap, Ruleset ruleset, Mod[] mods)
+        private static LegacyMods getLegacyModsForAttributeLookup(Beatmap beatmap, Ruleset ruleset, Mod[] mods)
         {
             var legacyMods = ruleset.ConvertToLegacyMods(mods);
 
@@ -153,7 +168,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             if (mods.Any(mod => mod is ModDaycore))
                 legacyMods |= LegacyMods.HalfTime;
 
-            return LegacyModsHelper.MaskRelevantMods(legacyMods, ruleset.RulesetInfo.OnlineID != beatmap.RulesetID, ruleset.RulesetInfo.OnlineID);
+            return LegacyModsHelper.MaskRelevantMods(legacyMods, ruleset.RulesetInfo.OnlineID != beatmap.playmode, ruleset.RulesetInfo.OnlineID);
         }
 
         /// <summary>
@@ -169,6 +184,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 beatmapId,
                 cacheEntry =>
                 {
+                    Interlocked.Increment(ref beatmapCacheMiss);
+
                     cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
                     cacheEntry.SetSize(beatmap_size);
 
@@ -184,12 +201,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// </summary>
         /// <param name="beatmap">The beatmap.</param>
         /// <param name="rulesetId">The ruleset.</param>
-        public bool IsBeatmapValidForPerformance(APIBeatmap beatmap, uint rulesetId)
+        public bool IsBeatmapValidForPerformance(Beatmap beatmap, uint rulesetId)
         {
-            if (blacklist.ContainsKey(new BlacklistEntry((uint)beatmap.OnlineID, rulesetId)))
+            if (blacklist.ContainsKey(new BlacklistEntry(beatmap.beatmap_id, rulesetId)))
                 return false;
 
-            switch (beatmap.Status)
+            switch (beatmap.approved)
             {
                 case BeatmapOnlineStatus.Ranked:
                 case BeatmapOnlineStatus.Approved:
@@ -200,9 +217,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             }
         }
 
-        private record struct DifficultyAttributeKey(uint BeatmapId, uint RulesetId, uint ModValue);
+        public record struct DifficultyAttributeKey(uint BeatmapId, uint RulesetId, uint ModValue);
 
         [SuppressMessage("ReSharper", "NotAccessedPositionalProperty.Local")]
         private record struct BlacklistEntry(uint BeatmapId, uint RulesetId);
+    }
+
+    public class DifficultyAttributesMissingException : Exception
+    {
+        public DifficultyAttributesMissingException(BeatmapStore.DifficultyAttributeKey key, Exception? inner)
+            : base(key.ToString(), inner)
+        {
+        }
     }
 }

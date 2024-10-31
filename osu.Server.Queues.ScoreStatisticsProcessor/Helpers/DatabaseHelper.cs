@@ -6,10 +6,8 @@ using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
 using MySqlConnector;
-using osu.Game.Beatmaps;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
@@ -23,8 +21,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         /// <param name="db">The database connection.</param>
         /// <param name="transaction">The database transaction, if one exists.</param>
         /// <returns>The retrieved user stats. Null if the ruleset or user was not valid.</returns>
-        public static Task<UserStats?> GetUserStatsAsync(SoloScoreInfo score, MySqlConnection db, MySqlTransaction? transaction = null)
-            => GetUserStatsAsync(score.UserID, score.RulesetID, db, transaction);
+        public static Task<UserStats?> GetUserStatsAsync(SoloScore score, MySqlConnection db, MySqlTransaction? transaction = null)
+            => GetUserStatsAsync(score.user_id, score.ruleset_id, db, transaction);
 
         /// <summary>
         /// Retrieve user stats for a user based for a given ruleset.
@@ -35,7 +33,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         /// <param name="db">The database connection.</param>
         /// <param name="transaction">The database transaction, if one exists.</param>
         /// <returns>The retrieved user stats. Null if the ruleset or user was not valid.</returns>
-        public static async Task<UserStats?> GetUserStatsAsync(int userId, int rulesetId, MySqlConnection db, MySqlTransaction? transaction = null)
+        public static async Task<UserStats?> GetUserStatsAsync(uint userId, int rulesetId, MySqlConnection db, MySqlTransaction? transaction = null)
         {
             switch (rulesetId)
             {
@@ -57,7 +55,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             }
         }
 
-        private static async Task<T> getUserStatsAsync<T>(int userId, int rulesetId, MySqlConnection db, MySqlTransaction? transaction = null)
+        private static async Task<T> getUserStatsAsync<T>(uint userId, int rulesetId, MySqlConnection db, MySqlTransaction? transaction = null)
             where T : UserStats, new()
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
@@ -149,31 +147,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         }
 
         /// <summary>
-        /// Returns <see langword="true"/> if the beatmap with the given <paramref name="beatmapId"/>
-        /// is valid to be included in ranked counts, such as total ranked score and user rank (grade) counts.
-        /// </summary>
-        /// <seealso cref="RankedScoreProcessor"/>
-        /// <seealso cref="UserRankCountProcessor"/>
-        /// <param name="beatmapId">The ID of the beatmap to check.</param>
-        /// <param name="conn">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">The current transaction, if applicable.</param>
-        /// <exception cref="InvalidOperationException">The beatmap with the supplied <paramref name="beatmapId"/> could not be found.</exception>
-        public static bool IsBeatmapValidForRankedCounts(int beatmapId, MySqlConnection conn, MySqlTransaction? transaction = null)
-        {
-            var status = conn.QuerySingleOrDefault<BeatmapOnlineStatus?>("SELECT `approved` FROM osu_beatmaps WHERE `beatmap_id` = @beatmap_id",
-                new { beatmap_id = beatmapId },
-                transaction);
-
-            if (status == null)
-                throw new InvalidOperationException($"Cannot find beatmap with ID = {beatmapId} in database.");
-
-            // see https://osu.ppy.sh/wiki/en/Gameplay/Score/Ranked_score
-            return status == BeatmapOnlineStatus.Ranked
-                   || status == BeatmapOnlineStatus.Approved
-                   || status == BeatmapOnlineStatus.Loved;
-        }
-
-        /// <summary>
         /// Given a <paramref name="score"/>, returns the best score set by the same <see cref="SoloScoreInfo.User"/>,
         /// on the same <see cref="SoloScoreInfo.Beatmap"/>, with the same <see cref="SoloScoreInfo.RulesetID"/>.
         /// </summary>
@@ -195,9 +168,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         /// <param name="conn">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">The current transaction, if applicable.</param>
         /// <param name="offset">How many records to skip in the sort order.</param>
-        public static SoloScoreInfo? GetUserBestScoreFor(SoloScoreInfo score, MySqlConnection conn, MySqlTransaction? transaction = null, int offset = 0)
+        public static SoloScore? GetUserBestScoreFor(SoloScore score, MySqlConnection conn, MySqlTransaction? transaction = null, int offset = 0)
         {
-            var rankSource = conn.QueryFirstOrDefault<SoloScore?>(
+            var result = conn.QueryFirstOrDefault<SoloScore?>(
                 "SELECT * FROM scores WHERE `user_id` = @user_id "
                 + "AND `beatmap_id` = @beatmap_id "
                 + "AND `ruleset_id` = @ruleset_id "
@@ -209,14 +182,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 + "ORDER BY total_score DESC, `id` DESC "
                 + "LIMIT @offset, 1", new
                 {
-                    user_id = score.UserID,
-                    beatmap_id = score.BeatmapID,
-                    ruleset_id = score.RulesetID,
-                    new_score_id = score.ID,
+                    user_id = score.user_id,
+                    beatmap_id = score.beatmap_id,
+                    ruleset_id = score.ruleset_id,
+                    new_score_id = score.id,
                     offset = offset,
                 }, transaction);
 
-            return rankSource?.ToScoreInfo();
+            // since the beatmaps for the two scores are the same by definition of the method,
+            // we can just copy them across without a refetch.
+            if (result != null)
+                result.beatmap = score.beatmap;
+
+            return result;
         }
     }
 }

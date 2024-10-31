@@ -2,6 +2,9 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Concurrent;
+using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,79 +12,115 @@ using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
     [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateAllScoresCommand : PerformanceCommand
     {
-        private const int max_users_per_query = 10000;
+        [Option(Description = "The size of each batch, which is then distributed to threads.")]
+        public int BatchSize { get; set; } = 1000;
 
-        [Option(Description = "Continue where a previously aborted 'all' run left off.")]
-        public bool Continue { get; set; }
+        [Option(Description = "Process from the newest score backwards.", ShortName = "bb")]
+        public bool Backwards { get; set; }
+
+        [Option(Description = "Score ID to start processing from.")]
+        public ulong From { get; set; }
+
+        [Option(Description = "The minimum PP of a score to reprocess.", LongName = "min-pp", ShortName = "p1")]
+        public float MinPP { get; set; } = 0;
+
+        [Option(Description = "The maximum PP of a score to reprocess.", LongName = "max-pp", ShortName = "pu")]
+        public float MaxPP { get; set; } = float.MaxValue;
+
+        /// <summary>
+        /// Whether to adjust processing rate based on slave latency. Defaults to <c>false</c>.
+        /// </summary>
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--check-slave-latency")]
+        public bool CheckSlaveLatency { get; set; }
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
-            LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
+            // TODO: ruleset parameter is in base class but unused.
 
-            long currentUserId;
+            using var db = DatabaseAccess.GetConnection();
 
-            using (var db = DatabaseAccess.GetConnection())
-            {
-                if (Continue)
-                    currentUserId = await DatabaseHelper.GetCountAsync(databaseInfo.LastProcessedPpUserCount, db);
-                else
-                {
-                    currentUserId = 0;
-                    await DatabaseHelper.SetCountAsync(databaseInfo.LastProcessedPpUserCount, 0, db);
-                }
-            }
+            ulong currentScoreId = From;
+            ulong? lastScoreId = await db.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores");
 
-            int? totalCount;
+            ulong processedCount = 0;
+            ulong changedPp = 0;
+            double rate = 0;
+            Stopwatch sw = new Stopwatch();
 
-            using (var db = DatabaseAccess.GetConnection())
-            {
-                totalCount = await db.QuerySingleAsync<int?>($"SELECT COUNT(`user_id`) FROM {databaseInfo.UserStatsTable} WHERE `user_id` >= @UserId", new
-                {
-                    UserId = currentUserId
-                });
+            string sort = Backwards ? "DESC" : "ASC";
 
-                if (totalCount == null)
-                    throw new InvalidOperationException("Could not find user ID count.");
-            }
-
-            Console.WriteLine($"Processing all users starting from UserID {currentUserId}");
-
-            int processedCount = 0;
+            Console.WriteLine(Backwards
+                ? $"Processing all scores down from {lastScoreId}, starting from {currentScoreId}"
+                : $"Processing all scores up to {lastScoreId}, starting from {currentScoreId}");
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                int[] userIds;
+                sw.Restart();
 
-                using (var db = DatabaseAccess.GetConnection())
+                if (CheckSlaveLatency)
                 {
-                    userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE `user_id` > @UserId ORDER BY `user_id` LIMIT @Limit", new
-                    {
-                        UserId = currentUserId,
-                        Limit = max_users_per_query
-                    })).ToArray();
+                    using (var connection = DatabaseAccess.GetConnection())
+                        await SlaveLatencyChecker.CheckSlaveLatency(connection, cancellationToken);
+
+                    if (cancellationToken.IsCancellationRequested)
+                        break;
                 }
 
-                if (userIds.Length == 0)
+                var scores = (await db.QueryAsync<SoloScore>(
+                    $"SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` {sort} LIMIT @limit", new
+                    {
+                        ScoreId = currentScoreId,
+                        LastScoreId = lastScoreId,
+                        minPP = MinPP,
+                        maxPP = MaxPP,
+                        limit = BatchSize
+                    })).ToList();
+
+                if (scores.Count == 0)
                     break;
 
-                await ProcessPartitioned(userIds, async userId =>
+                await Task.WhenAll(Partitioner.Create(scores).GetPartitions(Threads).Select(async partition =>
                 {
-                    using (var db = DatabaseAccess.GetConnection())
-                        await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
+                    using (var connection = DatabaseAccess.GetConnection())
+                    using (var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadUncommitted, cancellationToken))
+                    using (partition)
+                    {
+                        while (partition.MoveNext())
+                        {
+                            if (cancellationToken.IsCancellationRequested)
+                                return;
 
-                    Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {totalCount}");
-                }, cancellationToken);
+                            bool changed = await ScoreProcessor.ProcessScoreAsync(partition.Current, connection, transaction);
 
-                currentUserId = userIds.Max();
+                            if (changed)
+                                Interlocked.Increment(ref changedPp);
+                        }
 
-                using (var db = DatabaseAccess.GetConnection())
-                    await DatabaseHelper.SetCountAsync(databaseInfo.LastProcessedPpUserCount, currentUserId, db);
+                        await transaction.CommitAsync(cancellationToken);
+                    }
+                }));
+
+                if (cancellationToken.IsCancellationRequested)
+                    return -1;
+
+                Interlocked.Add(ref processedCount, (ulong)scores.Count);
+
+                currentScoreId = scores.Last().id;
+
+                if (rate == 0)
+                    rate = ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
+                else
+                    rate = rate * 0.95 + 0.05 * ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
+
+                Console.WriteLine(ScoreProcessor.BeatmapStore?.GetCacheStats());
+                Console.WriteLine($"processed up to: {currentScoreId} changed: {changedPp:N0} {(float)(currentScoreId - From) / (lastScoreId - From):P1} {rate:N0}/s");
             }
 
             return 0;

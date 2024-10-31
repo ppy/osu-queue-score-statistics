@@ -3,7 +3,6 @@
 
 using JetBrains.Annotations;
 using MySqlConnector;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -19,26 +18,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (previousVersion >= 2)
                 adjustStatisticsFromScore(score, userStats, true);
         }
 
-        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
             adjustStatisticsFromScore(score, userStats);
         }
 
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
         }
 
-        private static void adjustStatisticsFromScore(SoloScoreInfo score, UserStats userStats, bool revert = false)
+        private static void adjustStatisticsFromScore(SoloScore score, UserStats userStats, bool revert = false)
         {
             int multiplier = revert ? -1 : 1;
 
-            foreach ((var result, int count) in score.Statistics)
+            foreach ((var result, int count) in score.ScoreData.Statistics)
             {
                 if (count < 0)
                     return;
@@ -46,15 +45,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 switch (result)
                 {
                     case HitResult.Miss:
+                    case HitResult.LargeTickMiss when score.ruleset_id == 2:
                         userStats.countMiss += multiplier * count;
                         break;
 
                     case HitResult.Meh:
+                    case HitResult.SmallTickHit when score.ruleset_id == 2:
                         userStats.count50 += multiplier * count;
                         break;
 
                     case HitResult.Ok:
                     case HitResult.Good:
+                    case HitResult.LargeTickHit when score.ruleset_id == 2:
                         userStats.count100 += multiplier * count;
                         break;
 

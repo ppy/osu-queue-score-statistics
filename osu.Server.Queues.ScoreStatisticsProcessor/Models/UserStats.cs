@@ -12,7 +12,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     public abstract class UserStats
     {
         [ExplicitKey]
-        public int user_id { get; set; }
+        public uint user_id { get; set; }
 
         public int count300 { get; set; }
         public int count100 { get; set; }

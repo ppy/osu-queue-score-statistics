@@ -63,7 +63,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (!scores.Any())
                 return;
 
-            IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId AND score_type = 'solo_score'", parameters);
+            IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId", parameters);
 
             Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
 
@@ -98,7 +98,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 if (!DryRun)
                 {
-                    await db.ExecuteAsync("UPDATE scores SET preserve = 0, unix_updated_at = CURRENT_TIMESTAMP WHERE id = @scoreId;", new
+                    await db.ExecuteAsync("UPDATE scores SET preserve = 0, unix_updated_at = UNIX_TIMESTAMP() WHERE id = @scoreId;", new
                     {
                         scoreId = score.id
                     });
@@ -120,11 +120,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         private static bool checkIsUserHigh(IEnumerable<SoloScore> userScores, SoloScore candidate)
         {
             var maxPPUserScore = userScores
-                                 .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s))
+                                 .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s) && s.ranked)
                                  .MaxBy(s => s.pp);
 
             var maxScoreUserScore = userScores
-                                    .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s))
+                                    .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s) && s.ranked)
                                     .MaxBy(s => s.total_score);
 
             // Check whether this score is the user's highest

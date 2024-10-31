@@ -39,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
         /// </summary>
         /// <param name="input">The input string.</param>
         /// <returns>The IDs.</returns>
-        protected static int[] ParseIntIds(string input) => input.Split(',').Select(int.Parse).ToArray();
+        protected static uint[] ParseIntIds(string input) => input.Split(',').Select(uint.Parse).ToArray();
 
         /// <summary>
         /// Parses a comma-separated list of IDs from a given input string.
@@ -48,7 +48,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
         /// <returns>The IDs.</returns>
         protected static ulong[] ParseLongIds(string input) => input.Split(',').Select(ulong.Parse).ToArray();
 
-        protected async Task ProcessUserTotals(int[] userIds, CancellationToken cancellationToken)
+        protected async Task ProcessUserTotals(uint[] userIds, CancellationToken cancellationToken)
         {
             if (userIds.Length == 0)
             {
@@ -77,7 +77,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
             }, cancellationToken);
         }
 
-        protected async Task ProcessUserScores(int[] userIds, CancellationToken cancellationToken)
+        protected async Task ProcessUserScores(uint[] userIds, CancellationToken cancellationToken)
         {
             if (userIds.Length == 0)
             {
@@ -92,7 +92,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
             await ProcessPartitioned(userIds, async userId =>
             {
                 using (var db = DatabaseAccess.GetConnection())
-                    await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
+                    await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db, cancellationToken: cancellationToken);
 
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
@@ -103,7 +103,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
             await Task.WhenAll(Partitioner
                                .Create(values)
                                .GetPartitions(Threads)
-                               .AsParallel()
                                .Select(processPartition));
 
             async Task processPartition(IEnumerator<T> partition)

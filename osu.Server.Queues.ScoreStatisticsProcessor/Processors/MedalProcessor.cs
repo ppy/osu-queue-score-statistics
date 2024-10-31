@@ -10,7 +10,6 @@ using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
@@ -52,22 +51,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         // This processor needs to run after the play count and hit statistics have been applied, at very least.
         public int Order => int.MaxValue;
 
-        public void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
 
-        public void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (score.Beatmap!.Status <= 0)
+            if (score.beatmap!.approved <= 0)
                 return;
 
             int[] alreadyAchieved = conn.Query<int>("SELECT achievement_id FROM osu_user_achievements WHERE user_id = @userId", new
             {
-                userId = score.UserID
+                userId = score.user_id
             }, transaction: transaction).ToArray();
 
             var availableMedalsForUser = getAvailableMedals(conn, transaction)
-                                         .Where(m => m.mode == null || m.mode == score.RulesetID)
+                                         .Where(m => m.mode == null || m.mode == score.ruleset_id)
                                          .Where(m => !alreadyAchieved.Contains(m.achievement_id))
                                          .ToArray();
 
@@ -76,7 +75,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             foreach (var awarder in medal_awarders)
             {
-                if (!score.Passed && !awarder.RunOnFailedScores)
+                if (!score.passed && !awarder.RunOnFailedScores)
                     continue;
 
                 foreach (var awardedMedal in awarder.Check(availableMedalsForUser, context))
@@ -91,19 +90,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             return availableMedals ??= conn.Query<Medal>("SELECT * FROM osu_achievements WHERE enabled = 1", transaction: transaction).ToImmutableArray();
         }
 
-        private void awardMedal(SoloScoreInfo score, Medal medal)
+        private void awardMedal(SoloScore score, Medal medal)
         {
             // Perform LIO request to award the medal.
-            Console.WriteLine($"Awarding medal {medal.name} to user {score.UserID} (score {score.ID})");
-            LegacyDatabaseHelper.RunLegacyIO($"user-achievement/{score.UserID}/{medal.achievement_id}/{score.BeatmapID}", "POST");
+            Console.WriteLine($"Awarding medal {medal.name} to user {score.user_id} (score {score.id})");
+            LegacyDatabaseHelper.RunLegacyIO($"user-achievement/{score.user_id}/{medal.achievement_id}/{score.beatmap_id}", "POST");
             MedalAwarded?.Invoke(new AwardedMedal(medal, score));
         }
 
-        public void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn)
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
         {
         }
 
-        public record struct AwardedMedal(Medal Medal, SoloScoreInfo Score);
+        public record struct AwardedMedal(Medal Medal, SoloScore Score);
 
         public string DisplayString
         {

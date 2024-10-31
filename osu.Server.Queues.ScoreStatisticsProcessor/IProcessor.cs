@@ -3,7 +3,6 @@
 
 using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
@@ -29,9 +28,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// </summary>
         bool RunOnLegacyScores { get; }
 
-        void RevertFromUserStats(SoloScoreInfo score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction);
+        void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction);
 
-        void ApplyToUserStats(SoloScoreInfo score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction);
+        void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction);
 
         /// <summary>
         /// Adjust any global statistics outside of the user transaction.
@@ -39,7 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// </summary>
         /// <param name="score">The user's score.</param>
         /// <param name="conn">The database connection.</param>
-        void ApplyGlobal(SoloScoreInfo score, MySqlConnection conn);
+        void ApplyGlobal(SoloScore score, MySqlConnection conn);
 
         string DisplayString => $"- {GetType().ReadableName()} ({GetType().Assembly.FullName})";
     }

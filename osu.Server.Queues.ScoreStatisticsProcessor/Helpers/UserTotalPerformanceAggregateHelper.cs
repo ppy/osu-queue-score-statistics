@@ -10,7 +10,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     public static class UserTotalPerformanceAggregateHelper
     {
-        public static (float totalPp, float totalAccuracy) CalculateUserTotalPerformanceAggregates(List<SoloScore> scores)
+        public static (float totalPp, float totalAccuracy) CalculateUserTotalPerformanceAggregates(uint userId, List<SoloScore> scores)
         {
             SoloScore[] groupedScores = scores
                                         // Group by beatmap ID.
@@ -43,6 +43,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 // We want the percentage, not a factor in [0, 1], hence we divide 20 by 100.
                 totalAccuracy *= 100.0 / (20 * (1 - Math.Pow(0.95, groupedScores.Length)));
             }
+
+            if (double.IsNegative(totalPp) || double.IsNaN(totalPp) || double.IsInfinity(totalPp))
+                throw new InvalidOperationException($"Calculating total PP for user_id:{userId} resulted in invalid value ({totalPp})");
+
+            if (double.IsNaN(totalAccuracy) || double.IsInfinity(totalAccuracy))
+                throw new InvalidOperationException($"Calculating total accuracy for user_id:{userId} resulted in invalid value ({totalAccuracy})");
+
+            // handle floating point precision edge cases.
+            totalAccuracy = Math.Clamp(totalAccuracy, 0, 100);
 
             return ((float)totalPp, (float)totalAccuracy);
         }
