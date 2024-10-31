@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.Linq;
@@ -20,9 +19,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
     [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateAllScoresCommand : PerformanceCommand
     {
-        private const int max_scores_per_query = 5000;
+        [Option(Description = "The size of each batch, which is then distributed to threads.")]
+        public int BatchSize { get; set; } = 1000;
 
-        [Option(Description = "Process from the newest score backwards.")]
+        [Option(Description = "Process from the newest score backwards.", ShortName = "bb")]
         public bool Backwards { get; set; }
 
         [Option(Description = "Score ID to start processing from.")]
@@ -56,21 +56,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             string sort = Backwards ? "DESC" : "ASC";
 
-            var scoresQuery = db.Query<SoloScore>($"SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` {sort}", new
-            {
-                ScoreId = currentScoreId,
-                LastScoreId = lastScoreId,
-                minPP = MinPP,
-                maxPP = MaxPP,
-            }, buffered: false);
-
-            using var scoresEnum = scoresQuery.GetEnumerator();
-
             Console.WriteLine(Backwards
                 ? $"Processing all scores down from {lastScoreId}, starting from {currentScoreId}"
                 : $"Processing all scores up to {lastScoreId}, starting from {currentScoreId}");
-
-            Task<List<SoloScore>> nextScores = getNextScores();
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -85,8 +73,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                         break;
                 }
 
-                var scores = await nextScores;
-                nextScores = getNextScores();
+                var scores = (await db.QueryAsync<SoloScore>(
+                    $"SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` {sort} LIMIT @limit", new
+                    {
+                        ScoreId = currentScoreId,
+                        LastScoreId = lastScoreId,
+                        minPP = MinPP,
+                        maxPP = MaxPP,
+                        limit = BatchSize
+                    })).ToList();
 
                 if (scores.Count == 0)
                     break;
@@ -129,16 +124,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             }
 
             return 0;
-
-            Task<List<SoloScore>> getNextScores() => Task.Run(() =>
-            {
-                List<SoloScore> scores = new List<SoloScore>(max_scores_per_query);
-
-                for (int i = 0; i < max_scores_per_query && scoresEnum.MoveNext(); i++)
-                    scores.Add(scoresEnum.Current);
-
-                return scores;
-            }, cancellationToken);
         }
     }
 }
