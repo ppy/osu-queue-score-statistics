@@ -38,6 +38,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private const int beatmap_difficulty_attribute_size = 24;
 
         /// <summary>
+        /// The rough size of <see cref="DifficultyAttributes"/> base class in bytes.
+        /// </summary>
+        private const int difficulty_attribute_size = 24;
+
+        /// <summary>
         /// The size of a <see cref="Beatmap"/> in bytes. Used for tracking memory usage.
         /// </summary>
         private const int beatmap_size = 72;
@@ -125,32 +130,40 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
 
             DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, (uint)ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
 
-            BeatmapDifficultyAttribute[]? rawDifficultyAttributes = await attributeMemoryCache.GetOrCreateAsync(
+            return (await attributeMemoryCache.GetOrCreateAsync(
                 key,
                 async cacheEntry =>
                 {
-                    cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
+                    try
+                    {
+                        DifficultyAttributes attribs = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
 
-                    BeatmapDifficultyAttribute[] attributes = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
-                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
-                        {
-                            key.BeatmapId,
-                            key.RulesetId,
-                            key.ModValue
-                        }, transaction: transaction)).ToArray();
+                        BeatmapDifficultyAttribute[] dbAttribs = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
+                            "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
+                            {
+                                key.BeatmapId,
+                                key.RulesetId,
+                                key.ModValue
+                            }, transaction: transaction)).ToArray();
 
-                    cacheEntry.SetSize(beatmap_difficulty_attribute_size * attributes.Length);
+                        attribs.FromDatabaseAttributes(dbAttribs.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
 
-                    return attributes;
-                });
+                        cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
 
-            if (rawDifficultyAttributes == null || rawDifficultyAttributes.Length == 0)
-                return null;
+                        // approximated
+                        cacheEntry.SetSize(difficulty_attribute_size + beatmap_difficulty_attribute_size * dbAttribs.Length);
 
-            DifficultyAttributes difficultyAttributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
-            difficultyAttributes.FromDatabaseAttributes(rawDifficultyAttributes.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
-
-            return difficultyAttributes;
+                        return attribs;
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new DifficultyAttributesMissingException(key, ex);
+                    }
+                    finally
+                    {
+                        Interlocked.Increment(ref attribCacheMiss);
+                    }
+                }))!;
         }
 
         /// <remarks>
