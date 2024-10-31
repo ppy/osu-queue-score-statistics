@@ -126,44 +126,37 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 return calculator.Calculate(mods);
             }
 
-            LegacyMods legacyModValue = getLegacyModsForAttributeLookup(beatmap, ruleset, mods);
+            DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, (uint)ruleset.RulesetInfo.OnlineID, (uint)getLegacyModsForAttributeLookup(beatmap, ruleset, mods));
 
-            DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, (uint)ruleset.RulesetInfo.OnlineID, (uint)legacyModValue);
-
-            return (await attributeMemoryCache.GetOrCreateAsync(
-                key,
-                async cacheEntry =>
+            return (await attributeMemoryCache.GetOrCreateAsync(key, async cacheEntry =>
+            {
+                try
                 {
-                    try
-                    {
-                        DifficultyAttributes attribs = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
+                    BeatmapDifficultyAttribute[] dbAttributes = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
+                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
+                        {
+                            key.BeatmapId,
+                            key.RulesetId,
+                            key.ModValue
+                        }, transaction: transaction)).ToArray();
 
-                        BeatmapDifficultyAttribute[] dbAttribs = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
-                            "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
-                            {
-                                key.BeatmapId,
-                                key.RulesetId,
-                                key.ModValue
-                            }, transaction: transaction)).ToArray();
+                    // approximated
+                    cacheEntry.SetSize(difficulty_attribute_size + beatmap_difficulty_attribute_size * dbAttributes.Length);
+                    cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
 
-                        attribs.FromDatabaseAttributes(dbAttribs.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
-
-                        cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
-
-                        // approximated
-                        cacheEntry.SetSize(difficulty_attribute_size + beatmap_difficulty_attribute_size * dbAttribs.Length);
-
-                        return attribs;
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new DifficultyAttributesMissingException(key, ex);
-                    }
-                    finally
-                    {
-                        Interlocked.Increment(ref attribCacheMiss);
-                    }
-                }))!;
+                    DifficultyAttributes attributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
+                    attributes.FromDatabaseAttributes(dbAttributes.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
+                    return attributes;
+                }
+                catch (Exception ex)
+                {
+                    throw new DifficultyAttributesMissingException(key, ex);
+                }
+                finally
+                {
+                    Interlocked.Increment(ref attribCacheMiss);
+                }
+            }))!;
         }
 
         /// <remarks>
@@ -191,23 +184,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The retrieved beatmap, or <c>null</c> if not existing.</returns>
-        public Task<Beatmap?> GetBeatmapAsync(uint beatmapId, MySqlConnection connection, MySqlTransaction? transaction = null)
-        {
-            return beatmapMemoryCache.GetOrCreateAsync(
-                beatmapId,
-                cacheEntry =>
+        public Task<Beatmap?> GetBeatmapAsync(uint beatmapId, MySqlConnection connection, MySqlTransaction? transaction = null) => beatmapMemoryCache.GetOrCreateAsync(
+            beatmapId,
+            cacheEntry =>
+            {
+                Interlocked.Increment(ref beatmapCacheMiss);
+
+                cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
+                cacheEntry.SetSize(beatmap_size);
+
+                return connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
                 {
-                    Interlocked.Increment(ref beatmapCacheMiss);
-
-                    cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
-                    cacheEntry.SetSize(beatmap_size);
-
-                    return connection.QuerySingleOrDefaultAsync<Beatmap?>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
-                    {
-                        BeatmapId = beatmapId
-                    }, transaction: transaction);
-                });
-        }
+                    BeatmapId = beatmapId
+                }, transaction: transaction);
+            });
 
         /// <summary>
         /// Whether performance points may be awarded for the given beatmap and ruleset combination.
