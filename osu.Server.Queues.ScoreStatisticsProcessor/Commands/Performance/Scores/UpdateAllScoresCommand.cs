@@ -74,6 +74,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             {
                 sw.Restart();
 
+                handleInput();
+
                 if (CheckSlaveLatency)
                 {
                     using (var connection = DatabaseAccess.GetConnection())
@@ -137,6 +139,58 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             }
 
             return 0;
+        }
+
+        private void handleInput()
+        {
+            if (!Console.KeyAvailable) return;
+
+            ConsoleKeyInfo key = Console.ReadKey(true);
+
+            switch (key.Key)
+            {
+                case ConsoleKey.A:
+                {
+                    int before = BatchSize;
+                    BatchSize = Math.Max(500, BatchSize - 500);
+                    Console.WriteLine($"!! DECREASING BATCH SIZE {before} => {BatchSize}");
+                    break;
+                }
+
+                case ConsoleKey.S:
+                {
+                    int before = BatchSize;
+                    BatchSize += 500;
+                    Console.WriteLine($"!! INCREASING BATCH SIZE {before} => {BatchSize}");
+                    break;
+                }
+
+                case ConsoleKey.Z:
+                {
+                    int before = Threads;
+                    Threads = Math.Max(1, Threads - 2);
+                    Console.WriteLine($"!! DECREASING THREAD COUNT {before} => {Threads}");
+
+                    for (int i = 0; i < 2; i++)
+                    {
+                        connections.TryDequeue(out var connection);
+                        connection!.Dispose();
+                    }
+
+                    break;
+                }
+
+                case ConsoleKey.X:
+                {
+                    int before = Threads;
+                    Threads += 2;
+                    Console.WriteLine($"!! INCREASING THREAD COUNT {before} => {Threads}");
+
+                    for (int i = 0; i < 2; i++)
+                        connections.Enqueue(DatabaseAccess.GetConnection());
+                    break;
+                }
+            }
         }
     }
 }
