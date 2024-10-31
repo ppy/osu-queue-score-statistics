@@ -30,6 +30,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private readonly ConcurrentDictionary<int, MemoryCache> rankScoreIndexPartitionCache =
             new ConcurrentDictionary<int, MemoryCache>();
 
+        private static readonly bool update_global_ranks = Environment.GetEnvironmentVariable("UPDATE_GLOBAL_RANKS") != "0";
+
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -46,7 +48,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (warnings > 0)
                 return;
 
-            UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
+            UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction, update_global_ranks).Wait();
         }
 
         public void ApplyGlobal(SoloScore score, MySqlConnection conn)
