@@ -3,6 +3,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -241,24 +242,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             using (var db = Processor.GetDatabaseConnection())
             {
-                db.Execute("DELETE FROM osu_beatmap_difficulty_attribs WHERE beatmap_id = @BeatmapId AND mode = @Mode AND mods = @Mods", new
-                {
-                    BeatmapId = beatmapId.Value,
-                    Mode = mode,
-                    Mods = modsInt
-                });
-
-                foreach (var a in attribs.ToDatabaseAttributes())
-                {
-                    db.Insert(new BeatmapDifficultyAttribute
-                    {
-                        beatmap_id = beatmapId.Value,
-                        mode = mode,
-                        mods = modsInt,
-                        attrib_id = (ushort)a.attributeId,
-                        value = Convert.ToSingle(a.value),
-                    });
-                }
+                string attribsString = string.Join(", ", attribs.ToDatabaseAttributes().Select(a => $"({beatmapId.Value}, {mode}, {modsInt}, {a.attributeId}, {a.value})"));
+                db.Execute($"INSERT INTO osu_beatmap_difficulty_attribs (beatmap_id, mode, mods, attrib_id, value) VALUES {attribsString} ON DUPLICATE KEY UPDATE value = VALUES(value)");
             }
         }
 
