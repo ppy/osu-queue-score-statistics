@@ -143,7 +143,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
         private void handleInput()
         {
-            if (!Console.KeyAvailable) return;
+            if (!Environment.UserInteractive || Console.IsInputRedirected)
+                return;
+
+            if (!Console.KeyAvailable)
+                return;
 
             ConsoleKeyInfo key = Console.ReadKey(true);
 
