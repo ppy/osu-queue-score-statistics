@@ -80,7 +80,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 await ProcessPartitioned(userIds, async (conn, transaction, userId) =>
                 {
                     Interlocked.Add(ref totalScores, (ulong)await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, conn, transaction, cancellationToken));
-                    await transaction.CommitAsync(cancellationToken);
                 }, cancellationToken);
 
                 currentUserId = userIds.Max();
