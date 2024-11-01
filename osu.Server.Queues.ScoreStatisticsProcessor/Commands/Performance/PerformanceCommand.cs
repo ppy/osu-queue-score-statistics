@@ -80,7 +80,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                     await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
                 }
 
-                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
+                if (Interlocked.Increment(ref processedCount) % 1000 == 0)
+                    Console.WriteLine($"Processed {processedCount} of {userIds.Length}");
             }, cancellationToken);
         }
 
