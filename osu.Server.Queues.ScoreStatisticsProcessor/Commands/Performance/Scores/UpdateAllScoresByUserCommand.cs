@@ -2,7 +2,6 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -78,14 +77,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 if (userIds.Length == 0)
                     break;
 
-                await ProcessPartitioned(userIds, async userId =>
+                await ProcessPartitioned(userIds, async (conn, transaction, userId) =>
                 {
-                    using (var partitionDb = DatabaseAccess.GetConnection())
-                    using (var transaction = await partitionDb.BeginTransactionAsync(IsolationLevel.ReadUncommitted, cancellationToken))
-                    {
-                        Interlocked.Add(ref totalScores, (ulong)await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db, transaction, cancellationToken));
-                        await transaction.CommitAsync(cancellationToken);
-                    }
+                    Interlocked.Add(ref totalScores, (ulong)await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, conn, transaction, cancellationToken));
                 }, cancellationToken);
 
                 currentUserId = userIds.Max();
