@@ -183,8 +183,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
                     for (int i = 0; i < 2; i++)
                     {
-                        connections.TryDequeue(out var connection);
-                        connection!.Dispose();
+                        if (Threads > connections.Count)
+                        {
+                            connections.TryDequeue(out var connection);
+                            connection!.Dispose();
+                        }
                     }
 
                     break;
