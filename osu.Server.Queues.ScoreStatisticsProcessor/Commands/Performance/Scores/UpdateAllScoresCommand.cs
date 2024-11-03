@@ -61,13 +61,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             double rate = 0;
             Stopwatch sw = new Stopwatch();
 
-            string sort = Backwards ? "DESC" : "ASC";
+            if (Backwards)
+            {
+                currentScoreId = lastScoreId.Value;
+                lastScoreId = From;
+            }
 
             for (int i = 0; i < Threads; i++)
                 connections.Enqueue(DatabaseAccess.GetConnection());
 
             Console.WriteLine(Backwards
-                ? $"Processing all scores down from {lastScoreId}, starting from {currentScoreId}"
+                ? $"Processing all scores down from {currentScoreId}, ending at {lastScoreId}"
                 : $"Processing all scores up to {lastScoreId}, starting from {currentScoreId}");
 
             while (!cancellationToken.IsCancellationRequested)
@@ -86,9 +90,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 }
 
                 var scores = (await db.QueryAsync<SoloScore>(
-                    $"SELECT * FROM scores WHERE `id` > @ScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` {sort} LIMIT @limit", new
+                    Backwards
+                        ? "SELECT * FROM scores WHERE `id` <= @CurrentScoreId AND `id` >= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` DESC LIMIT @limit"
+                        : "SELECT * FROM scores WHERE `id` >= @CurrentScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` LIMIT @limit", new
                     {
-                        ScoreId = currentScoreId,
+                        CurrentScoreId = currentScoreId,
                         LastScoreId = lastScoreId,
                         minPP = MinPP,
                         maxPP = MaxPP,
@@ -127,7 +133,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
                 Interlocked.Add(ref processedCount, (ulong)scores.Count);
 
-                currentScoreId = scores.Last().id;
+                currentScoreId = scores.Last().id + 1;
 
                 if (rate == 0)
                     rate = ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
