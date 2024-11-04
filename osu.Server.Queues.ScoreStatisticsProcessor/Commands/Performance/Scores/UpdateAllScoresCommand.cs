@@ -30,10 +30,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
         public ulong From { get; set; }
 
         [Option(Description = "The minimum PP of a score to reprocess.", LongName = "min-pp", ShortName = "p1")]
-        public float MinPP { get; set; } = 0;
+        public float? MinPP { get; set; }
 
         [Option(Description = "The maximum PP of a score to reprocess.", LongName = "max-pp", ShortName = "pu")]
-        public float MaxPP { get; set; } = float.MaxValue;
+        public float? MaxPP { get; set; }
 
         [Option(Description = "Optional where clause", Template = "--where")]
         public string Where { get; set; } = "1 = 1";
@@ -92,16 +92,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                         break;
                 }
 
+                string ppCondition = MinPP != null || MaxPP != null
+                    ? $"AND `pp` BETWEEN {MinPP ?? 0} AND {MaxPP ?? 1048576}"
+                    : string.Empty;
+
                 var scores = (await db.QueryAsync<SoloScore>(
                     Backwards
-                        ? $"SELECT * FROM scores WHERE `id` <= @CurrentScoreId AND `id` >= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP AND ranked = 1 AND preserve = 1 AND {Where} ORDER BY `id` DESC LIMIT @limit"
-                        : $"SELECT * FROM scores WHERE `id` >= @CurrentScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP AND ranked = 1 AND preserve = 1 AND {Where} ORDER BY `id` LIMIT @limit",
+                        ? $"SELECT * FROM scores WHERE `id` <= @CurrentScoreId AND `id` >= @LastScoreId {ppCondition} AND ranked = 1 AND preserve = 1 AND {Where} ORDER BY `id` DESC LIMIT @limit"
+                        : $"SELECT * FROM scores WHERE `id` >= @CurrentScoreId AND `id` <= @LastScoreId {ppCondition} AND ranked = 1 AND preserve = 1 AND {Where} ORDER BY `id` LIMIT @limit",
                     new
                     {
                         CurrentScoreId = currentScoreId,
                         LastScoreId = lastScoreId,
-                        minPP = MinPP,
-                        maxPP = MaxPP,
                         limit = BatchSize
                     }, commandTimeout: 600)).ToList();
 
