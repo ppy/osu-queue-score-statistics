@@ -103,7 +103,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                         minPP = MinPP,
                         maxPP = MaxPP,
                         limit = BatchSize
-                    })).ToList();
+                    }, commandTimeout: 600)).ToList();
 
                 if (scores.Count == 0)
                     break;
