@@ -94,8 +94,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
                 var scores = (await db.QueryAsync<SoloScore>(
                     Backwards
-                        ? $"SELECT * FROM scores WHERE `id` <= @CurrentScoreId AND `id` >= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP AND {Where} ORDER BY `id` DESC LIMIT @limit"
-                        : $"SELECT * FROM scores WHERE `id` >= @CurrentScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP AND {Where} ORDER BY `id` LIMIT @limit", new
+                        ? $"SELECT * FROM scores WHERE `id` <= @CurrentScoreId AND `id` >= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP AND ranked = 1 AND preserve = 1 AND {Where} ORDER BY `id` DESC LIMIT @limit"
+                        : $"SELECT * FROM scores WHERE `id` >= @CurrentScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP AND ranked = 1 AND preserve = 1 AND {Where} ORDER BY `id` LIMIT @limit",
+                    new
                     {
                         CurrentScoreId = currentScoreId,
                         LastScoreId = lastScoreId,
