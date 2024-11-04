@@ -35,6 +35,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
         [Option(Description = "The maximum PP of a score to reprocess.", LongName = "max-pp", ShortName = "pu")]
         public float MaxPP { get; set; } = float.MaxValue;
 
+        [Option(Description = "Optional where clause", Template = "--where")]
+        public string Where { get; set; } = "1 = 1";
+
         /// <summary>
         /// Whether to adjust processing rate based on slave latency. Defaults to <c>false</c>.
         /// </summary>
@@ -91,8 +94,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
                 var scores = (await db.QueryAsync<SoloScore>(
                     Backwards
-                        ? "SELECT * FROM scores WHERE `id` <= @CurrentScoreId AND `id` >= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` DESC LIMIT @limit"
-                        : "SELECT * FROM scores WHERE `id` >= @CurrentScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP ORDER BY `id` LIMIT @limit", new
+                        ? $"SELECT * FROM scores WHERE `id` <= @CurrentScoreId AND `id` >= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP AND {Where} ORDER BY `id` DESC LIMIT @limit"
+                        : $"SELECT * FROM scores WHERE `id` >= @CurrentScoreId AND `id` <= @LastScoreId AND `pp` BETWEEN @minPP AND @maxPP AND {Where} ORDER BY `id` LIMIT @limit", new
                     {
                         CurrentScoreId = currentScoreId,
                         LastScoreId = lastScoreId,
