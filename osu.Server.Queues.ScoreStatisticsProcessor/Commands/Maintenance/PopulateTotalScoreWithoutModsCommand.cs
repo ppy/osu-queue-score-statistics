@@ -39,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             ulong lastId = StartId ?? 0;
             ulong backfills = 0;
 
-            using var conn = DatabaseAccess.GetConnection();
+            using var conn = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             Console.WriteLine();
             Console.WriteLine($"Populating total score without mods on scores without it, starting from ID {lastId}");

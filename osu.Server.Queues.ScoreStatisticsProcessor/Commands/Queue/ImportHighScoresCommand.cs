@@ -96,7 +96,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
             }
 
-            using (var db = DatabaseAccess.GetConnection())
+            using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {

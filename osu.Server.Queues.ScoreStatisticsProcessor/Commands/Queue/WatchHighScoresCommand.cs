@@ -60,7 +60,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(RulesetId);
             string highScoreTable = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId).HighScoreTable;
 
-            using var db = DatabaseAccess.GetConnection();
+            using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             ulong? lastImportedLegacyScoreId = db.QuerySingleOrDefault<ulong?>($"SELECT MAX(legacy_score_id) FROM scores WHERE ruleset_id = {RulesetId}") ?? 0;
 
@@ -121,7 +121,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             HighScore? pendingProcessing = null;
             int pendingProcessingWaitTime = 0;
 
-            using (var dbMainQuery = DatabaseAccess.GetConnection())
+            using (var dbMainQuery = await DatabaseAccess.GetConnectionAsync(cancellationToken))
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {

@@ -201,7 +201,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine($" Running insert command with {sql.Length:#,0} bytes");
             sw.Restart();
 
-            using (var db = DatabaseAccess.GetConnection())
+            using (var db = await DatabaseAccess.GetConnectionAsync())
             {
                 // https://dev.mysql.com/doc/refman/8.0/en/information-functions.html#function_last-insert-id
                 // If you insert multiple rows using a single INSERT statement, LAST_INSERT_ID() returns the value generated for the first inserted row only.

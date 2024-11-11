@@ -68,7 +68,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             int deleted = 0;
             int fail = 0;
 
-            using var conn = DatabaseAccess.GetConnection();
+            using var conn = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             if (lastId == 0)
             {

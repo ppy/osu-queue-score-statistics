@@ -25,8 +25,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using (var readConnection = DatabaseAccess.GetConnection())
-            using (var deleteConnection = DatabaseAccess.GetConnection())
+            using (var readConnection = await DatabaseAccess.GetConnectionAsync(cancellationToken))
+            using (var deleteConnection = await DatabaseAccess.GetConnectionAsync(cancellationToken))
             using (var deleteCommand = deleteConnection.CreateCommand())
             using (var s3 = S3.GetClient())
             {

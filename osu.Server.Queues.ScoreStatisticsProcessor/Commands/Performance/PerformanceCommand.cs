@@ -119,7 +119,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                 MySqlTransaction? transaction = null;
                 int transactionSize = 0;
 
-                using (var connection = DatabaseAccess.GetConnection())
+                using (var connection = await DatabaseAccess.GetConnectionAsync(cancellationToken))
                 using (partition)
                 {
                     while (partition.MoveNext())

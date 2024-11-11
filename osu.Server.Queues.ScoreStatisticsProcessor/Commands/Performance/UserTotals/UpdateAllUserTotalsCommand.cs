@@ -23,7 +23,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTo
 
             Console.WriteLine("Fetching all users...");
 
-            using (var db = DatabaseAccess.GetConnection())
+            using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
                 userIds = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
 
             Console.WriteLine($"Fetched {userIds.Length} users");

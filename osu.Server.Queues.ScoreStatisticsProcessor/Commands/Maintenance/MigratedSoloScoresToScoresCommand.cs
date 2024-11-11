@@ -27,8 +27,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using var db = DatabaseAccess.GetConnection();
-            using var dbInsert = DatabaseAccess.GetConnection();
+            using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
+            using var dbInsert = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             using var insertCommand = dbInsert.CreateCommand();
             insertCommand.CommandText =

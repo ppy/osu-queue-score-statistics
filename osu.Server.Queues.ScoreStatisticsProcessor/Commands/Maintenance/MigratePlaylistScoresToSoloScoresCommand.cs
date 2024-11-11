@@ -33,7 +33,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using var db = DatabaseAccess.GetConnection();
+            using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             int[] playlistIds;
 
