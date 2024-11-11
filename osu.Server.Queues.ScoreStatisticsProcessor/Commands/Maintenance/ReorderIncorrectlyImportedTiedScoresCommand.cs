@@ -47,7 +47,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
-            using var conn = DatabaseAccess.GetConnection();
+            using var conn = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             dynamic[] beatmaps = (await conn.QueryAsync($"SELECT * FROM osu_beatmaps WHERE approved > 0 and beatmap_id >= {StartId ?? 0}")).ToArray();
 

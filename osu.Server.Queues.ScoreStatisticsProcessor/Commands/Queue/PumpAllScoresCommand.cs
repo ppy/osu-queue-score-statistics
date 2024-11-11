@@ -27,8 +27,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using (var dbMainQuery = DatabaseAccess.GetConnection())
-            using (var db = DatabaseAccess.GetConnection())
+            using (var dbMainQuery = await DatabaseAccess.GetConnectionAsync(cancellationToken))
+            using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
             {
                 string query = "SELECT * FROM scores WHERE id >= @StartId";
 

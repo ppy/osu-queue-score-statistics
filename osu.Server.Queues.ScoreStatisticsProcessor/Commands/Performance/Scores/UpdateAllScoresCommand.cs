@@ -54,7 +54,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
         {
             // TODO: ruleset parameter is in base class but unused.
 
-            using var db = DatabaseAccess.GetConnection();
+            using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             ulong currentScoreId = From;
             ulong? lastScoreId = await db.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores");
@@ -71,7 +71,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
             }
 
             for (int i = 0; i < Threads; i++)
-                connections.Enqueue(DatabaseAccess.GetConnection());
+                connections.Enqueue(await DatabaseAccess.GetConnectionAsync(cancellationToken));
 
             Console.WriteLine(Backwards
                 ? $"Processing all scores down from {currentScoreId}, ending at {lastScoreId}"
@@ -85,7 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
                 if (CheckSlaveLatency)
                 {
-                    using (var connection = DatabaseAccess.GetConnection())
+                    using (var connection = await DatabaseAccess.GetConnectionAsync(cancellationToken))
                         await SlaveLatencyChecker.CheckSlaveLatency(connection, cancellationToken);
 
                     if (cancellationToken.IsCancellationRequested)
