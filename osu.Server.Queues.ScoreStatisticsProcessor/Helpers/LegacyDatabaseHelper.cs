@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -120,7 +121,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 {
                     case string postString:
                         httpRequestMessage.Content = new StringContent(postString);
-                        httpRequestMessage.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("plain/text");
+                        break;
+
+                    case IEnumerable<KeyValuePair<string, string>> formKeyValuePairs:
+                        httpRequestMessage.Content = new FormUrlEncodedContent(formKeyValuePairs);
                         break;
 
                     default:
