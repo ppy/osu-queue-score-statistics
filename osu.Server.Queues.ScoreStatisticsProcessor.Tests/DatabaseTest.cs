@@ -62,7 +62,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 // just a safety measure for now to ensure we don't hit production. since i was running on production until now.
                 // will throw if not on test database.
-                if (db.QueryFirstOrDefault<int?>("SELECT * FROM osu_counts WHERE name = 'is_production'") != null)
+                if (db.QueryFirstOrDefault<int?>("SELECT `count` FROM `osu_counts` WHERE `name` = 'is_production'") != null)
                     throw new InvalidOperationException("You are trying to do something very silly.");
 
                 db.Execute("TRUNCATE TABLE osu_user_stats");
