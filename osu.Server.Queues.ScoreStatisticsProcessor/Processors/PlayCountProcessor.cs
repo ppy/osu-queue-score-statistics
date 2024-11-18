@@ -2,9 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
@@ -114,7 +112,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                 // Reindex beatmap occasionally.
                 if (RNG.Next(0, 10) == 0)
-                    LegacyDatabaseHelper.RunLegacyIO("indexing/bulk", "POST", new[] { new KeyValuePair<string, string>("beatmapset[]", score.beatmap.beatmapset_id.ToString(CultureInfo.InvariantCulture)) });
+                    LegacyDatabaseHelper.RunLegacyIO("indexing/bulk", "POST", new { beatmapset = new[] { score.beatmap.beatmapset_id } });
 
                 // TODO: announce playcount milestones
                 // const int notify_amount = 1000000;
