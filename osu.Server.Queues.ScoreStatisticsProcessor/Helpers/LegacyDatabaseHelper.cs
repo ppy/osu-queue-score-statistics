@@ -2,7 +2,6 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -117,20 +116,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                     },
                 };
 
-                switch (postObject)
+                if (postObject != null)
                 {
-                    case string postString:
-                        httpRequestMessage.Content = new StringContent(postString);
-                        break;
-
-                    case IEnumerable<KeyValuePair<string, string>> formKeyValuePairs:
-                        httpRequestMessage.Content = new FormUrlEncodedContent(formKeyValuePairs);
-                        break;
-
-                    default:
-                        httpRequestMessage.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(postObject)));
-                        httpRequestMessage.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json");
-                        break;
+                    httpRequestMessage.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(postObject)));
+                    httpRequestMessage.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json");
                 }
 
                 var response = http.SendAsync(httpRequestMessage).Result;
