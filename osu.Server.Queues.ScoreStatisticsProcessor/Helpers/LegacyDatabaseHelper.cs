@@ -74,12 +74,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             }
         }
 
-        private static readonly string shared_interop_secret = Environment.GetEnvironmentVariable("SHARED_INTEROP_SECRET") ?? string.Empty;
+        private static readonly string? legacy_io_domain = Environment.GetEnvironmentVariable("LEGACY_IO_DOMAIN");
+        private static readonly string? shared_interop_secret = Environment.GetEnvironmentVariable("SHARED_INTEROP_SECRET");
 
         private static readonly HttpClient http = new HttpClient();
 
         public static HttpResponseMessage RunLegacyIO(string command, string method = "GET", dynamic? postObject = null)
         {
+            if (string.IsNullOrEmpty(legacy_io_domain))
+            {
+#if !DEBUG
+                throw new InvalidOperationException($"Attempted legacy IO call without target domain specified ({command})");
+#endif
+                return null!;
+            }
+
             if (string.IsNullOrEmpty(shared_interop_secret))
             {
 #if !DEBUG
@@ -96,7 +105,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             {
                 long time = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                string url = $"https://osu.ppy.sh/_lio/{command}{(command.Contains('?') ? "&" : "?")}timestamp={time}";
+                string url = $"{legacy_io_domain}/_lio/{command}{(command.Contains('?') ? "&" : "?")}timestamp={time}";
                 string signature = hmacEncode(url, Encoding.UTF8.GetBytes(shared_interop_secret));
 
 #pragma warning disable SYSLIB0014
