@@ -8,10 +8,12 @@ using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
@@ -20,6 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
     {
         protected ScorePerformanceProcessor ScoreProcessor { get; private set; } = null!;
         protected UserTotalPerformanceProcessor TotalProcessor { get; private set; } = null!;
+        protected ManiaKeyModeUserStatsProcessor ManiaKeyModeProcessor { get; private set; } = null!;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
@@ -31,6 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
         {
             ScoreProcessor = new ScorePerformanceProcessor();
             TotalProcessor = new UserTotalPerformanceProcessor();
+            ManiaKeyModeProcessor = new ManiaKeyModeUserStatsProcessor();
             return await ExecuteAsync(cancellationToken);
         }
 
@@ -73,6 +77,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                 double accBefore = userStats.accuracy_new;
 
                 await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, transaction, updateIndex: false);
+
+                if (RulesetId == 3)
+                {
+                    var keyModeStats = db.QueryFirstOrDefault<UserStatsManiaKeyCount>("SELECT * FROM `osu_user_stats_mania_4k` WHERE `user_id` = @user_id", userStats, transaction);
+                    if (keyModeStats != null)
+                        await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, 4, db, transaction);
+
+                    keyModeStats = db.QueryFirstOrDefault<UserStatsManiaKeyCount>("SELECT * FROM `osu_user_stats_mania_7k` WHERE `user_id` = @user_id", userStats, transaction);
+                    if (keyModeStats != null)
+                        await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, 7, db, transaction);
+                }
 
                 if (Math.Abs(rankScoreBefore - userStats.rank_score) > 0.1 ||
                     Math.Abs(accBefore - userStats.accuracy_new) > 0.1)
