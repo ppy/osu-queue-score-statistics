@@ -76,15 +76,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                     conn.Execute(
                         $"REPLACE INTO `{keyCountTableName}` "
-                        + $"(`user_id`, `country_acronym`, `playcount`, `x_rank_count`, `xh_rank_count`, `s_rank_count`, `sh_rank_count`, `a_rank_count`, `rank_score`, `rank_score_index`, `accuracy_new`) "
-                        + $"SELECT @user_id, `country_acronym`, @playcount, @x_rank_count, @xh_rank_count, @s_rank_count, @sh_rank_count, @a_rank_count, @rank_score, @rank_score_index, @accuracy_new "
+                        + $"(`user_id`, `country_acronym`, `playcount`, `x_rank_count`, `xh_rank_count`, `s_rank_count`, `sh_rank_count`, `a_rank_count`, `rank_score`, `rank_score_index`, `accuracy_new`, `last_played`) "
+                        + $"SELECT @user_id, `country_acronym`, @playcount, @x_rank_count, @xh_rank_count, @s_rank_count, @sh_rank_count, @a_rank_count, @rank_score, @rank_score_index, @accuracy_new, @last_played "
                         + $"FROM `phpbb_users` WHERE `user_id` = @user_id",
                         keyModeStats, transaction);
                 }
             }
             else
             {
-                conn.Execute($"UPDATE `{keyCountTableName}` SET `playcount` = `playcount` + 1 WHERE `user_id` = @user_id", keyModeStats, transaction);
+                conn.Execute($"UPDATE `{keyCountTableName}` SET `playcount` = `playcount` + 1, `last_played` = NOW() WHERE `user_id` = @user_id", keyModeStats, transaction);
             }
         }
 
