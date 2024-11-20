@@ -222,13 +222,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null, ushort mode = 0, Mod[]? mods = null)
-            where TDifficultyAttributes : DifficultyAttributes, new()
+            where TDifficultyAttributes : IDifficultyAttributes, new()
         {
             var attribs = new TDifficultyAttributes
             {
                 StarRating = 5,
-                MaxCombo = 5,
-                Mods = mods ?? []
+                MaxCombo = 5
             };
 
             setup?.Invoke(attribs);
@@ -238,7 +237,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var ruleset = rulesetInfo.CreateInstance();
 
             beatmapId ??= TEST_BEATMAP_ID;
-            uint modsInt = (uint)ruleset.ConvertToLegacyMods(attribs.Mods);
+            uint modsInt = (uint)ruleset.ConvertToLegacyMods(mods ?? []);
 
             using (var db = Processor.GetDatabaseConnection())
             {

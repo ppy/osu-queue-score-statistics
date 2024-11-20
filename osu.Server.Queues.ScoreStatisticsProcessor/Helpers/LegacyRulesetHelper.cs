@@ -43,7 +43,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             }
         }
 
-        public static DifficultyAttributes CreateDifficultyAttributes(int legacyId)
+        public static IDifficultyAttributes CreateDifficultyAttributes(int legacyId)
         {
             switch (legacyId)
             {
