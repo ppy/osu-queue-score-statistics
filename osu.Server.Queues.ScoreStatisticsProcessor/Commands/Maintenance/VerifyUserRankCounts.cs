@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -69,86 +70,91 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private async Task processUser(MySqlConnection db, uint userId, CancellationToken cancellationToken)
         {
-            var parameters = new
+            using (var transaction = await db.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken))
             {
-                userId,
-                rulesetId = RulesetId,
-            };
-
-            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
-                "SELECT * FROM scores WHERE preserve = 1 AND ranked = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
-                parameters, cancellationToken: cancellationToken));
-
-            var counts = new Dictionary<ScoreRank, uint>
-            {
-                { ScoreRank.A, 0 },
-                { ScoreRank.S, 0 },
-                { ScoreRank.SH, 0 },
-                { ScoreRank.X, 0 },
-                { ScoreRank.XH, 0 },
-            };
-
-            if (Verbose)
-                Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
-
-            IEnumerable<SoloScore?> maxScoresByBeatmap = scores.GroupBy(s => s.beatmap_id).Select(g => g.MaxBy(s => s.total_score));
-
-            foreach (var score in maxScoresByBeatmap)
-            {
-                if (score == null)
-                    continue;
-
-                switch (score.rank)
+                var parameters = new
                 {
-                    case ScoreRank.A:
-                        counts[ScoreRank.A]++;
-                        break;
+                    userId,
+                    rulesetId = RulesetId,
+                };
 
-                    case ScoreRank.S:
-                        counts[ScoreRank.S]++;
-                        break;
+                IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
+                    "SELECT * FROM scores WHERE preserve = 1 AND ranked = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
+                    parameters, cancellationToken: cancellationToken, transaction: transaction));
 
-                    case ScoreRank.SH:
-                        counts[ScoreRank.SH]++;
-                        break;
+                var counts = new Dictionary<ScoreRank, uint>
+                {
+                    { ScoreRank.A, 0 },
+                    { ScoreRank.S, 0 },
+                    { ScoreRank.SH, 0 },
+                    { ScoreRank.X, 0 },
+                    { ScoreRank.XH, 0 },
+                };
 
-                    case ScoreRank.X:
-                        counts[ScoreRank.X]++;
-                        break;
-
-                    case ScoreRank.XH:
-                        counts[ScoreRank.XH]++;
-                        break;
-                }
-            }
-
-            var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db);
-
-            if (userStats == null)
-                return;
-
-            bool userHasCorrectCounts =
-                userStats.a_rank_count == counts[ScoreRank.A] &&
-                userStats.s_rank_count == counts[ScoreRank.S] &&
-                userStats.sh_rank_count == counts[ScoreRank.SH] &&
-                userStats.x_rank_count == counts[ScoreRank.X] &&
-                userStats.xh_rank_count == counts[ScoreRank.XH];
-
-            if (!userHasCorrectCounts)
-            {
                 if (Verbose)
+                    Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
+
+                IEnumerable<SoloScore?> maxScoresByBeatmap = scores.GroupBy(s => s.beatmap_id).Select(g => g.MaxBy(s => s.total_score));
+
+                foreach (var score in maxScoresByBeatmap)
                 {
-                    Console.WriteLine($"Fixing incorrect counts for {userId}");
-                    Console.WriteLine($"a:  {userStats.a_rank_count} ->  {counts[ScoreRank.A]}");
-                    Console.WriteLine($"s:  {userStats.s_rank_count} ->  {counts[ScoreRank.S]}");
-                    Console.WriteLine($"sh: {userStats.sh_rank_count} ->  {counts[ScoreRank.SH]}");
-                    Console.WriteLine($"x:  {userStats.x_rank_count} ->  {counts[ScoreRank.X]}");
-                    Console.WriteLine($"xh: {userStats.xh_rank_count} ->  {counts[ScoreRank.XH]}");
-                    Console.WriteLine();
+                    if (score == null)
+                        continue;
+
+                    switch (score.rank)
+                    {
+                        case ScoreRank.A:
+                            counts[ScoreRank.A]++;
+                            break;
+
+                        case ScoreRank.S:
+                            counts[ScoreRank.S]++;
+                            break;
+
+                        case ScoreRank.SH:
+                            counts[ScoreRank.SH]++;
+                            break;
+
+                        case ScoreRank.X:
+                            counts[ScoreRank.X]++;
+                            break;
+
+                        case ScoreRank.XH:
+                            counts[ScoreRank.XH]++;
+                            break;
+                    }
                 }
 
-                if (!DryRun)
-                    await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
+                var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db, transaction);
+
+                if (userStats == null)
+                    return;
+
+                bool userHasCorrectCounts =
+                    userStats.a_rank_count == counts[ScoreRank.A] &&
+                    userStats.s_rank_count == counts[ScoreRank.S] &&
+                    userStats.sh_rank_count == counts[ScoreRank.SH] &&
+                    userStats.x_rank_count == counts[ScoreRank.X] &&
+                    userStats.xh_rank_count == counts[ScoreRank.XH];
+
+                if (!userHasCorrectCounts)
+                {
+                    if (Verbose)
+                    {
+                        Console.WriteLine($"Fixing incorrect counts for {userId}");
+                        Console.WriteLine($"a:  {userStats.a_rank_count} ->  {counts[ScoreRank.A]}");
+                        Console.WriteLine($"s:  {userStats.s_rank_count} ->  {counts[ScoreRank.S]}");
+                        Console.WriteLine($"sh: {userStats.sh_rank_count} ->  {counts[ScoreRank.SH]}");
+                        Console.WriteLine($"x:  {userStats.x_rank_count} ->  {counts[ScoreRank.X]}");
+                        Console.WriteLine($"xh: {userStats.xh_rank_count} ->  {counts[ScoreRank.XH]}");
+                        Console.WriteLine();
+                    }
+
+                    if (!DryRun)
+                        await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
             }
         }
     }
