@@ -73,21 +73,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                 if (userStats == null)
                     return;
 
-                double rankScoreBefore = userStats.rank_score;
-                double accBefore = userStats.accuracy_new;
-
-                await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, transaction, updateIndex: false);
-
+                // Mania per-key ranking statistic updates.
                 if (RulesetId == 3)
                 {
                     var keyModeStats = db.QueryFirstOrDefault<UserStatsManiaKeyCount>("SELECT * FROM `osu_user_stats_mania_4k` WHERE `user_id` = @user_id", userStats, transaction);
                     if (keyModeStats != null)
-                        await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, 4, db, transaction);
+                        await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, 4, db, transaction, updateIndex: false);
 
                     keyModeStats = db.QueryFirstOrDefault<UserStatsManiaKeyCount>("SELECT * FROM `osu_user_stats_mania_7k` WHERE `user_id` = @user_id", userStats, transaction);
                     if (keyModeStats != null)
-                        await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, 7, db, transaction);
+                        await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, 7, db, transaction, updateIndex: false);
                 }
+
+                double rankScoreBefore = userStats.rank_score;
+                double accBefore = userStats.accuracy_new;
+
+                await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, transaction, updateIndex: false);
 
                 if (Math.Abs(rankScoreBefore - userStats.rank_score) > 0.1 ||
                     Math.Abs(accBefore - userStats.accuracy_new) > 0.1)
