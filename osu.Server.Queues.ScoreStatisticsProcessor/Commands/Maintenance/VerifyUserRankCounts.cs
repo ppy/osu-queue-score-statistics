@@ -46,12 +46,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
             if (!string.IsNullOrEmpty(CustomQuery))
-                CustomQuery = $" AND {CustomQuery}";
+                CustomQuery = $"WHERE {CustomQuery}";
 
             using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
             {
                 Console.WriteLine("Fetching all users...");
-                uint[] userIds = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE 1 = 1 {CustomQuery}")).ToArray();
+                uint[] userIds = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} {CustomQuery}")).ToArray();
                 Console.WriteLine($"Fetched {userIds.Length} users");
 
                 int processedUsers = 0;
