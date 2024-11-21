@@ -27,7 +27,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         /// <summary>
         /// The ruleset to run this verify job for.
         /// </summary>
-        [Option(CommandOptionType.SingleValue, Template = "--ruleset-id")]
+        [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset-id")]
         public int RulesetId { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output verbose information on processing.")]
