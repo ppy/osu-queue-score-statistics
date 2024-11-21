@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
@@ -39,51 +40,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 return;
 
             string keyCountTableName = $"osu_user_stats_mania_{keyCount}k";
-            var keymodeStats = new UserStatsManiaKeyCount
+
+            UserStatsManiaKeyCount? keyModeStats = conn.QueryFirstOrDefault<UserStatsManiaKeyCount>(
+                $"SELECT * FROM `{keyCountTableName}` WHERE `user_id` = @user_id", new { user_id = score.user_id }, transaction);
+
+            // Initial population, since this gets created on demand by this processor.
+            if (keyModeStats == null)
             {
-                user_id = score.user_id
-            };
-
-            var existingRow = conn.QueryFirstOrDefault<UserStatsManiaKeyCount>($"SELECT * FROM `{keyCountTableName}` WHERE `user_id` = @user_id", keymodeStats, transaction);
-
-            if (score.preserve || existingRow == null)
-            {
-                keymodeStats = existingRow ?? keymodeStats;
-
-                updateRankCounts(score, keymodeStats, conn, transaction);
-
-                List<SoloScore> scores = conn.Query<SoloScore>(
-                    "SELECT beatmap_id, pp, accuracy FROM scores WHERE "
-                    + "`user_id` = @UserId AND "
-                    + "`ruleset_id` = @RulesetId AND "
-                    + "`pp` IS NOT NULL AND "
-                    + "`preserve` = 1 AND "
-                    + "`ranked` = 1 AND "
-                    + "`beatmap_id` IN (SELECT `beatmap_id` FROM `osu_beatmaps` WHERE `playmode` = @RulesetId AND `diff_size` = @KeyCount) "
-                    + "ORDER BY pp DESC LIMIT 1000", new
-                    {
-                        UserId = keymodeStats.user_id,
-                        RulesetId = score.ruleset_id,
-                        KeyCount = keyCount,
-                    }, transaction: transaction).ToList();
-
-                (keymodeStats.rank_score, keymodeStats.accuracy_new) = UserTotalPerformanceAggregateHelper.CalculateUserTotalPerformanceAggregates(keymodeStats.user_id, scores);
-
-                // TODO: partitioned caching similar to UserTotalPerformanceProcessor.
-                keymodeStats.rank_score_index = conn.QuerySingle<int>($"SELECT COUNT(*) FROM {keyCountTableName} WHERE rank_score > {keymodeStats.rank_score}", transaction: transaction) + 1;
-
-                if (existingRow != null)
+                keyModeStats = new UserStatsManiaKeyCount
                 {
-                    conn.Execute(
-                        $"UPDATE `{keyCountTableName}` "
-                        + $"SET `rank_score` = @rank_score, `playcount` = @playcount + 1, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
-                        + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count "
-                        + $"WHERE `user_id` = @user_id", keymodeStats, transaction);
-                }
-                else
-                {
-                    // make up a rough playcount based on user play distribution.
-                    keymodeStats.playcount = conn.QuerySingle<int?>(
+                    user_id = score.user_id,
+                    // make up a rough play count based on user play distribution.
+                    playcount = conn.QuerySingle<int?>(
                         "SELECT @playcount * (SELECT COUNT(1) FROM `scores` "
                         + "WHERE `user_id` = @userId "
                         + "AND `beatmap_id` IN (SELECT `beatmap_id` FROM `osu_beatmaps` WHERE `playmode` = @rulesetId AND `diff_size` = @keyCount)) "
@@ -94,24 +62,75 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                             userId = score.user_id,
                             rulesetId = score.ruleset_id,
                             keyCount = keyCount,
-                        }, transaction) ?? 1;
+                        }, transaction) ?? 0,
+                };
 
-                    conn.Execute(
-                        $"REPLACE INTO `{keyCountTableName}` "
-                        + $"(`user_id`, `country_acronym`, `playcount`, `x_rank_count`, `xh_rank_count`, `s_rank_count`, `sh_rank_count`, `a_rank_count`, `rank_score`, `rank_score_index`, `accuracy_new`) "
-                        + $"SELECT @user_id, `country_acronym`, @playcount, @x_rank_count, @xh_rank_count, @s_rank_count, @sh_rank_count, @a_rank_count, @rank_score, @rank_score_index, @accuracy_new "
-                        + $"FROM `phpbb_users` WHERE `user_id` = @user_id",
-                        keymodeStats, transaction);
-                }
+                conn.Execute(
+                    $"REPLACE INTO `{keyCountTableName}` "
+                    + $"(`user_id`, `country_acronym`, `playcount`, `x_rank_count`, `xh_rank_count`, `s_rank_count`, `sh_rank_count`, `a_rank_count`, `rank_score`, `rank_score_index`, `accuracy_new`, `last_played`) "
+                    + $"SELECT @user_id, `country_acronym`, @playcount, @x_rank_count, @xh_rank_count, @s_rank_count, @sh_rank_count, @a_rank_count, @rank_score, @rank_score_index, @accuracy_new, @last_played "
+                    + $"FROM `phpbb_users` WHERE `user_id` = @user_id",
+                    keyModeStats, transaction);
             }
             else
             {
-                conn.Execute($"UPDATE `{keyCountTableName}` SET `playcount` = `playcount` + 1 WHERE `user_id` = @user_id", keymodeStats, transaction);
+                keyModeStats.playcount++;
+            }
+
+            if (score.preserve)
+            {
+                updateRankCounts(score, keyModeStats, conn, transaction);
+                UpdateUserStatsAsync(keyModeStats, keyCount, conn, transaction).Wait();
+
+                conn.Execute(
+                    $"UPDATE `{keyCountTableName}` "
+                    + $"SET `rank_score` = @rank_score, `playcount` = @playcount, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
+                    + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count, `last_played` = NOW()"
+                    + $"WHERE `user_id` = @user_id", keyModeStats, transaction);
+            }
+            else
+            {
+                conn.Execute($"UPDATE `{keyCountTableName}` SET `playcount` = @playcount, `last_played` = NOW() WHERE `user_id` = @user_id", keyModeStats, transaction);
+            }
+        }
+
+        /// <summary>
+        /// Updates a user's key-specific stats with their total PP/accuracy.
+        /// </summary>
+        /// <remarks>
+        /// This does not insert the new stats values into the database.
+        /// </remarks>
+        public async Task UpdateUserStatsAsync(UserStatsManiaKeyCount keyModeStats, int keyCount, MySqlConnection conn, MySqlTransaction? transaction = null, bool updateIndex = true)
+        {
+            string keyCountTableName = $"osu_user_stats_mania_{keyCount}k";
+
+            List<SoloScore> scores = (await conn.QueryAsync<SoloScore>(
+                "SELECT beatmap_id, pp, accuracy FROM scores WHERE "
+                + "`user_id` = @UserId AND "
+                + "`ruleset_id` = @RulesetId AND "
+                + "`pp` IS NOT NULL AND "
+                + "`preserve` = 1 AND "
+                + "`ranked` = 1 AND "
+                + "`beatmap_id` IN (SELECT `beatmap_id` FROM `osu_beatmaps` WHERE `playmode` = @RulesetId AND `diff_size` = @KeyCount) "
+                + "ORDER BY pp DESC LIMIT 1000", new
+                {
+                    UserId = keyModeStats.user_id,
+                    RulesetId = 3,
+                    KeyCount = keyCount,
+                }, transaction: transaction)).ToList();
+
+            (keyModeStats.rank_score, keyModeStats.accuracy_new) = UserTotalPerformanceAggregateHelper.CalculateUserTotalPerformanceAggregates(keyModeStats.user_id, scores);
+
+            if (updateIndex)
+            {
+                // TODO: partitioned caching similar to UserTotalPerformanceProcessor.
+                keyModeStats.rank_score_index = await conn.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {keyCountTableName} WHERE rank_score > {keyModeStats.rank_score}", transaction: transaction)
+                                                + 1;
             }
         }
 
         // local reimplementation of `UserRankCountProcessor` for keymodes.
-        // it's a bit unfortunate but it is the only way this can implemented for now until `preserve = 0` is set on lazer scores correctly.
+        // it's a bit unfortunate, but this is the only way this can be implemented for now until `preserve = 0` is set on lazer scores correctly.
         private void updateRankCounts(SoloScore score, UserStatsManiaKeyCount keymodeStats, MySqlConnection conn, MySqlTransaction transaction)
         {
             if (!score.BeatmapValidForRankedCounts())

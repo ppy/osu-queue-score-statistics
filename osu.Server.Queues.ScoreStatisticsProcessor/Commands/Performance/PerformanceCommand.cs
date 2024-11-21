@@ -8,10 +8,12 @@ using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
@@ -20,6 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
     {
         protected ScorePerformanceProcessor ScoreProcessor { get; private set; } = null!;
         protected UserTotalPerformanceProcessor TotalProcessor { get; private set; } = null!;
+        protected ManiaKeyModeUserStatsProcessor ManiaKeyModeProcessor { get; private set; } = null!;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
@@ -31,6 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
         {
             ScoreProcessor = new ScorePerformanceProcessor();
             TotalProcessor = new UserTotalPerformanceProcessor();
+            ManiaKeyModeProcessor = new ManiaKeyModeUserStatsProcessor();
             return await ExecuteAsync(cancellationToken);
         }
 
@@ -68,6 +72,37 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
                 if (userStats == null)
                     return;
+
+                // Mania per-key ranking statistic updates.
+                if (RulesetId == 3)
+                {
+                    await updateKeyStats(4);
+                    await updateKeyStats(7);
+
+                    async Task updateKeyStats(int keyCount)
+                    {
+                        string keyCountTableName = $"osu_user_stats_mania_{keyCount}k";
+                        var keyModeStats = db.QueryFirstOrDefault<UserStatsManiaKeyCount>($"SELECT * FROM {keyCountTableName} WHERE `user_id` = @user_id", userStats, transaction);
+
+                        if (keyModeStats != null)
+                        {
+                            double rankScoreBefore = keyModeStats.rank_score;
+                            double accBefore = keyModeStats.accuracy_new;
+
+                            await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, keyCount, db, transaction, updateIndex: false);
+
+                            if (Math.Abs(rankScoreBefore - keyModeStats.rank_score) > 0.1 ||
+                                Math.Abs(accBefore - keyModeStats.accuracy_new) > 0.1)
+                            {
+                                await db.ExecuteAsync(
+                                    $"UPDATE `{keyCountTableName}` "
+                                    + $"SET `rank_score` = @rank_score, `playcount` = @playcount, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
+                                    + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count "
+                                    + $"WHERE `user_id` = @user_id", keyModeStats, transaction);
+                            }
+                        }
+                    }
+                }
 
                 double rankScoreBefore = userStats.rank_score;
                 double accBefore = userStats.accuracy_new;
