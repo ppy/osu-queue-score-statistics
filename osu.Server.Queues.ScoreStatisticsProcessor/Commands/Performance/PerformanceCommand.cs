@@ -76,13 +76,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                 // Mania per-key ranking statistic updates.
                 if (RulesetId == 3)
                 {
-                    var keyModeStats = db.QueryFirstOrDefault<UserStatsManiaKeyCount>("SELECT * FROM `osu_user_stats_mania_4k` WHERE `user_id` = @user_id", userStats, transaction);
-                    if (keyModeStats != null)
-                        await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, 4, db, transaction, updateIndex: false);
+                    await updateKeyStats(4);
+                    await updateKeyStats(7);
 
-                    keyModeStats = db.QueryFirstOrDefault<UserStatsManiaKeyCount>("SELECT * FROM `osu_user_stats_mania_7k` WHERE `user_id` = @user_id", userStats, transaction);
-                    if (keyModeStats != null)
-                        await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, 7, db, transaction, updateIndex: false);
+                    async Task updateKeyStats(int keyCount)
+                    {
+                        string keyCountTableName = $"osu_user_stats_mania_{keyCount}k";
+                        var keyModeStats = db.QueryFirstOrDefault<UserStatsManiaKeyCount>($"SELECT * FROM {keyCountTableName} WHERE `user_id` = @user_id", userStats, transaction);
+
+                        if (keyModeStats != null)
+                        {
+                            await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, keyCount, db, transaction, updateIndex: false);
+                            await db.ExecuteAsync(
+                                $"UPDATE `{keyCountTableName}` "
+                                + $"SET `rank_score` = @rank_score, `playcount` = @playcount, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
+                                + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count "
+                                + $"WHERE `user_id` = @user_id", keyModeStats, transaction);
+                        }
+                    }
                 }
 
                 double rankScoreBefore = userStats.rank_score;
