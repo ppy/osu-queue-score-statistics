@@ -90,7 +90,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
             else
             {
-                conn.Execute($"UPDATE `{keyCountTableName}` SET `playcount` = `playcount` + 1, `last_played` = NOW() WHERE `user_id` = @user_id", keyModeStats, transaction);
+                conn.Execute($"UPDATE `{keyCountTableName}` SET `playcount` = @playcount, `last_played` = NOW() WHERE `user_id` = @user_id", keyModeStats, transaction);
             }
         }
 
