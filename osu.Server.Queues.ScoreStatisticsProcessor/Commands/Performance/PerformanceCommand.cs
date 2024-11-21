@@ -86,12 +86,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
                         if (keyModeStats != null)
                         {
+                            double rankScoreBefore = keyModeStats.rank_score;
+                            double accBefore = keyModeStats.accuracy_new;
+
                             await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, keyCount, db, transaction, updateIndex: false);
-                            await db.ExecuteAsync(
-                                $"UPDATE `{keyCountTableName}` "
-                                + $"SET `rank_score` = @rank_score, `playcount` = @playcount, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
-                                + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count "
-                                + $"WHERE `user_id` = @user_id", keyModeStats, transaction);
+
+                            if (Math.Abs(rankScoreBefore - keyModeStats.rank_score) > 0.1 ||
+                                Math.Abs(accBefore - keyModeStats.accuracy_new) > 0.1)
+                            {
+                                await db.ExecuteAsync(
+                                    $"UPDATE `{keyCountTableName}` "
+                                    + $"SET `rank_score` = @rank_score, `playcount` = @playcount, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
+                                    + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count "
+                                    + $"WHERE `user_id` = @user_id", keyModeStats, transaction);
+                            }
                         }
                     }
                 }
