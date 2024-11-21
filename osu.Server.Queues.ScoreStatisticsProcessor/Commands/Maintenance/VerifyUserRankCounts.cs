@@ -154,7 +154,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
                 }
 
-                await transaction.CommitAsync(cancellationToken);
+                if (DryRun)
+                    await transaction.RollbackAsync(cancellationToken);
+                else
+                    await transaction.CommitAsync(cancellationToken);
             }
         }
     }
