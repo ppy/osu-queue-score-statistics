@@ -47,10 +47,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             var existingRow = conn.QueryFirstOrDefault<UserStatsManiaKeyCount>($"SELECT * FROM `{keyCountTableName}` WHERE `user_id` = @user_id", keyModeStats, transaction);
 
+            keyModeStats = existingRow ?? keyModeStats;
+            keyModeStats.playcount++;
+
             if (score.preserve || existingRow == null)
             {
-                keyModeStats = existingRow ?? keyModeStats;
-
                 updateRankCounts(score, keyModeStats, conn, transaction);
 
                 // TODO: partitioned caching similar to UserTotalPerformanceProcessor.
@@ -117,7 +118,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             await connection.ExecuteAsync(
                 $"UPDATE `{keyCountTableName}` "
-                + $"SET `rank_score` = @rank_score, `playcount` = @playcount + 1, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
+                + $"SET `rank_score` = @rank_score, `playcount` = @playcount, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
                 + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count "
                 + $"WHERE `user_id` = @user_id", keyModeStats, transaction);
         }
