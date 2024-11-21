@@ -85,7 +85,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 conn.Execute(
                     $"UPDATE `{keyCountTableName}` "
                     + $"SET `rank_score` = @rank_score, `playcount` = @playcount, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
-                    + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count "
+                    + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count, `last_played` = NOW()"
                     + $"WHERE `user_id` = @user_id", keyModeStats, transaction);
             }
             else
