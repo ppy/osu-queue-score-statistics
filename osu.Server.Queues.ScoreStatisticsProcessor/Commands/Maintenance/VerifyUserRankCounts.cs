@@ -94,7 +94,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (Verbose)
                     Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
 
-                IEnumerable<SoloScore?> maxScoresByBeatmap = scores.GroupBy(s => s.beatmap_id).Select(g => g.MaxBy(s => s.total_score));
+                IEnumerable<SoloScore?> maxScoresByBeatmap = scores.GroupBy(s => s.beatmap_id)
+                                                                   .Select(g => g.OrderByDescending(s => s.total_score)
+                                                                                 .ThenByDescending(s => s.id)
+                                                                                 .FirstOrDefault());
 
                 foreach (var score in maxScoresByBeatmap)
                 {
