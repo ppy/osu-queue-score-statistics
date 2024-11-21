@@ -72,8 +72,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     + $"FROM `phpbb_users` WHERE `user_id` = @user_id",
                     keyModeStats, transaction);
             }
-
-            keyModeStats.playcount++;
+            else
+            {
+                keyModeStats.playcount++;
+            }
 
             if (score.preserve)
             {
