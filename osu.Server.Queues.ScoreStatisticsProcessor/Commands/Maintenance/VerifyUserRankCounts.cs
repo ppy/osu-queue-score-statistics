@@ -82,7 +82,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     "SELECT * FROM scores WHERE preserve = 1 AND ranked = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
                     parameters, cancellationToken: cancellationToken, transaction: transaction));
 
-                var counts = new Dictionary<ScoreRank, uint>
+                var counts = new Dictionary<ScoreRank, int>
                 {
                     { ScoreRank.A, 0 },
                     { ScoreRank.S, 0 },
@@ -152,6 +152,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         Console.WriteLine($"xh: {userStats.xh_rank_count} ->  {counts[ScoreRank.XH]}");
                         Console.WriteLine();
                     }
+
+                    userStats.a_rank_count = counts[ScoreRank.A];
+                    userStats.s_rank_count = counts[ScoreRank.S];
+                    userStats.sh_rank_count = counts[ScoreRank.SH];
+                    userStats.x_rank_count = counts[ScoreRank.X];
+                    userStats.xh_rank_count = counts[ScoreRank.XH];
 
                     if (!DryRun)
                         await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
