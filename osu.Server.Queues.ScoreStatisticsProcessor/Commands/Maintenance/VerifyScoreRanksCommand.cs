@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,7 +17,6 @@ using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Taiko.Scoring;
 using osu.Game.Scoring;
 using osu.Server.QueueProcessor;
-using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using StringBuilder = System.Text.StringBuilder;
 
@@ -28,7 +26,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
     public class VerifyScoreRanksCommand
     {
         /// <summary>
-        /// The high score ID to start deleting imported high scores from.
+        /// The score ID to start processing from.
         /// </summary>
         [Option(CommandOptionType.SingleValue, Template = "--start-id")]
         public ulong? StartId { get; set; }
@@ -113,10 +111,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     try
                     {
                         var processor = getProcessorForScore(score);
-                        ScoreRank rank = processor
-                            .RankFromScore(score.accuracy, score.ScoreData.Statistics);
+                        ScoreRank rank = processor.RankFromScore(score.accuracy, score.ScoreData.Statistics);
 
-                        var mods = score.ScoreData.Mods.Select(apiMod => apiMod.ToMod(processor.Ruleset));
+                        IEnumerable<Mod> mods = score.ScoreData.Mods.Select(apiMod => apiMod.ToMod(processor.Ruleset));
 
                         foreach (var mod in mods.OfType<IApplicableToScoreProcessor>())
                             rank = mod.AdjustRank(rank, score.accuracy);
@@ -125,16 +122,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         {
                             Interlocked.Increment(ref fail);
                             requiresIndexing = true;
-                            sqlBuffer.Append(
-                                $"UPDATE scores SET `rank` = '{rank.ToString()}' WHERE `id` = {score.id};");
+                            sqlBuffer.Append($"UPDATE scores SET `rank` = '{rank.ToString()}' WHERE `id` = {score.id};");
                         }
                     }
                     finally
                     {
                         if (requiresIndexing)
                         {
-                            elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem
-                                { ScoreId = (long?)score.id });
+                            elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
                         }
                     }
                 }
@@ -230,23 +225,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             }
 
             return true;
-        }
-
-        [SuppressMessage("ReSharper", "InconsistentNaming")]
-        public class ComparableScore
-        {
-            public ulong id;
-            public int ruleset_id;
-            public ulong? legacy_score_id;
-            public long legacy_total_score;
-            public long? total_score;
-            public bool has_replay;
-            public ScoreRank rank;
-            public bool ranked;
-            public float? pp;
-
-            public HighScore? HighScore { get; set; }
-            public ScoreInfo? ReferenceScore { get; set; }
         }
     }
 }
