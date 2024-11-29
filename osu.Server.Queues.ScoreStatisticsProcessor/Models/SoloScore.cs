@@ -36,7 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public bool passed { get; set; } = true;
 
-        public float accuracy { get; set; }
+        public double accuracy { get; set; }
 
         public uint max_combo { get; set; }
 

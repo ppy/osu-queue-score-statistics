@@ -111,15 +111,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     try
                     {
                         var processor = getProcessorForScore(score);
+
+                        // we can't trust the database accuracy due to floating point precision issues.
+                        score.accuracy = computeAccuracy(score.ScoreData, processor);
+
+                        // TODO: use StandardisedScoreMigrationTools.ComputeRank when public.
                         ScoreRank rank = processor.RankFromScore(score.accuracy, score.ScoreData.Statistics);
-
                         IEnumerable<Mod> mods = score.ScoreData.Mods.Select(apiMod => apiMod.ToMod(processor.Ruleset));
-
                         foreach (var mod in mods.OfType<IApplicableToScoreProcessor>())
                             rank = mod.AdjustRank(rank, score.accuracy);
 
-                        if (!check(score.id, "rank", score.rank, rank))
+                        if (!score.rank.Equals(rank))
                         {
+                            if (Verbose)
+                                Console.WriteLine($"{score.id}-{score.ruleset_id}: rank doesn't match ({score.rank} vs {rank})");
+
                             Interlocked.Increment(ref fail);
                             requiresIndexing = true;
                             sqlBuffer.Append($"UPDATE scores SET `rank` = '{rank.ToString()}' WHERE `id` = {score.id};");
@@ -149,6 +155,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             Console.WriteLine($"Finished ({fail} fixed)");
 
             return 0;
+        }
+
+        // TODO: use StandardisedScoreMigrationTools.ComputeAccuracy once it's public.
+        private static double computeAccuracy(SoloScoreData scoreInfo, ScoreProcessor scoreProcessor)
+        {
+            int num1 = scoreInfo.Statistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * scoreProcessor.GetBaseScoreForResult(kvp.Key));
+            int num2 = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * scoreProcessor.GetBaseScoreForResult(kvp.Key));
+            return num2 != 0 ? num1 / (double)num2 : 1.0;
         }
 
         private static readonly Dictionary<int, ScoreProcessor>
@@ -210,21 +224,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 sqlBuffer.Clear();
             }
-        }
-
-        private bool check<T>(ulong scoreId, string name, T imported, T original)
-        {
-            if (imported == null && original == null)
-                return true;
-
-            if (imported?.Equals(original) != true)
-            {
-                if (Verbose)
-                    Console.WriteLine($"{scoreId}: {name} doesn't match ({imported} vs {original})");
-                return false;
-            }
-
-            return true;
         }
     }
 }
