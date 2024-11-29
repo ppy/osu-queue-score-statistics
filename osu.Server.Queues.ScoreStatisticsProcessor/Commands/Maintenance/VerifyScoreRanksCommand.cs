@@ -33,7 +33,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public ulong? StartId { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose",
-            Description = "Output when a score is preserved too.")]
+            Description = "Print all rank discrepancies found to console.")]
         public bool Verbose { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "-q|--quiet", Description = "Reduces output.")]
