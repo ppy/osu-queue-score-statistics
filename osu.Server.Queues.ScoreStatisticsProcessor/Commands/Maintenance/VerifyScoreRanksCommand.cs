@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
+using osu.Game.Database;
 using osu.Game.Rulesets.Catch.Scoring;
 using osu.Game.Rulesets.Mania.Scoring;
 using osu.Game.Rulesets.Mods;
@@ -113,11 +114,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         var processor = getProcessorForScore(score);
 
                         // we can't trust the database accuracy due to floating point precision issues.
-                        score.accuracy = computeAccuracy(score.ScoreData, processor);
+                        score.accuracy = StandardisedScoreMigrationTools.ComputeAccuracy(score.ScoreData.Statistics, score.ScoreData.MaximumStatistics, processor);
 
-                        // TODO: use StandardisedScoreMigrationTools.ComputeRank when public.
                         ScoreRank rank = processor.RankFromScore(score.accuracy, score.ScoreData.Statistics);
-                        IEnumerable<Mod> mods = score.ScoreData.Mods.Select(apiMod => apiMod.ToMod(processor.Ruleset));
+                        var mods = score.ScoreData.Mods.Select(apiMod => apiMod.ToMod(processor.Ruleset)).ToList();
+
+                        StandardisedScoreMigrationTools.ComputeRank(score.accuracy, score.ScoreData.Statistics, mods, processor);
+
                         foreach (var mod in mods.OfType<IApplicableToScoreProcessor>())
                             rank = mod.AdjustRank(rank, score.accuracy);
 
@@ -155,14 +158,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             Console.WriteLine($"Finished ({fail} fixed)");
 
             return 0;
-        }
-
-        // TODO: use StandardisedScoreMigrationTools.ComputeAccuracy once it's public.
-        private static double computeAccuracy(SoloScoreData scoreInfo, ScoreProcessor scoreProcessor)
-        {
-            int num1 = scoreInfo.Statistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * scoreProcessor.GetBaseScoreForResult(kvp.Key));
-            int num2 = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsAccuracy()).Sum(kvp => kvp.Value * scoreProcessor.GetBaseScoreForResult(kvp.Key));
-            return num2 != 0 ? num1 / (double)num2 : 1.0;
         }
 
         private static readonly Dictionary<int, ScoreProcessor>
