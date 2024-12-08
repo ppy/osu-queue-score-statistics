@@ -38,7 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private const int beatmap_difficulty_attribute_size = 24;
 
         /// <summary>
-        /// The rough size of <see cref="DifficultyAttributes"/> base class in bytes.
+        /// The rough size of <see cref="IDifficultyAttributes"/> base class in bytes.
         /// </summary>
         private const int difficulty_attribute_size = 24;
 
@@ -107,7 +107,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
         /// <exception cref="DifficultyAttributesMissingException">If the difficulty attributes don't exist in the database.</exception>
         /// <exception cref="Exception">If realtime difficulty attributes couldn't be computed.</exception>
-        public async Task<DifficultyAttributes> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
+        public async Task<IDifficultyAttributes> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             if (use_realtime_difficulty_calculation)
             {
@@ -144,7 +144,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                     cacheEntry.SetSize(difficulty_attribute_size + beatmap_difficulty_attribute_size * dbAttributes.Length);
                     cacheEntry.SetSlidingExpiration(memory_cache_sliding_expiration);
 
-                    DifficultyAttributes attributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
+                    IDifficultyAttributes attributes = LegacyRulesetHelper.CreateDifficultyAttributes(ruleset.RulesetInfo.OnlineID);
                     attributes.FromDatabaseAttributes(dbAttributes.ToDictionary(a => (int)a.attrib_id, a => (double)a.value), beatmap);
                     return attributes;
                 }

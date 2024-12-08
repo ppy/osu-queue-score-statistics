@@ -961,11 +961,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 {
                     AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, setup: attr =>
                     {
-                        attr.Mods = ModUtils.FlattenMod(combination).ToArray();
                         attr.AimDifficulty = 3;
                         attr.SpeedDifficulty = 3;
                         attr.OverallDifficulty = 3;
-                    });
+                    }, mods: ModUtils.FlattenMod(combination).ToArray());
                 }
             }
         }
