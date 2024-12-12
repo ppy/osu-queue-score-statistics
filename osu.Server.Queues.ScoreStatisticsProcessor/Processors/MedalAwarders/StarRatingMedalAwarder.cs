@@ -18,6 +18,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     {
         public bool RunOnFailedScores => false;
 
+        public bool RunOnLegacyScores => false; // Legacy scores are handled by web-10.
+
         public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
             return checkAsync(medals, context).ToBlockingEnumerable();
