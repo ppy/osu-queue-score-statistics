@@ -19,6 +19,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         bool RunOnFailedScores { get; }
 
         /// <summary>
+        /// Whether this awarder should be run on legacy (stable) scores.
+        /// </summary>
+        bool RunOnLegacyScores { get; }
+
+        /// <summary>
         /// For a given score and collection of valid medals, check which should be awarded (if any).
         /// </summary>
         /// <param name="medals">All medals available for potential awarding.</param>

@@ -15,6 +15,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     {
         public bool RunOnFailedScores => false;
 
+        public bool RunOnLegacyScores => false; // Legacy scores are handled by web-10.
+
         public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
             // Do a global check to see if this beatmapset is contained in *any* pack.

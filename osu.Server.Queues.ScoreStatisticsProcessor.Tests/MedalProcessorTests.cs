@@ -103,6 +103,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         /// <summary>
+        /// The pack awarder should skip scores that are set on stable.
+        /// </summary>
+        /// <remarks>
+        /// This applies to most other awarders and is really just a representative to check that the flag is working fine.
+        /// At some point all awarders will probably switched on and web-10 medal logic will be decommissioned.
+        /// </remarks>
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestDoesNotAwardOnLegacyScores(int medalId, int packId)
+        {
+            var beatmap = AddBeatmap();
+
+            AddPackMedal(medalId, packId, new[] { beatmap });
+
+            AssertNoMedalsAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.passed = s.Score.preserve = true;
+                s.Score.legacy_score_id = 1234;
+                s.Score.build_id = TestBuildID;
+            });
+
+            AssertNoMedalsAwarded();
+        }
+
+        /// <summary>
         /// The pack awarder should skip scores that are failed.
         /// </summary>
         [Theory]

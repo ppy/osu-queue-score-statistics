@@ -46,7 +46,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnFailedScores => true; // This is handled by each awarder.
 
-        public bool RunOnLegacyScores => false;
+        public bool RunOnLegacyScores => true; // This is handled by each awarder.
 
         // This processor needs to run after the play count and hit statistics have been applied, at very least.
         public int Order => int.MaxValue;
@@ -76,6 +76,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             foreach (var awarder in medal_awarders)
             {
                 if (!score.passed && !awarder.RunOnFailedScores)
+                    continue;
+
+                if (score.is_legacy_score && !awarder.RunOnLegacyScores)
                     continue;
 
                 foreach (var awardedMedal in awarder.Check(availableMedalsForUser, context))
