@@ -23,7 +23,7 @@ using StringBuilder = System.Text.StringBuilder;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
-    [Command("verify-score-ranks", Description = "Verifies rank values for all scores")]
+    [Command("verify-score-ranks", Description = "Verifies rank values for all non-imported scores")]
     public class VerifyScoreRanksCommand
     {
         /// <summary>
