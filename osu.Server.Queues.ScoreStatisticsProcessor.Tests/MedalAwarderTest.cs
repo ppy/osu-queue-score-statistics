@@ -27,6 +27,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 db.Execute("TRUNCATE TABLE osu_beatmappacks");
                 db.Execute("TRUNCATE TABLE osu_beatmappacks_items");
+
+                db.Execute("TRUNCATE TABLE daily_challenge_user_stats");
             }
         }
 
