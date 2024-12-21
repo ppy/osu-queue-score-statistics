@@ -12,12 +12,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     /// </summary>
     /// <param name="Score">The score to check for medals.</param>
     /// <param name="UserStats">The calculated user statistics after <see cref="Score"/>.</param>
+    /// <param name="DailyChallengeUserStats">The user's daily challenge stats after <see cref="Score"/>.</param>
     /// <param name="BeatmapStore">Allows retrieval of <see cref="Beatmap"/>s from database.</param>
     /// <param name="Connection">MySQL connection for manual retrieval from database.</param>
     /// <param name="Transaction">MySQL transaction for manual retrieval from database.</param>
     public record MedalAwarderContext(
         SoloScore Score,
         UserStats UserStats,
+        DailyChallengeUserStats DailyChallengeUserStats,
         BeatmapStore BeatmapStore,
         MySqlConnection Connection,
         MySqlTransaction Transaction);

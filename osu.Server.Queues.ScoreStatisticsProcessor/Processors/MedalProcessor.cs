@@ -70,8 +70,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                                          .Where(m => !alreadyAchieved.Contains(m.achievement_id))
                                          .ToArray();
 
+            var dailyChallengeUserStats = conn.QuerySingleOrDefault<DailyChallengeUserStats>(
+                @"SELECT * FROM `daily_challenge_user_stats` WHERE `user_id` = @user_id",
+                new
+                {
+                    user_id = userStats.user_id
+                },
+                transaction) ?? new DailyChallengeUserStats();
+
             var beatmapStore = BeatmapStore.CreateAsync(conn, transaction).Result;
-            var context = new MedalAwarderContext(score, userStats, beatmapStore, conn, transaction);
+            var context = new MedalAwarderContext(score, userStats, dailyChallengeUserStats, beatmapStore, conn, transaction);
 
             foreach (var awarder in medal_awarders)
             {
