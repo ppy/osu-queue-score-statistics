@@ -38,7 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void MedalAwardedOnDailyChallengeIfLongestHistoricalStreakAtLeastThirtyDays()
         {
             using (var db = Processor.GetDatabaseConnection())
-                db.Execute($"INSERT INTO `daily_challenge_user_stats` (`user_id`, `daily_streak_best`) VALUES (2, 30)");
+                db.Execute("INSERT INTO `daily_challenge_user_stats` (`user_id`, `daily_streak_best`) VALUES (2, 30)");
 
             ulong roomId = CreateMultiplayerRoom("daily challenge", "playlists", "daily_challenge");
             ulong playlistItemId = CreatePlaylistItem(beatmap, roomId);
