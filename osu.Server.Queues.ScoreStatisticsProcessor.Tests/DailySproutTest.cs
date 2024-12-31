@@ -30,6 +30,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             using (var db = Processor.GetDatabaseConnection())
                 db.Execute("INSERT INTO `daily_challenge_user_stats` (`user_id`, `daily_streak_best`) VALUES (2, 1)");
 
+            ulong otherRoomId = CreateMultiplayerRoom("not daily challenge", "head_to_head");
+            ulong otherPlaylistItemId = CreatePlaylistItem(beatmap, otherRoomId);
+            SetMultiplayerScoreForBeatmap(beatmap.beatmap_id, otherPlaylistItemId);
+            AssertNoMedalsAwarded();
+
             ulong roomId = CreateMultiplayerRoom("daily challenge", "playlists", "daily_challenge");
             ulong playlistItemId = CreatePlaylistItem(beatmap, roomId);
 
