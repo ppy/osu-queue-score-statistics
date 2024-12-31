@@ -101,5 +101,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
             return completed >= countForPack;
         }
+
+        public static bool IsDailyChallengeScore(MedalAwarderContext context)
+        {
+            return context.Connection.QuerySingleOrDefault<string?>(
+                """
+                SELECT `multiplayer_rooms`.`category` FROM `scores`
+                JOIN `multiplayer_score_links` ON `multiplayer_score_links`.`score_id` = `scores`.`id`
+                JOIN `multiplayer_playlist_items` ON `multiplayer_playlist_items`.`id` = `multiplayer_score_links`.`playlist_item_id`
+                JOIN `multiplayer_rooms` ON `multiplayer_rooms`.`id` = `multiplayer_playlist_items`.`room_id`
+                """,
+                transaction: context.Transaction) == "daily_challenge";
+        }
     }
 }

@@ -21,21 +21,39 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [InlineData(0)]
         [InlineData(9)]
         [InlineData(26)]
-        public void MedalNotAwardedIfNotEnoughDailyChallengesOnRecord(int dailyChallengeCount)
+        public void MedalNotAwardedIfNotEnoughDailyChallengesOnRecord(int bestStreak)
         {
             using (var db = Processor.GetDatabaseConnection())
-                db.Execute($"INSERT INTO `daily_challenge_user_stats` (`user_id`, `daily_streak_best`) VALUES (2, {dailyChallengeCount})");
+                db.Execute($"INSERT INTO `daily_challenge_user_stats` (`user_id`, `daily_streak_best`) VALUES (2, {bestStreak})");
+
+            ulong roomId = CreateMultiplayerRoom("daily challenge", "playlists", "daily_challenge");
+            ulong playlistItemId = CreatePlaylistItem(beatmap, roomId);
+
+            SetMultiplayerScoreForBeatmap(beatmap.beatmap_id, playlistItemId);
             SetScoreForBeatmap(beatmap.beatmap_id);
             AssertNoMedalsAwarded();
         }
 
         [Fact]
-        public void MedalAwardedIfAtLeastThirtyDailyChallengesOnRecord()
+        public void MedalAwardedOnDailyChallengeIfLongestHistoricalStreakAtLeastThirtyDays()
         {
             using (var db = Processor.GetDatabaseConnection())
                 db.Execute("INSERT INTO `daily_challenge_user_stats` (`user_id`, `daily_streak_best`) VALUES (2, 30)");
-            SetScoreForBeatmap(beatmap.beatmap_id);
+
+            ulong roomId = CreateMultiplayerRoom("daily challenge", "playlists", "daily_challenge");
+            ulong playlistItemId = CreatePlaylistItem(beatmap, roomId);
+
+            SetMultiplayerScoreForBeatmap(beatmap.beatmap_id, playlistItemId);
             AssertSingleMedalAwarded(338);
+        }
+
+        [Fact]
+        public void MedalNotAwardedOutsideOfDailyChallengeEvenWithLongEnoughHistoricalBestStreak()
+        {
+            using (var db = Processor.GetDatabaseConnection())
+                db.Execute("INSERT INTO `daily_challenge_user_stats` (`user_id`, `daily_streak_best`) VALUES (2, 33)");
+            SetScoreForBeatmap(beatmap.beatmap_id);
+            AssertNoMedalsAwarded();
         }
     }
 }

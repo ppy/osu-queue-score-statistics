@@ -1,10 +1,12 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Dapper;
+using MySqlConnector;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 using Xunit;
@@ -29,6 +31,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_beatmappacks_items");
 
                 db.Execute("TRUNCATE TABLE daily_challenge_user_stats");
+
+                db.Execute("TRUNCATE TABLE multiplayer_score_links");
+                db.Execute("TRUNCATE TABLE multiplayer_playlist_items");
+                db.Execute("TRUNCATE TABLE multiplayer_rooms");
             }
         }
 
@@ -86,6 +92,54 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             using (var db = Processor.GetDatabaseConnection())
             {
                 db.Execute($"INSERT INTO osu_user_achievements (achievement_id, user_id, beatmap_id) VALUES ({awarded.Medal.achievement_id}, {awarded.Score.user_id}, {awarded.Score.beatmap_id})");
+            }
+        }
+
+        protected ulong CreateMultiplayerRoom(string roomName, string roomType, string roomCategory = "normal")
+        {
+            using var conn = Processor.GetDatabaseConnection();
+            return conn.QuerySingle<ulong>(
+                "INSERT INTO `multiplayer_rooms` (`name`, `type`, `category`) VALUES (@name, @type, @category); SELECT LAST_INSERT_ID();",
+                new
+                {
+                    name = roomName,
+                    type = roomType,
+                    category = roomCategory,
+                });
+        }
+
+        protected ulong CreatePlaylistItem(Beatmap beatmap, ulong roomId)
+        {
+            using var conn = Processor.GetDatabaseConnection();
+            return conn.QuerySingle<ulong>(
+                "INSERT INTO `multiplayer_playlist_items` (`room_id`, `owner_id`, `beatmap_id`, `ruleset_id`) VALUES (@room_id, 1, @beatmap_id, @ruleset_id); SELECT LAST_INSERT_ID();",
+                new
+                {
+                    beatmap_id = beatmap.beatmap_id,
+                    ruleset_id = beatmap.playmode,
+                    room_id = roomId,
+                });
+        }
+
+        protected ScoreItem SetMultiplayerScoreForBeatmap(uint beatmapId, ulong playlistItemId, Action<ScoreItem>? scoreSetup = null)
+        {
+            using (MySqlConnection conn = Processor.GetDatabaseConnection())
+            {
+                var score = CreateTestScore(beatmapId: beatmapId);
+
+                scoreSetup?.Invoke(score);
+
+                InsertScore(conn, score);
+                conn.Execute("INSERT INTO `multiplayer_score_links` (`user_id`, `playlist_item_id`, `score_id`) VALUES (@user_id, @playlist_item_id, @score_id)",
+                    new
+                    {
+                        user_id = score.Score.user_id,
+                        playlist_item_id = playlistItemId,
+                        score_id = score.Score.id,
+                    });
+                PushToQueueAndWaitForProcess(score);
+
+                return score;
             }
         }
 
