@@ -110,7 +110,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 JOIN `multiplayer_score_links` ON `multiplayer_score_links`.`score_id` = `scores`.`id`
                 JOIN `multiplayer_playlist_items` ON `multiplayer_playlist_items`.`id` = `multiplayer_score_links`.`playlist_item_id`
                 JOIN `multiplayer_rooms` ON `multiplayer_rooms`.`id` = `multiplayer_playlist_items`.`room_id`
+                WHERE `scores`.`id` = @score_id
                 """,
+                new
+                {
+                    score_id = context.Score.id,
+                },
                 transaction: context.Transaction) == "daily_challenge";
         }
     }
