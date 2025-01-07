@@ -103,15 +103,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         /// <summary>
-        /// The pack awarder should skip scores that are set on stable.
+        /// The pack awarder should not skip scores that are set on stable.
         /// </summary>
-        /// <remarks>
-        /// This applies to most other awarders and is really just a representative to check that the flag is working fine.
-        /// At some point all awarders will probably switched on and web-10 medal logic will be decommissioned.
-        /// </remarks>
         [Theory]
         [MemberData(nameof(MEDAL_PACK_IDS))]
-        public void TestDoesNotAwardOnLegacyScores(int medalId, int packId)
+        public void TestPackMedalsAwardedOnLegacyScores(int medalId, int packId)
         {
             var beatmap = AddBeatmap();
 
@@ -125,7 +121,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.build_id = TestBuildID;
             });
 
-            AssertNoMedalsAwarded();
+            AssertSingleMedalAwarded(medalId);
         }
 
         /// <summary>
@@ -902,6 +898,54 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             // After we pass the map again, key count reaches 40000, the medal should be awarded.
             AssertSingleMedalAwarded(medal_id);
+        }
+
+        /// <summary>
+        /// This tests the hit statistic-based medals are not awarded for stable scores.
+        /// </summary>
+        /// <remarks>
+        /// This applies to most other awarders and is really just a representative to check that the flag is working fine.
+        /// At some point all awarders will probably switched on and web-10 medal logic will be decommissioned.
+        /// </remarks>
+        [Fact]
+        public void TestHitStatisticMedalNotAwardedOnStableScores()
+        {
+            const int medal_id = 46;
+
+            var beatmap = AddBeatmap();
+
+            AddMedal(medal_id);
+
+            // Set up user stats with 39998 mania key presses
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                UserStatsMania stats = new UserStatsMania
+                {
+                    user_id = 2,
+                    count300 = 39998
+                };
+                db.Insert(stats);
+            }
+
+            AssertNoMedalsAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.ScoreData.Statistics = new Dictionary<HitResult, int> { { HitResult.Perfect, 1 } };
+                s.Score.ruleset_id = 3;
+            });
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats_mania WHERE user_id = 2", 39999, CancellationToken);
+
+            // After passing the beatmap for the first time we only reach 39999 key count,
+            // the medal shouldn't be awarded.
+            AssertNoMedalsAwarded();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.ScoreData.Statistics = new Dictionary<HitResult, int> { { HitResult.Perfect, 1 } };
+                s.Score.ruleset_id = 3;
+                s.Score.legacy_score_id = 123123;
+            });
+            AssertNoMedalsAwarded();
         }
 
         [Fact]
