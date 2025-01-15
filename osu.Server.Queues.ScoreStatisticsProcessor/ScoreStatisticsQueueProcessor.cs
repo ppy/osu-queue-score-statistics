@@ -239,8 +239,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                     foreach (var p in enumerateValidProcessors(score))
                         p.ApplyGlobal(score, conn);
 
-                    if (!score.preserve)
-                        Console.WriteLine($"Score {score.id} was processed but not preserved");
+                    if (score.passed && !score.preserve)
+                        Console.WriteLine($"Passed score {score.id} was processed but not preserved");
                 }
 
                 elasticQueueProcessor.PushToQueue(new ElasticQueuePusher.ElasticScoreItem
