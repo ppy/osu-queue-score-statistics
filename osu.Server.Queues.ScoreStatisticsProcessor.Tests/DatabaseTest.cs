@@ -167,7 +167,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 max_combo = MAX_COMBO,
                 total_score = 100000,
                 rank = ScoreRank.S,
-                passed = true
+                passed = true,
+                preserve = true,
             };
 
             var scoreData = new SoloScoreData
