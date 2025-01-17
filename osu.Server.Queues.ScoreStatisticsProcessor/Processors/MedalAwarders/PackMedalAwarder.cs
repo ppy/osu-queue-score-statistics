@@ -448,6 +448,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 case 335:
                     return checkPack(3145);
 
+                // Project Loved: Best of 2024
+                case 350:
+                    return checkPack(3585) || checkPack(3586) || checkPack(3587) || checkPack(3588);
+
                 default:
                     return false;
             }
