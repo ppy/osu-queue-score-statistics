@@ -11,6 +11,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Command(Name = "queue", Description = "Perform various operations on the processing queue.")]
     [Subcommand(typeof(PumpTestDataCommand))]
     [Subcommand(typeof(PumpAllScoresCommand))]
+    [Subcommand(typeof(ProcessScoreCommand))]
     [Subcommand(typeof(ClearQueueCommand))]
     [Subcommand(typeof(WatchQueueCommand))]
     [Subcommand(typeof(ImportHighScoresCommand))]
