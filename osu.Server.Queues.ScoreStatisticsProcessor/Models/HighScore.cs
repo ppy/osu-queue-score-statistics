@@ -3,8 +3,9 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [Serializable]

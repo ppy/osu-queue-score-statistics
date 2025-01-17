@@ -22,10 +22,9 @@ using osu.Game.Rulesets.Scoring.Legacy;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Server.QueueProcessor;
-using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     /// <summary>
     /// Handles one batch insertion of <see cref="HighScore"/>s. Can be used to parallelize work.

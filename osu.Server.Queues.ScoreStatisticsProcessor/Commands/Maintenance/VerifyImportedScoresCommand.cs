@@ -14,7 +14,6 @@ using MySqlConnector;
 using Newtonsoft.Json;
 using osu.Game.Scoring;
 using osu.Server.QueueProcessor;
-using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using StringBuilder = System.Text.StringBuilder;

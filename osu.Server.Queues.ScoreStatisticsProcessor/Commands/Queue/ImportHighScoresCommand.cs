@@ -12,6 +12,7 @@ using McMaster.Extensions.CommandLineUtils;
 using osu.Game.Rulesets;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 {
