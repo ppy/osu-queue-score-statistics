@@ -154,7 +154,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             return instances.OrderBy(processor => processor.Order).ToList();
         }
 
-        protected override void ProcessResult(ScoreItem item)
+        /// <summary>
+        /// Process the provided score item.
+        /// </summary>
+        /// <param name="item">The score to process.</param>
+        /// <param name="force">Whether to process regardless of whether the attached process history implies it is already processed up-to-date.</param>
+        public void ProcessScore(ScoreItem item, bool force) => processScore(item, force);
+
+        protected override void ProcessResult(ScoreItem item) => processScore(item, false);
+
+        private void processScore(ScoreItem item, bool force = false)
         {
             var stopwatch = new Stopwatch();
             var tags = new List<string>();
@@ -175,7 +184,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 if (item.Score.legacy_score_id != null)
                     tags.Add("type:legacy");
 
-                if (item.ProcessHistory?.processed_version == VERSION)
+                if (item.ProcessHistory?.processed_version == VERSION && !force)
                 {
                     tags.Add("type:skipped");
                     return;
