@@ -165,20 +165,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                 if (score.is_legacy_score && write_legacy_score_pp)
                 {
+                    score.pp = performanceAttributes.Total;
+
                     var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
                     await connection.ExecuteAsync($"UPDATE scores SET pp = @Pp WHERE id = @ScoreId; UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
                     {
                         ScoreId = score.id,
                         LegacyScoreId = score.legacy_score_id,
-                        Pp = performanceAttributes.Total,
+                        Pp = score.pp
                     }, transaction: transaction);
                 }
                 else
                 {
+                    score.pp = performanceAttributes.Total;
+
                     await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
                     {
                         ScoreId = score.id,
-                        Pp = performanceAttributes.Total
+                        Pp = score.pp,
                     }, transaction: transaction);
                 }
 
