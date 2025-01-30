@@ -154,8 +154,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 if (check_client_version && score.legacy_score_id == null && (score.build_id == null || buildStore.GetBuild(score.build_id.Value)?.allow_performance != true))
                     return false;
 
-                DifficultyAttributes difficultyAttributes = await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
-                PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(score.ToScoreInfo(), difficultyAttributes);
+                IDifficultyAttributes difficultyAttributes = await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
+                IPerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(score.ToScoreInfo(), difficultyAttributes);
 
                 if (performanceAttributes == null)
                     return false;
