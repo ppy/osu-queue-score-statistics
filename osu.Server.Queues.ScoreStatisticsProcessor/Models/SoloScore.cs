@@ -87,7 +87,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
             var beatmapInfo = new LightweightBeatmapInfo
             {
                 OnlineID = (int)beatmap_id,
-                Ruleset = new RulesetInfo { OnlineID = beatmap!.playmode }
+                Ruleset = new RulesetInfo { OnlineID = beatmap!.playmode },
+                Difficulty = new BeatmapDifficulty(beatmap.GetLegacyBeatmapConversionDifficultyInfo())
             };
 
             return new LightweightScoreInfo
