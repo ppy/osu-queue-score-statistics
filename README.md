@@ -103,19 +103,19 @@ Defaults to `localhost`.
 
 Enables DataDog origin detection when running in a container. See [DataDog documentation](https://docs.datadoghq.com/developers/dogstatsd/?tab=kubernetes&code-lang=dotnet#origin-detection-over-udp).
 
-### LEGACY_IO_DOMAIN
+### SHARED_INTEROP_DOMAIN
 
-Root domain to which LegacyIO requests should be directed.
+Root domain to which shared interop requests should be directed.
 
-- In Debug configuration, this parameter is not required; when missing, all LIO requests are no-ops.
-- In Release configuration, this parameter is required; all LIO requests will hard-fail with an exception if missing.
+- In Debug configuration, this parameter is not required; when missing, all requests are no-ops.
+- In Release configuration, this parameter is required; all requests will hard-fail with an exception if missing.
 
 ### SHARED_INTEROP_SECRET
 
-Secret key used to sign LegacyIO requests to osu-web. Required to award medals.
+Secret key used to sign shared interop requests to osu-web. Required to award medals.
 
-- In Debug configuration, this parameter is not required; when missing, all LIO requests are no-ops.
-- In Release configuration, this parameter is required; all LIO requests will hard-fail with an exception if missing.
+- In Debug configuration, this parameter is not required; when missing, all requests are no-ops.
+- In Release configuration, this parameter is required; all requests will hard-fail with an exception if missing.
 
 ### PROCESS_USER_MEDALS
 

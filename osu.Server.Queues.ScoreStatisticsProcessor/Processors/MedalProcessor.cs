@@ -103,9 +103,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private void awardMedal(SoloScore score, Medal medal)
         {
-            // Perform LIO request to award the medal.
             Console.WriteLine($"Awarding medal {medal.name} to user {score.user_id} (score {score.id})");
-            LegacyDatabaseHelper.RunLegacyIO($"user-achievement/{score.user_id}/{medal.achievement_id}/{score.beatmap_id}", "POST");
+            LegacyDatabaseHelper.RunSharedInteropCommand($"user-achievement/{score.user_id}/{medal.achievement_id}/{score.beatmap_id}", "POST");
             MedalAwarded?.Invoke(new AwardedMedal(medal, score));
         }
 
