@@ -112,7 +112,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                 // Reindex beatmap occasionally.
                 if (RNG.Next(0, 10) == 0)
-                    LegacyDatabaseHelper.RunLegacyIO("indexing/bulk", "POST", new { beatmapset = new[] { score.beatmap.beatmapset_id } });
+                    LegacyDatabaseHelper.RunSharedInteropCommand("indexing/bulk", "POST", new { beatmapset = new[] { score.beatmap.beatmapset_id } });
 
                 // TODO: announce playcount milestones
                 // const int notify_amount = 1000000;
