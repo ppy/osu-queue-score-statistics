@@ -1034,7 +1034,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                         attr.Mods = ModUtils.FlattenMod(combination).ToArray();
                         attr.AimDifficulty = 3;
                         attr.SpeedDifficulty = 3;
-                        attr.OverallDifficulty = 3;
                     });
                 }
             }
