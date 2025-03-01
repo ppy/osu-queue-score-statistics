@@ -338,7 +338,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
 #pragma warning restore CS0618
 
-            var difficulty = getDificultyInfo(highScore.beatmap_id);
+            var difficulty = getDifficultyInfo(highScore.beatmap_id);
 
             StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, rulesetCache.Ruleset, difficulty, scoreAttributes.ToAttributes());
 
@@ -369,7 +369,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         private static readonly ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo> difficulty_info_cache =
             new ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo>();
 
-        private static LegacyBeatmapConversionDifficultyInfo getDificultyInfo(int beatmapId)
+        private static LegacyBeatmapConversionDifficultyInfo getDifficultyInfo(int beatmapId)
         {
             if (difficulty_info_cache.TryGetValue(beatmapId, out var existing))
                 return existing;
