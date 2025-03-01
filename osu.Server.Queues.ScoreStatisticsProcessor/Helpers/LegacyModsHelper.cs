@@ -20,10 +20,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             switch (rulesetId)
             {
                 case 0:
-                    if ((mods & LegacyMods.Flashlight) > 0)
-                        relevantMods |= LegacyMods.Flashlight | LegacyMods.Hidden | LegacyMods.TouchDevice;
-                    else
-                        relevantMods |= LegacyMods.Flashlight | LegacyMods.TouchDevice;
+                    relevantMods |= LegacyMods.Flashlight | LegacyMods.TouchDevice | LegacyMods.Hidden | LegacyMods.SpunOut;
                     break;
 
                 case 3:
