@@ -23,6 +23,7 @@ using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using BeatmapStore = osu.Server.Queues.ScoreStatisticsProcessor.Stores.BeatmapStore;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
@@ -397,7 +398,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             {
                 IEnumerable<BeatmapDifficultyAttribute> dbAttributes =
                     connection.Query<BeatmapDifficultyAttribute>(
-                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
+                        $"SELECT * FROM {BeatmapStore.DIFF_ATTRIB_DATABASE}.osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
 
                 return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
             }

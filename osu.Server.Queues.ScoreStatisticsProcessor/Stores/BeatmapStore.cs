@@ -27,6 +27,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     /// </summary>
     public class BeatmapStore
     {
+        public static readonly string? DIFF_ATTRIB_DATABASE = Environment.GetEnvironmentVariable("DB_NAME_DIFFICULTY") ?? Environment.GetEnvironmentVariable("DB_NAME") ?? "osu";
+
         private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
         private static readonly uint memory_cache_size_limit = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SIZE_LIMIT") ?? "128000000");
@@ -133,7 +135,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 try
                 {
                     BeatmapDifficultyAttribute[] dbAttributes = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
-                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
+                        $"SELECT * FROM {DIFF_ATTRIB_DATABASE}.osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
                         {
                             key.BeatmapId,
                             key.RulesetId,
