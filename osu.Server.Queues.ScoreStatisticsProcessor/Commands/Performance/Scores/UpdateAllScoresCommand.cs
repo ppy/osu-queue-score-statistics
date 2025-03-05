@@ -17,7 +17,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
-    [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
+    [Command(Name = "all", Description = "Computes pp of all scores from all users. Note that this doesn't update the ES index.")]
     public class UpdateAllScoresCommand : PerformanceCommand
     {
         [Option(Description = "The size of each batch, which is then distributed to threads.")]
