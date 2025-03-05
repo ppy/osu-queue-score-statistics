@@ -30,9 +30,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
         [Option(Description = "Number of threads to use.")]
         public int Threads { get; set; } = 1;
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output verbose information on processing.")]
+        public bool Verbose { get; set; }
+
         public virtual async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            ScoreProcessor = new ScorePerformanceProcessor();
+            ScoreProcessor = new ScorePerformanceProcessor { Verbose = Verbose };
             TotalProcessor = new UserTotalPerformanceProcessor();
             ManiaKeyModeProcessor = new ManiaKeyModeUserStatsProcessor();
             return await ExecuteAsync(cancellationToken);

@@ -37,6 +37,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => true;
 
+        public bool Verbose { get; set; }
+
         private static readonly bool write_legacy_score_pp = Environment.GetEnvironmentVariable("WRITE_LEGACY_SCORE_PP") != "0";
 
         private static readonly bool refresh_stores_periodically = Environment.GetEnvironmentVariable("REFRESH_STORES_PERIODICALLY") != "0";
@@ -165,6 +167,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                 if (score.is_legacy_score && write_legacy_score_pp)
                 {
+                    if (Verbose) Console.WriteLine($"{score.id.ToString(),-12}: {score.pp ?? -1,-4:N2} -> {performanceAttributes.Total,-4:N2} ({performanceAttributes.Total - (score.pp ?? 0),-5:+#,0.00;-#,0.00;+#,0.00}) LEGACY");
                     score.pp = performanceAttributes.Total;
 
                     var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
@@ -177,6 +180,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 }
                 else
                 {
+                    if (Verbose) Console.WriteLine($"{score.id.ToString(),-12}: {score.pp ?? -1,-4:N2} -> {performanceAttributes.Total,-4:N2} ({performanceAttributes.Total - (score.pp ?? 0),-5:+#,0.00;-#,0.00;+#,0.00})");
                     score.pp = performanceAttributes.Total;
 
                     await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
