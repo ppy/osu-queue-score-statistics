@@ -134,69 +134,65 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 lastStoreRefresh = currentTimestamp;
             }
 
-            try
-            {
-                score.beatmap ??= (await BeatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction));
+            score.beatmap ??= (await BeatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction));
 
-                if (score.beatmap is not Beatmap beatmap)
-                    return false;
-
-                // TODO: will fail for newly ranked beatmaps for up to one minute (beatmap store purge).
-                if (!BeatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
-                    return false;
-
-                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
-                Mod[] mods = score.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray();
-
-                if (!AllModsValidForPerformance(score, mods))
-                    return false;
-
-                // Performance needs to be allowed for the build.
-                // legacy scores don't need a build id
-                if (check_client_version && score.legacy_score_id == null && (score.build_id == null || buildStore.GetBuild(score.build_id.Value)?.allow_performance != true))
-                    return false;
-
-                DifficultyAttributes difficultyAttributes = await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
-                PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(score.ToScoreInfo(), difficultyAttributes);
-
-                if (performanceAttributes == null)
-                    return false;
-
-                if (score.pp != null && Math.Abs(score.pp.Value - performanceAttributes.Total) < 0.1)
-                    return false;
-
-                if (score.is_legacy_score && write_legacy_score_pp)
-                {
-                    if (Verbose) Console.WriteLine($"{score.id.ToString(),-12}: {score.pp ?? -1,-4:N2} -> {performanceAttributes.Total,-4:N2} ({performanceAttributes.Total - (score.pp ?? 0),-5:+#,0.00;-#,0.00;+#,0.00}) LEGACY");
-                    score.pp = performanceAttributes.Total;
-
-                    var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
-                    await connection.ExecuteAsync($"UPDATE scores SET pp = @Pp WHERE id = @ScoreId; UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
-                    {
-                        ScoreId = score.id,
-                        LegacyScoreId = score.legacy_score_id,
-                        Pp = score.pp
-                    }, transaction: transaction);
-                }
-                else
-                {
-                    if (Verbose) Console.WriteLine($"{score.id.ToString(),-12}: {score.pp ?? -1,-4:N2} -> {performanceAttributes.Total,-4:N2} ({performanceAttributes.Total - (score.pp ?? 0),-5:+#,0.00;-#,0.00;+#,0.00})");
-                    score.pp = performanceAttributes.Total;
-
-                    await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
-                    {
-                        ScoreId = score.id,
-                        Pp = score.pp,
-                    }, transaction: transaction);
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
+            if (score.beatmap is not Beatmap beatmap)
                 return false;
+
+            // TODO: will fail for newly ranked beatmaps for up to one minute (beatmap store purge).
+            if (!BeatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
+                return false;
+
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
+            Mod[] mods = score.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray();
+
+            if (!AllModsValidForPerformance(score, mods))
+                return false;
+
+            // Performance needs to be allowed for the build.
+            // legacy scores don't need a build id
+            if (check_client_version && score.legacy_score_id == null && (score.build_id == null || buildStore.GetBuild(score.build_id.Value)?.allow_performance != true))
+                return false;
+
+            DifficultyAttributes difficultyAttributes = await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
+            PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(score.ToScoreInfo(), difficultyAttributes);
+
+            if (performanceAttributes == null)
+                return false;
+
+            if (score.pp != null && Math.Abs(score.pp.Value - performanceAttributes.Total) < 0.1)
+                return false;
+
+            if (Verbose)
+            {
+                Console.WriteLine(
+                    $"{score.id.ToString(),-12}: {score.pp ?? -1,-4:N2} -> {performanceAttributes.Total,-4:N2} "
+                    + $"({performanceAttributes.Total - (score.pp ?? 0),-5:+#,0.00;-#,0.00;+#,0.00})"
+                    + (score.is_legacy_score ? " LEGACY" : string.Empty));
             }
+
+            score.pp = performanceAttributes.Total;
+
+            if (score.is_legacy_score && write_legacy_score_pp)
+            {
+                var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+                await connection.ExecuteAsync($"UPDATE scores SET pp = @Pp WHERE id = @ScoreId; UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
+                {
+                    ScoreId = score.id,
+                    LegacyScoreId = score.legacy_score_id,
+                    Pp = score.pp
+                }, transaction: transaction);
+            }
+            else
+            {
+                await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
+                {
+                    ScoreId = score.id,
+                    Pp = score.pp,
+                }, transaction: transaction);
+            }
+
+            return true;
         }
 
         /// <summary>
