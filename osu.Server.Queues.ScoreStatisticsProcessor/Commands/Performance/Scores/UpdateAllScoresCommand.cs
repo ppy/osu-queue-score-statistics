@@ -122,10 +122,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                             if (cancellationToken.IsCancellationRequested)
                                 return;
 
-                            bool changed = await ScoreProcessor.ProcessScoreAsync(partition.Current, connection, transaction);
+                            try
+                            {
+                                bool changed = await ScoreProcessor.ProcessScoreAsync(partition.Current, connection, transaction);
 
-                            if (changed)
-                                Interlocked.Increment(ref changedPp);
+                                if (changed)
+                                    Interlocked.Increment(ref changedPp);
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine($"Failed to process score {partition.Current.id}: {e}");
+                            }
                         }
 
                         await transaction.CommitAsync(cancellationToken);
