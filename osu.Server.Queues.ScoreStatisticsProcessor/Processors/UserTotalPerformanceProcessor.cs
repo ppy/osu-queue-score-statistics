@@ -30,8 +30,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private readonly ConcurrentDictionary<int, MemoryCache> rankScoreIndexPartitionCache =
             new ConcurrentDictionary<int, MemoryCache>();
 
-        private static readonly bool update_global_ranks = Environment.GetEnvironmentVariable("UPDATE_GLOBAL_RANKS") != "0";
-
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
         }
@@ -48,7 +46,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (warnings > 0)
                 return;
 
-            UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction, update_global_ranks).Wait();
+            UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
+            updateGlobalRank(userStats, conn, transaction, dbInfo).Wait();
         }
 
         public void ApplyGlobal(SoloScore score, MySqlConnection conn)
@@ -65,11 +64,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="userStats">An existing <see cref="UserStats"/> object to update with.</param>
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
-        /// <param name="updateIndex">Whether to update the rank index / history / user highest rank statistics.</param>
-        public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null, bool updateIndex = true)
+        public async Task UpdateUserStatsAsync(UserStats userStats, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(rulesetId);
-
             List<SoloScore> scores = (await connection.QueryAsync<SoloScore>(
                 "SELECT beatmap_id, pp, accuracy FROM scores WHERE "
                 + "`user_id` = @UserId AND "
@@ -84,9 +80,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 }, transaction: transaction)).ToList();
 
             (userStats.rank_score, userStats.accuracy_new) = UserTotalPerformanceAggregateHelper.CalculateUserTotalPerformanceAggregates(userStats.user_id, scores);
-
-            if (updateIndex)
-                await updateGlobalRank(userStats, connection, transaction, dbInfo);
         }
 
         private async Task updateGlobalRank(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
