@@ -373,6 +373,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 AssertNoMedalsAwarded();
             }
 
+            AddBeatmapAttributes<OsuDifficultyAttributes>(allBeatmaps[0].beatmap_id, mods: [new OsuModEasy()]);
+
             // Pass the first map with Easy mod (difficulty reduction)
             SetScoreForBeatmap(allBeatmaps[0].beatmap_id, s =>
             {
