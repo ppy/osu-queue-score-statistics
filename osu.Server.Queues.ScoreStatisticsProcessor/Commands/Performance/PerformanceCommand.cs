@@ -110,7 +110,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                 double rankScoreBefore = userStats.rank_score;
                 double accBefore = userStats.accuracy_new;
 
-                await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, transaction, updateMilestones: false);
+                await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, transaction);
 
                 if (Math.Abs(rankScoreBefore - userStats.rank_score) > 0.1 ||
                     Math.Abs(accBefore - userStats.accuracy_new) > 0.1)
