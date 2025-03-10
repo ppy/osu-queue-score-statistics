@@ -30,7 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTo
                 userIds = (await db.QueryAsync<uint>($"SELECT {databaseInfo.UserStatsTable}.`user_id` FROM {databaseInfo.UserStatsTable} JOIN {databaseInfo.UsersTable} USING (user_id)"
                                                      + $"WHERE user_warnings = 0 "
                                                      + $"AND DATE_ADD(last_played, INTERVAL {months_before_inactive} MONTH) > NOW()"
-                                                     + $"ORDER BY rank_score DESC")).ToArray();
+                                                     + $"ORDER BY rank_score DESC", commandTimeout: 600)).ToArray();
             }
 
             Console.WriteLine($"Fetched {userIds.Length} users");
