@@ -119,7 +119,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                 }
 
                 if (Interlocked.Increment(ref processedCount) % 1000 == 0)
-                    Console.WriteLine($"Processed {processedCount} of {userIds.Length}");
+                    Console.WriteLine($"Processed {processedCount} of {userIds.Length} (current id {userStats.user_id})");
             }, cancellationToken);
         }
 
@@ -168,7 +168,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                         if (transaction == null)
                             await startTransaction(connection);
 
-                        await processFunc(connection, transaction!, partition.Current);
+                        try
+                        {
+                            await processFunc(connection, transaction!, partition.Current);
+                        }
+                        catch
+                        {
+                            Console.WriteLine($"Error encountered on {partition.Current}");
+                            throw;
+                        }
 
                         if (++transactionSize >= max_transaction_size)
                             await commit();
