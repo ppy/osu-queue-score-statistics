@@ -12,9 +12,11 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTotals
 {
-    [Command("all", Description = "Updates the total PP of all users.")]
+    [Command("all", Description = "Updates the total PP of all non-restricted, active users.")]
     public class UpdateAllUserTotalsCommand : PerformanceCommand
     {
+        private const int months_before_inactive = 6;
+
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
@@ -24,7 +26,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTo
             Console.WriteLine("Fetching all users...");
 
             using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
-                userIds = (await db.QueryAsync<uint>($"SELECT {databaseInfo.UserStatsTable}.`user_id` FROM {databaseInfo.UserStatsTable} JOIN {databaseInfo.UsersTable} USING (user_id) WHERE user_warnings = 0")).ToArray();
+            {
+                userIds = (await db.QueryAsync<uint>($"SELECT {databaseInfo.UserStatsTable}.`user_id` FROM {databaseInfo.UserStatsTable} JOIN {databaseInfo.UsersTable} USING (user_id)"
+                                                     + $"WHERE user_warnings = 0 "
+                                                     + $"AND DATE_ADD(last_played, INTERVAL {months_before_inactive} MONTH) > NOW()"
+                                                     + $"ORDER BY rank_score DESC")).ToArray();
+            }
 
             Console.WriteLine($"Fetched {userIds.Length} users");
 
