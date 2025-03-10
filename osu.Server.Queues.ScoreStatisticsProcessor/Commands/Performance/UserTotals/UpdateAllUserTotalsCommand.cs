@@ -24,7 +24,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTo
             Console.WriteLine("Fetching all users...");
 
             using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
-                userIds = (await db.QueryAsync<uint>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
+                userIds = (await db.QueryAsync<uint>($"SELECT {databaseInfo.UserStatsTable}.`user_id` FROM {databaseInfo.UserStatsTable} JOIN {databaseInfo.UsersTable} USING (user_id) WHERE user_warnings = 0")).ToArray();
 
             Console.WriteLine($"Fetched {userIds.Length} users");
 
