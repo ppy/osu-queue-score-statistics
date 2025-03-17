@@ -232,6 +232,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
             string sql = insertBuilder.ToString();
 
+            if (dryRun)
+            {
+                Console.WriteLine($" DRY RUN would insert command with {sql.Length:#,0} bytes");
+                return;
+            }
+
             Console.WriteLine($" Running insert command with {sql.Length:#,0} bytes");
             sw.Restart();
 
@@ -493,13 +499,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 }
                 else
                 {
-                    if (dryRun)
-                    {
-                        // We can't retrieve this from the database because it hasn't been inserted.
-                        ScoreStatisticsItems.Add(new ScoreItem(new SoloScore(), new ProcessHistory()));
-                        return;
-                    }
-
                     // the legacy PP value was not imported.
                     // push the score to redis for PP processing.
                     // on completion of PP processing, the score will be pushed to ES for indexing.
