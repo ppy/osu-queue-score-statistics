@@ -59,6 +59,40 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
         public List<ScoreItem> ScoreStatisticsItems { get; } = new List<ScoreItem>();
 
+        static BatchInserter()
+        {
+            _ = BeatmapStatusWatcher.StartPollingAsync(updates =>
+            {
+                foreach (int beatmapSetId in updates.BeatmapSetIDs)
+                {
+                    using (var db = DatabaseAccess.GetConnection())
+                    {
+                        ICollection<BeatmapLookup> scoringAttributesKeys = scoring_attributes_cache.Keys;
+                        ICollection<DifficultyAttributesLookup> difficultyAttributesKeys = attributes_cache.Keys;
+
+                        foreach (int beatmapId in db.Query<int>("SELECT beatmap_id FROM osu_beatmaps WHERE beatmapset_id = @beatmapSetId AND `deleted_at` IS NULL",
+                                     new { beatmapSetId }))
+                        {
+                            Console.WriteLine($"Invalidating cache for beatmap_id {beatmapId}");
+                            difficulty_info_cache.TryRemove(beatmapId, out _);
+
+                            foreach (var key in scoringAttributesKeys)
+                            {
+                                if (key.BeatmapId == beatmapId)
+                                    scoring_attributes_cache.TryRemove(key, out _);
+                            }
+
+                            foreach (var key in difficultyAttributesKeys)
+                            {
+                                if (key.BeatmapId == beatmapId)
+                                    attributes_cache.TryRemove(key, out _);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
         public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool dryRun = false, bool throwOnFailure = true)
         {
             this.ruleset = ruleset;
@@ -197,6 +231,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             insertBuilder.Append("; SELECT LAST_INSERT_ID()");
 
             string sql = insertBuilder.ToString();
+
+            if (dryRun)
+            {
+                Console.WriteLine($" DRY RUN would insert command with {sql.Length:#,0} bytes");
+                return;
+            }
 
             Console.WriteLine($" Running insert command with {sql.Length:#,0} bytes");
             sw.Restart();
@@ -459,13 +499,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 }
                 else
                 {
-                    if (dryRun)
-                    {
-                        // We can't retrieve this from the database because it hasn't been inserted.
-                        ScoreStatisticsItems.Add(new ScoreItem(new SoloScore(), new ProcessHistory()));
-                        return;
-                    }
-
                     // the legacy PP value was not imported.
                     // push the score to redis for PP processing.
                     // on completion of PP processing, the score will be pushed to ES for indexing.
