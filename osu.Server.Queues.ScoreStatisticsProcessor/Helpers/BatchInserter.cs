@@ -417,7 +417,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
             using (var connection = DatabaseAccess.GetConnection())
             {
-                Beatmap beatmap = connection.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId ", new
+                Beatmap beatmap = connection.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
                 {
                     BeatmapId = beatmapId
                 });
