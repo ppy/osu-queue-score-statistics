@@ -29,8 +29,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public BeatmapStore? BeatmapStore { get; private set; }
         private BuildStore? buildStore;
 
-        private long lastStoreRefresh;
-
         public int Order => ORDER;
 
         public bool RunOnFailedScores => false;
@@ -40,8 +38,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public bool Verbose { get; set; }
 
         private static readonly bool write_legacy_score_pp = Environment.GetEnvironmentVariable("WRITE_LEGACY_SCORE_PP") != "0";
-
-        private static readonly bool refresh_stores_periodically = Environment.GetEnvironmentVariable("REFRESH_STORES_PERIODICALLY") != "0";
 
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
@@ -124,17 +120,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (!score.passed)
                 return false;
 
-            long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
             BeatmapStore ??= await BeatmapStore.CreateAsync(connection, transaction);
+            buildStore ??= new BuildStore();
 
-            if (buildStore == null || (refresh_stores_periodically && currentTimestamp - lastStoreRefresh > 60_000))
-            {
-                buildStore = await BuildStore.CreateAsync(connection, transaction);
-                lastStoreRefresh = currentTimestamp;
-            }
-
-            score.beatmap ??= (await BeatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction));
+            score.beatmap ??= await BeatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction);
 
             if (score.beatmap is not Beatmap beatmap)
                 return false;
@@ -151,7 +140,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             // Performance needs to be allowed for the build.
             // legacy scores don't need a build id
-            if (check_client_version && score.legacy_score_id == null && (score.build_id == null || buildStore.GetBuild(score.build_id.Value)?.allow_performance != true))
+            if (check_client_version && score.legacy_score_id == null && (score.build_id == null || (await buildStore.GetBuildAsync(score.build_id.Value, connection, transaction))?.allow_performance != true))
                 return false;
 
             DifficultyAttributes difficultyAttributes = await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);

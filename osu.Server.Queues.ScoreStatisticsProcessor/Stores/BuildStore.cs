@@ -1,10 +1,10 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System.Collections.Generic;
-using System.Linq;
+using System;
 using System.Threading.Tasks;
 using Dapper;
+using Microsoft.Extensions.Caching.Memory;
 using MySqlConnector;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -15,34 +15,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     /// </summary>
     public class BuildStore
     {
-        private readonly IReadOnlyDictionary<int, Build> builds;
+        private static readonly uint memory_cache_size_limit = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SIZE_LIMIT") ?? "128000000");
 
-        private BuildStore(IEnumerable<KeyValuePair<int, Build>> builds)
-        {
-            this.builds = new Dictionary<int, Build>(builds);
-        }
+        private readonly MemoryCache buildCache = new MemoryCache(new MemoryCacheOptions { SizeLimit = memory_cache_size_limit });
 
         /// <summary>
-        /// Creates a new <see cref="BuildStore"/>.
+        /// The size of a <see cref="Build"/> in bytes. Used for tracking memory usage.
         /// </summary>
-        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">An existing transaction.</param>
-        /// <returns>The created <see cref="BuildStore"/>.</returns>
-        public static async Task<BuildStore> CreateAsync(MySqlConnection connection, MySqlTransaction? transaction = null)
-        {
-            var dbBuilds = await connection.QueryAsync<Build>("SELECT * FROM osu_builds WHERE `allow_ranking` = TRUE OR `allow_performance` = TRUE", transaction: transaction);
+        private const int build_size = 6;
 
-            return new BuildStore
-            (
-                dbBuilds.Select(b => new KeyValuePair<int, Build>(b.build_id, b))
-            );
-        }
+        public Task<Build?> GetBuildAsync(uint buildId, MySqlConnection connection, MySqlTransaction? transaction = null) => buildCache.GetOrCreateAsync(
+            buildId,
+            cacheEntry =>
+            {
+                // Quite short so we can delist builds which are no longer valid for ranking.
+                cacheEntry.SetAbsoluteExpiration(TimeSpan.FromSeconds(300));
+                cacheEntry.SetSize(build_size);
 
-        /// <summary>
-        /// Retrieves a build from the database.
-        /// </summary>
-        /// <param name="buildId">The build's id.</param>
-        /// <returns>The retrieved build, or <c>null</c> if not existing.</returns>
-        public Build? GetBuild(int buildId) => builds.GetValueOrDefault(buildId);
+                return connection.QuerySingleOrDefaultAsync<Build?>("SELECT build_id, allow_ranking, allow_performance FROM osu_builds WHERE build_id = @BuildId", new
+                {
+                    BuildId = buildId
+                }, transaction: transaction);
+            });
     }
 }
