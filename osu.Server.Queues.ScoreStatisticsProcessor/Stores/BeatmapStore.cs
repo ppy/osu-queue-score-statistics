@@ -16,6 +16,7 @@ using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
@@ -79,6 +80,31 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             beatmapMemoryCache = new MemoryCache(new MemoryCacheOptions
             {
                 SizeLimit = memory_cache_size_limit,
+            });
+
+            _ = BeatmapStatusWatcher.StartPollingAsync(updates =>
+            {
+                foreach (int beatmapSetId in updates.BeatmapSetIDs)
+                {
+                    using (var db = DatabaseAccess.GetConnection())
+                    {
+                        var attributeCacheKeys = attributeMemoryCache.Keys.OfType<DifficultyAttributeKey>();
+
+                        foreach (int beatmapId in db.Query<int>("SELECT beatmap_id FROM osu_beatmaps WHERE beatmapset_id = @beatmapSetId AND `deleted_at` IS NULL",
+                                     new { beatmapSetId }))
+                        {
+                            Console.WriteLine($"Invalidating cache for beatmap_id {beatmapId}");
+
+                            beatmapMemoryCache.Remove(beatmapId);
+
+                            foreach (var key in attributeCacheKeys)
+                            {
+                                if (key.BeatmapId == beatmapId)
+                                    attributeMemoryCache.Remove(key);
+                            }
+                        }
+                    }
+                }
             });
         }
 
