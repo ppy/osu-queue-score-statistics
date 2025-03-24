@@ -12,7 +12,6 @@ using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -78,8 +77,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 },
                 transaction) ?? new DailyChallengeUserStats();
 
-            var beatmapStore = BeatmapStore.CreateAsync(conn, transaction).Result;
-            var context = new MedalAwarderContext(score, userStats, dailyChallengeUserStats, beatmapStore, conn, transaction);
+            var context = new MedalAwarderContext(score, userStats, dailyChallengeUserStats, conn, transaction);
 
             foreach (var awarder in medal_awarders)
             {

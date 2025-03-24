@@ -32,11 +32,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public DailyChallengeUserStats DailyChallengeUserStats { get; }
 
         /// <summary>
-        /// Allows retrieval of <see cref="Beatmap"/>s from database.
-        /// </summary>
-        private BeatmapStore beatmapStore { get; }
-
-        /// <summary>
         /// MySQL connection for manual retrieval from database.
         /// </summary>
         public MySqlConnection Connection { get; }
@@ -49,21 +44,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         /// <param name="score">The score to check for medals.</param>
         /// <param name="userStats">The calculated user statistics after <see cref="Score"/>.</param>
         /// <param name="dailyChallengeUserStats">The user's daily challenge stats after <see cref="Score"/>.</param>
-        /// <param name="beatmapStore">Allows retrieval of <see cref="Beatmap"/>s from database.</param>
         /// <param name="connection">MySQL connection for manual retrieval from database.</param>
         /// <param name="transaction">MySQL transaction for manual retrieval from database.</param>
         public MedalAwarderContext(
             SoloScore score,
             UserStats userStats,
             DailyChallengeUserStats dailyChallengeUserStats,
-            BeatmapStore beatmapStore,
             MySqlConnection connection,
             MySqlTransaction transaction)
         {
             Score = score;
             UserStats = userStats;
             DailyChallengeUserStats = dailyChallengeUserStats;
-            this.beatmapStore = beatmapStore;
             Connection = connection;
             Transaction = transaction;
         }
@@ -73,7 +65,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
             Score = other.Score;
             UserStats = other.UserStats;
             DailyChallengeUserStats = other.DailyChallengeUserStats;
-            beatmapStore = other.beatmapStore;
             Connection = other.Connection;
             Transaction = other.Transaction;
         }
@@ -88,7 +79,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         {
             // matches https://github.com/ppy/osu-difficulty-calculator/blob/2da917fb21e752879d34820a60e76a95d90ac24f/osu.Server.DifficultyCalculator/ServerDifficultyCalculator.cs#L79-L82
             if (beatmap.approved > 0)
-                return await beatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, Connection, Transaction);
+                return await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, Connection, Transaction);
 
             return null;
         }

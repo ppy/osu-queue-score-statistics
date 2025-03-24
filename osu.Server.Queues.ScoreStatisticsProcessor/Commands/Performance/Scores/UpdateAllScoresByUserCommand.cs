@@ -10,6 +10,7 @@ using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
@@ -90,7 +91,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 else
                     rate = rate * 0.95 + 0.05 * ((double)userIds.Length / sw.ElapsedMilliseconds * 1000);
 
-                Console.WriteLine(ScoreProcessor.BeatmapStore?.GetCacheStats());
+                Console.WriteLine(BeatmapStore.GetCacheStats());
                 Console.WriteLine($"id: {currentUserId:N0} changed scores: {totalScores:N0} ({processedUsers:N0} of {totalUsers:N0} {(float)processedUsers / totalUsers:P1}) {rate:N0}/s");
 
                 await DatabaseHelper.SetCountAsync(databaseInfo.LastProcessedPpUserCount, currentUserId, db);

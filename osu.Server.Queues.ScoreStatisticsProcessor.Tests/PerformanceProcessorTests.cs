@@ -582,11 +582,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             using (var db = Processor.GetDatabaseConnection())
             {
-                var beatmapStore = await BeatmapStore.CreateAsync(db);
-
-                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
-                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
-                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => BeatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => BeatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => BeatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
             }
 
             Assert.ThrowsAny<Exception>(() => SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
