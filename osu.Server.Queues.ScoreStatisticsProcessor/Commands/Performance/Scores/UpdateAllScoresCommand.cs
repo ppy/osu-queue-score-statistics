@@ -14,6 +14,7 @@ using MySqlConnector;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
@@ -153,7 +154,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 else
                     rate = rate * 0.95 + 0.05 * ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
 
-                Console.WriteLine(ScoreProcessor.BeatmapStore?.GetCacheStats());
+                Console.WriteLine(BeatmapStore.GetCacheStats());
                 Console.WriteLine($"processed up to: {currentScoreId} changed: {changedPp:N0} {(float)(currentScoreId - From) / (lastScoreId - From):P1} {rate:N0}/s");
             }
 

@@ -26,7 +26,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public const int ORDER = 0;
 
-        public BeatmapStore? BeatmapStore { get; private set; }
         private BuildStore? buildStore;
 
         public int Order => ORDER;
@@ -120,7 +119,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (!score.passed)
                 return false;
 
-            BeatmapStore ??= await BeatmapStore.CreateAsync(connection, transaction);
             buildStore ??= new BuildStore();
 
             score.beatmap ??= await BeatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction);
