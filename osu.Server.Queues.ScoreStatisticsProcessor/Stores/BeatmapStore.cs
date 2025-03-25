@@ -60,6 +60,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         private static int beatmapCacheMiss;
         private static int attribCacheMiss;
 
+        public static void PurgeCaches()
+        {
+            attribute_memory_cache.Clear();
+            beatmap_memory_cache.Clear();
+        }
+
         public static string GetCacheStats()
         {
             string output = $"caches: [beatmap {beatmap_memory_cache.Count:N0} +{beatmapCacheMiss:N0}] [attrib {attribute_memory_cache.Count:N0} +{attribCacheMiss:N0}]";
