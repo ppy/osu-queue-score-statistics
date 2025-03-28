@@ -23,6 +23,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option("--sql", Description = "Specify a custom query to limit the scope of pumping")]
         public string? CustomQuery { get; set; }
 
+        [Option("--variant", Description = "If specified, verify only for a ruleset's variant table")]
+        public int? Variant { get; set; }
+
         /// <summary>
         /// The ruleset to run this verify job for.
         /// </summary>
@@ -77,41 +80,88 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     rulesetId = RulesetId,
                 };
 
-                IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
-                    "SELECT * FROM scores WHERE preserve = 1 AND ranked = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
-                    parameters, cancellationToken: cancellationToken, transaction: transaction));
-
-                if (Verbose)
-                    Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
-
-                IEnumerable<SoloScore?> maxScoresByBeatmap = scores.GroupBy(s => s.beatmap_id)
-                                                                   .Select(g => g.OrderByDescending(s => s.total_score)
-                                                                                 .ThenByDescending(s => s.id)
-                                                                                 .FirstOrDefault());
-
-                long totalRankedScore = maxScoresByBeatmap.Sum(s => s!.total_score);
-
-                var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db, transaction);
-
-                if (userStats == null)
-                    return;
-
-                bool userHasCorrectTotal =
-                    userStats.ranked_score == totalRankedScore;
-
-                if (!userHasCorrectTotal)
+                if (Variant != null)
                 {
+                    IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
+                        $"SELECT s.id, s.beatmap_id, s.total_score FROM scores s WHERE preserve = 1 AND ranked = 1 AND user_id = @userId AND ruleset_id = @rulesetId AND beatmap_id IN (SELECT beatmap_id FROM osu_beatmaps WHERE playmode = 3 AND diff_size = {Variant})",
+                        parameters, cancellationToken: cancellationToken, transaction: transaction));
+
                     if (Verbose)
+                        Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
+
+                    IEnumerable<SoloScore?> maxScoresByBeatmap = scores.GroupBy(s => s.beatmap_id)
+                                                                       .Select(g => g.OrderByDescending(s => s.total_score)
+                                                                                     .ThenByDescending(s => s.id)
+                                                                                     .FirstOrDefault());
+
+                    long totalRankedScore = maxScoresByBeatmap.Sum(s => s!.total_score);
+
+                    UserStatsManiaKeyCount? keyModeStats = db.QueryFirstOrDefault<UserStatsManiaKeyCount>(
+                        $"SELECT * FROM `osu_user_stats_mania_{Variant}k` WHERE `user_id` = @user_id", new { user_id = userId }, transaction);
+
+                    if (keyModeStats == null)
+                        return;
+
+                    bool userHasCorrectTotal =
+                        keyModeStats.ranked_score == totalRankedScore;
+
+                    if (!userHasCorrectTotal)
                     {
-                        Console.WriteLine($"Fixing incorrect ranked score for {userId}");
-                        Console.WriteLine($"{userStats.ranked_score} ->  {totalRankedScore}");
-                        Console.WriteLine();
+                        if (Verbose)
+                        {
+                            Console.WriteLine($"Fixing incorrect ranked score for {userId}");
+                            Console.WriteLine($"{keyModeStats.ranked_score} ->  {totalRankedScore}");
+                            Console.WriteLine();
+                        }
+
+                        if (!DryRun)
+                        {
+                            await db.ExecuteAsync(
+                                $"UPDATE `osu_user_stats_mania_{Variant}k` SET ranked_score = @ranked_score WHERE user_id = @user_id", new
+                                {
+                                    user_id = userId,
+                                    ranked_score = totalRankedScore,
+                                }, transaction);
+                        }
                     }
+                }
+                else
+                {
+                    IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
+                        "SELECT s.id, s.total_score FROM scores s WHERE preserve = 1 AND ranked = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
+                        parameters, cancellationToken: cancellationToken, transaction: transaction));
 
-                    userStats.ranked_score = totalRankedScore;
+                    if (Verbose)
+                        Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
 
-                    if (!DryRun)
-                        await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
+                    IEnumerable<SoloScore?> maxScoresByBeatmap = scores.GroupBy(s => s.beatmap_id)
+                                                                       .Select(g => g.OrderByDescending(s => s.total_score)
+                                                                                     .ThenByDescending(s => s.id)
+                                                                                     .FirstOrDefault());
+
+                    long totalRankedScore = maxScoresByBeatmap.Sum(s => s!.total_score);
+
+                    var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db, transaction);
+
+                    if (userStats == null)
+                        return;
+
+                    bool userHasCorrectTotal = userStats.ranked_score == totalRankedScore;
+
+                    if (!userHasCorrectTotal)
+                    {
+                        if (Verbose)
+                        {
+                            Console.WriteLine($"Fixing incorrect ranked score for {userId}");
+                            Console.WriteLine($"{userStats.ranked_score} ->  {totalRankedScore}");
+                            Console.WriteLine();
+                        }
+
+                        userStats.ranked_score = totalRankedScore;
+
+                        if (!DryRun)
+                            await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
+                    }
                 }
 
                 if (DryRun)
