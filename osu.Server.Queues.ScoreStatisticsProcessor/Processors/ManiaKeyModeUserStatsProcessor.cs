@@ -8,7 +8,9 @@ using System.Threading.Tasks;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
+using osu.Game.Scoring.Legacy;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
@@ -80,11 +82,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (score.preserve)
             {
                 updateRankCounts(score, keyModeStats, conn, transaction);
+                updateRankedScore(score, keyModeStats, conn, transaction);
                 UpdateUserStatsAsync(keyModeStats, keyCount, conn, transaction).Wait();
 
                 conn.Execute(
                     $"UPDATE `{keyCountTableName}` "
-                    + $"SET `rank_score` = @rank_score, `playcount` = @playcount, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
+                    + $"SET `rank_score` = @rank_score, `ranked_score` = @ranked_score, `playcount` = @playcount, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
                     + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count, `last_played` = NOW()"
                     + $"WHERE `user_id` = @user_id", keyModeStats, transaction);
             }
@@ -127,6 +130,41 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 keyModeStats.rank_score_index = await conn.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {keyCountTableName} WHERE rank_score > {keyModeStats.rank_score}", transaction: transaction)
                                                 + 1;
             }
+        }
+
+        // local reimplementation of `RankedScoreProcessor` for keymodes.
+        private void updateRankedScore(SoloScore score, UserStatsManiaKeyCount keymodeStats, MySqlConnection conn, MySqlTransaction transaction)
+        {
+            if (!score.BeatmapValidForRankedCounts())
+                return;
+
+            // Note that most of the below code relies on the fact that classic scoring mode
+            // does not reorder scores.
+            // Therefore, we will be operating on standardised score right until the actual part
+            // where we increase the user's ranked score - at which point we will use classic
+            // to meet past user expectations.
+
+            var bestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
+
+            // If there's already another higher score than this one, nothing needs to be done.
+            if (bestScore?.id != score.id)
+                return;
+
+            // If this score is the new best and there's a previous higher score,
+            // that score's total should be unapplied from the user's ranked total
+            // before we apply the new one.
+            var secondBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction, offset: 1);
+            if (secondBestScore != null)
+                updateRankedScore(secondBestScore, keymodeStats, revert: true);
+
+            Debug.Assert(bestScore != null);
+            updateRankedScore(bestScore, keymodeStats, revert: false);
+        }
+
+        private static void updateRankedScore(SoloScore soloScore, UserStatsManiaKeyCount stats, bool revert)
+        {
+            long delta = soloScore.ToScoreInfo().GetDisplayScore(ScoringMode.Classic) * (revert ? -1 : 1);
+            stats.ranked_score += delta;
         }
 
         // local reimplementation of `UserRankCountProcessor` for keymodes.

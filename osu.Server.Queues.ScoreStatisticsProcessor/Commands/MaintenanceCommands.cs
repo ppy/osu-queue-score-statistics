@@ -20,6 +20,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(DeleteImportedHighScoresCommand))]
     [Subcommand(typeof(VerifyReplaysExistCommand))]
     [Subcommand(typeof(VerifyUserRankCounts))]
+    [Subcommand(typeof(VerifyUserRankedScore))]
     [Subcommand(typeof(PopulateTotalScoreWithoutModsCommand))]
     public sealed class MaintenanceCommands
     {
