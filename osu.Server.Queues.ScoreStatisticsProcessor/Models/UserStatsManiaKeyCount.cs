@@ -28,6 +28,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public string country_acronym { get; set; } = "XX";
 
+        public long ranked_score { get; set; }
+
         public float rank_score { get; set; }
         public int rank_score_index { get; set; }
 
