@@ -35,8 +35,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE osu_scores_high");
                 db.Execute("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
             }
-
-            BeatmapStore.PurgeCaches();
         }
 
         [Fact]

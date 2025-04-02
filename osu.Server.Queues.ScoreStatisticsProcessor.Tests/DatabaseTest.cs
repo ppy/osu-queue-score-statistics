@@ -22,6 +22,7 @@ using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 using Xunit;
 using Xunit.Sdk;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
@@ -87,6 +88,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE `osu_user_performance_rank`");
                 db.Execute("TRUNCATE TABLE `osu_user_performance_rank_highest`");
             }
+
+            BeatmapStore.PurgeCaches();
 
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
         }
