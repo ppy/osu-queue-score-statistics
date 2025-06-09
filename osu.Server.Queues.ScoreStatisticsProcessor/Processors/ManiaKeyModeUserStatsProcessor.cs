@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Rulesets.Mania.Beatmaps;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
@@ -36,8 +37,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (score.beatmap == null)
                 return;
 
-            int keyCount = (int)score.beatmap.diff_size;
-            // TODO: reconsider when handling key conversion mods in the future?
+            var conversionDifficultyInfo = score.beatmap.GetLegacyBeatmapConversionDifficultyInfo();
+            var mods = score.ScoreData.Mods.Select(m => m.ToMod(LegacyRulesetHelper.GetRulesetFromLegacyId(3))).ToList();
+            int keyCount = ManiaBeatmapConverter.GetColumnCount(conversionDifficultyInfo, mods);
+
             if (keyCount != 4 && keyCount != 7)
                 return;
 
@@ -53,6 +56,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 {
                     user_id = score.user_id,
                     // make up a rough play count based on user play distribution.
+                    // TODO: this does not work for converts, and probably cannot ever work efficiently unless key counts start getting stored against the scores themselves
                     playcount = conn.QuerySingle<int?>(
                         "SELECT @playcount * (SELECT COUNT(1) FROM `scores` "
                         + "WHERE `user_id` = @userId "
