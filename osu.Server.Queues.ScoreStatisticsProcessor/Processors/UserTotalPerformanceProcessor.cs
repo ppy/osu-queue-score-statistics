@@ -43,7 +43,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 UserId = userStats.user_id
             }, transaction);
 
-            if (warnings > 0)
+            if (DatabaseHelper.IsUserRestricted(conn, userStats.user_id, transaction))
                 return;
 
             UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
