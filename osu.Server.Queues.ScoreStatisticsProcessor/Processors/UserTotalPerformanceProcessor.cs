@@ -38,11 +38,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
 
-            int warnings = conn.QuerySingleOrDefault<int>($"SELECT `user_warnings` FROM {dbInfo.UsersTable} WHERE `user_id` = @UserId", new
-            {
-                UserId = userStats.user_id
-            }, transaction);
-
             if (DatabaseHelper.IsUserRestricted(conn, userStats.user_id, transaction))
                 return;
 

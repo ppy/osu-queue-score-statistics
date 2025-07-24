@@ -207,7 +207,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             return accessToken;
         }
 
-        // ReSharper disable InconsistentNaming
+        // ReSharper disable All
         private class TokenResponse
         {
             public int expires_in { get; set; }
