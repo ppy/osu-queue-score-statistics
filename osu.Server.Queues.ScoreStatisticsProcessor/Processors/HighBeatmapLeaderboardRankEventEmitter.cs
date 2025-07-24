@@ -1,0 +1,58 @@
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// See the LICENCE file in the repository root for full licence text.
+
+using JetBrains.Annotations;
+using MySqlConnector;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
+{
+    /// <summary>
+    /// Emit <c>osu_events</c> rows if the score is notable due to being high up enough on the beatmap's leaderboard.
+    /// </summary>
+    [UsedImplicitly]
+    public class HighBeatmapLeaderboardRankEventEmitter : IProcessor
+    {
+        public bool RunOnFailedScores => false;
+
+        /// <remarks>
+        /// While <c>osu-web-10</c> inserts event rows on its own
+        /// (https://github.com/peppy/osu-web-10/blob/8ff8ee751672e41b771137a670d40b4e400df65d/www/web/osu-submit-20190809.php#L1198-L1216),
+        /// it does so using the old score tables to determine the score's rank.
+        /// In other words, it inserts event rows <i>for lazer mode off</i>.
+        /// We still want to emit events for the score <i>for lazer mode on</i> here, because the score's position on the lazer mode leaderboard is likely different.
+        /// </remarks>
+        public bool RunOnLegacyScores => true;
+
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        {
+            // we're not even trying this. user events are transient and only last 90 days anyway.
+        }
+
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        {
+            if (DatabaseHelper.IsUserRestricted(conn, userStats.user_id, transaction))
+                return;
+
+            if (DatabaseHelper.GetUserBestScoreFor(score, conn, transaction)?.id != score.id)
+                return;
+
+            int? scoreRank = WebRequestHelper.GetScoreRankOnBeatmapLeaderboard(score);
+
+            if (scoreRank <= 1000)
+            {
+                WebRequestHelper.RunSharedInteropCommand($"users/{userStats.user_id}/{score.beatmap_id}/{score.ruleset_id}/rank-achieved", "POST", new
+                {
+                    position_after = scoreRank,
+                    rank = score.rank.ToString(),
+                    legacy_score_event = false,
+                });
+            }
+        }
+
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
+        {
+        }
+    }
+}
