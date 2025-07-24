@@ -125,8 +125,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 218 from the single score above + 2pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 220, CancellationToken);
+            // 220 from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 222, CancellationToken);
         }
 
         [Fact]
