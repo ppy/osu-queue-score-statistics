@@ -204,7 +204,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         /// </seealso>
         public static bool IsUserRestricted(MySqlConnection db, uint userId, MySqlTransaction? transaction = null)
         {
-            var standing = db.QuerySingle<(short user_type, short user_warnings)>(
+            var standing = db.QuerySingleOrDefault<(short user_type, short user_warnings)>(
                 @"SELECT `user_type`, `user_warnings` FROM `phpbb_users` WHERE `user_id` = @user_id",
                 new
                 {
