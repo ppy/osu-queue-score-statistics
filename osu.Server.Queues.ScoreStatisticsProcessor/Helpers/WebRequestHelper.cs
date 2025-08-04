@@ -153,6 +153,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
                 var requestMsg = new HttpRequestMessage(HttpMethod.Get, $"{shared_interop_domain}/api/v2/scores/{score.id}");
                 requestMsg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                requestMsg.Headers.Add("x-api-version", "20250804");
                 var responseMsg = http.Send(requestMsg);
 
                 if (!responseMsg.IsSuccessStatusCode || responseMsg.Content.ReadFromJsonAsync<ScoreResponse>().Result is not ScoreResponse scoreResponse)
