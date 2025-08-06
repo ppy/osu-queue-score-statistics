@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -48,6 +49,37 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     rank = score.rank.ToString(),
                     legacy_score_event = false,
                 });
+            }
+
+            if (scoreRank == 1)
+            {
+                int? previousLeaderId = conn.QuerySingleOrDefault<int?>(
+                    "SELECT `user_id` FROM `beatmap_leaders` WHERE `beatmap_id` = @BeatmapId AND `ruleset_id` = @RulesetId",
+                    new
+                    {
+                        BeatmapId = score.beatmap_id,
+                        RulesetId = score.ruleset_id,
+                    }, transaction);
+
+                conn.Execute(
+                    "INSERT INTO `beatmap_leaders` (`score_id`, `beatmap_id`, `ruleset_id`, `user_id`) VALUES (@ScoreId, @BeatmapId, @RulesetId, @UserId) " +
+                    "ON DUPLICATE KEY UPDATE `user_id` = @UserId, `score_id` = @ScoreId",
+                    new
+                    {
+                        ScoreId = score.id,
+                        BeatmapId = score.beatmap_id,
+                        RulesetId = score.ruleset_id,
+                        UserId = score.user_id,
+                    },
+                    transaction);
+
+                if (previousLeaderId != null && previousLeaderId != score.user_id && score.beatmap!.playcount > 100)
+                {
+                    WebRequestHelper.RunSharedInteropCommand($"users/{previousLeaderId}/{score.beatmap_id}/{score.ruleset_id}/first-place-lost", "POST", new
+                    {
+                        legacy_score_event = false,
+                    });
+                }
             }
         }
 
