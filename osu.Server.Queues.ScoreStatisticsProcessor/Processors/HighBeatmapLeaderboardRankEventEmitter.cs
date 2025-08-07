@@ -35,7 +35,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (DatabaseHelper.IsUserRestricted(conn, userStats.user_id, transaction))
                 return;
 
-            if (DatabaseHelper.GetUserBestScoreFor(score, conn, transaction)?.id != score.id)
+            var userBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
+
+            // don't want to emit events if score isn't user's best
+            if (userBestScore?.id != score.id)
+                return;
+
+            // also don't want to emit events if the user has tied their best.
+            // this is possible because `GetUserBestScoreFor()` sorts scores by id descending in case of total score ties.
+            // determining that is a bit difficult to do. for leaderboard placements let's just use total score as surrogate of leaderboard position.
+            var secondUserBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction, offset: 1);
+            if (secondUserBestScore != null && secondUserBestScore.total_score >= score.total_score)
                 return;
 
             int? scoreRank = WebRequestHelper.GetScoreRankOnBeatmapLeaderboard(score);
