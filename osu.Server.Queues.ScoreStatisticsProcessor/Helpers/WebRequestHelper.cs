@@ -27,7 +27,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         private static string? accessToken;
         private static DateTimeOffset? accessTokenExpiry;
 
-        private static readonly HttpClient http = new HttpClient();
+        private static readonly HttpClient http = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(10)
+        };
 
         public static HttpResponseMessage RunSharedInteropCommand(string command, string method = "GET", dynamic? postObject = null)
         {
