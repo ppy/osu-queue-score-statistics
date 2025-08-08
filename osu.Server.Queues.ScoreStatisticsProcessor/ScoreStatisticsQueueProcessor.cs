@@ -235,7 +235,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         {
                             stopwatch.Restart();
                             p.ApplyToUserStats(score, userStats, conn, transaction);
-                            DogStatsd.Timer($"apply-{p.GetType().ReadableName()}", stopwatch.ElapsedMilliseconds, tags: item.Tags);
+                            DogStatsd.Timer("apply_time_elapsed", stopwatch.ElapsedMilliseconds, tags: item.Tags.Append($"processor:{p.GetType().ReadableName()}").ToArray());
                         }
 
                         DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
