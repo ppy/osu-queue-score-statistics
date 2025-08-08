@@ -29,7 +29,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
         private static readonly HttpClient http = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(10)
+            Timeout = TimeSpan.FromSeconds(1)
         };
 
         public static HttpResponseMessage RunSharedInteropCommand(string command, string method = "GET", dynamic? postObject = null)
