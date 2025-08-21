@@ -84,7 +84,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 {
                     IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
                         $"SELECT s.id, s.beatmap_id, s.total_score FROM scores s WHERE preserve = 1 AND ranked = 1 AND user_id = @userId AND ruleset_id = @rulesetId AND beatmap_id IN (SELECT beatmap_id FROM osu_beatmaps WHERE playmode = 3 AND diff_size = {Variant})",
-                        parameters, cancellationToken: cancellationToken, transaction: transaction));
+                        parameters, cancellationToken: cancellationToken, transaction: transaction, commandTimeout: 120000));
 
                     if (Verbose)
                         Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
