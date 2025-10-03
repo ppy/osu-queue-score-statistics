@@ -145,7 +145,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                         if (importedScore.HighScore == null) return;
 
-                        importedScore.ReferenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
+                        try
+                        {
+                            importedScore.ReferenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
+                        }
+                        catch (Exception e)
+                        {
+                            throw new AggregateException($"Processing score {importedScore.id} (legacy id {importedScore.legacy_score_id}) failed", e);
+                        }
                     });
                 }
 
@@ -250,7 +257,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         if (!checkDictionary(importedScore.id, "maximum_statistics", importedScore.ScoreData.MaximumStatistics, referenceScore.MaximumStatistics))
                         {
                             Interlocked.Increment(ref fail);
-                            sqlBuffer.Append($"UPDATE `scores` SET `data` = JSON_SET(`data`, '$.maximum_statistics', CAST('{JsonConvert.SerializeObject(referenceScore.MaximumStatistics)}' AS JSON)) WHERE `id` = {importedScore.id};");
+                            sqlBuffer.Append(
+                                $"UPDATE `scores` SET `data` = JSON_SET(`data`, '$.maximum_statistics', CAST('{JsonConvert.SerializeObject(referenceScore.MaximumStatistics)}' AS JSON)) WHERE `id` = {importedScore.id};");
                         }
                     }
                     finally

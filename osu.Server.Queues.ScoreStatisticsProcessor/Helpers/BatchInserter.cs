@@ -415,14 +415,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             if (difficulty_info_cache.TryGetValue(beatmapId, out var existing))
                 return existing;
 
-            using (var connection = DatabaseAccess.GetConnection())
+            try
             {
-                Beatmap beatmap = connection.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                using (var connection = DatabaseAccess.GetConnection())
                 {
-                    BeatmapId = beatmapId
-                });
+                    Beatmap beatmap = connection.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                    {
+                        BeatmapId = beatmapId
+                    });
 
-                return difficulty_info_cache[beatmapId] = beatmap.GetLegacyBeatmapConversionDifficultyInfo();
+                    return difficulty_info_cache[beatmapId] = beatmap.GetLegacyBeatmapConversionDifficultyInfo();
+                }
+            }
+            catch (Exception e)
+            {
+                throw new AggregateException($"Beatmap {beatmapId} missing from database", e);
             }
         }
 
