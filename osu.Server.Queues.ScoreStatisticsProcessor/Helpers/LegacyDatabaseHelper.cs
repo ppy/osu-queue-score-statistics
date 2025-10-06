@@ -7,12 +7,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     public static class LegacyDatabaseHelper
     {
-        private static readonly RulesetDatabaseInfo osu_info = new LegacyDatabaseHelper.RulesetDatabaseInfo(0, "osu", false);
-        private static readonly RulesetDatabaseInfo taiko_info = new LegacyDatabaseHelper.RulesetDatabaseInfo(1, "taiko", true);
-        private static readonly RulesetDatabaseInfo fruits_info = new LegacyDatabaseHelper.RulesetDatabaseInfo(2, "fruits", true);
-        private static readonly RulesetDatabaseInfo mania_info = new LegacyDatabaseHelper.RulesetDatabaseInfo(3, "mania", true);
+        private static readonly RulesetDatabaseInfo osu_info = new RulesetDatabaseInfo(0, "osu", false);
+        private static readonly RulesetDatabaseInfo taiko_info = new RulesetDatabaseInfo(1, "taiko", true);
+        private static readonly RulesetDatabaseInfo fruits_info = new RulesetDatabaseInfo(2, "fruits", true);
+        private static readonly RulesetDatabaseInfo mania_info = new RulesetDatabaseInfo(3, "mania", true);
 
-        public static LegacyDatabaseHelper.RulesetDatabaseInfo GetRulesetSpecifics(int rulesetId)
+        public static RulesetDatabaseInfo GetRulesetSpecifics(int rulesetId)
         {
             switch (rulesetId)
             {
