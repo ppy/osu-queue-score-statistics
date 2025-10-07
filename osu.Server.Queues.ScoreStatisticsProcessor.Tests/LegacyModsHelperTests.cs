@@ -11,15 +11,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
     public class LegacyModsHelperTests
     {
         [Fact]
-        public void OsuWithoutFlashlight()
-        {
-            Assert.Equal(
-                LegacyMods.DoubleTime | LegacyMods.HalfTime | LegacyMods.HardRock | LegacyMods.Easy | LegacyMods.TouchDevice,
-                LegacyModsHelper.MaskRelevantMods(LegacyModsHelper.ALL_MODS & ~LegacyMods.Flashlight, false, 0));
-        }
-
-        [Fact]
-        public void OsuWithFlashlight()
+        public void Osu()
         {
             Assert.Equal(
                 LegacyMods.DoubleTime | LegacyMods.HalfTime | LegacyMods.HardRock | LegacyMods.Easy | LegacyMods.Flashlight | LegacyMods.Hidden | LegacyMods.TouchDevice,
