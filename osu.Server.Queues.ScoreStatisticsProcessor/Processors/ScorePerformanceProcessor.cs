@@ -26,10 +26,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public const int ORDER = 0;
 
-        public BeatmapStore? BeatmapStore { get; private set; }
         private BuildStore? buildStore;
-
-        private long lastStoreRefresh;
 
         public int Order => ORDER;
 
@@ -37,9 +34,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => true;
 
-        private static readonly bool write_legacy_score_pp = Environment.GetEnvironmentVariable("WRITE_LEGACY_SCORE_PP") != "0";
+        public bool Verbose { get; set; }
 
-        private static readonly bool refresh_stores_periodically = Environment.GetEnvironmentVariable("REFRESH_STORES_PERIODICALLY") != "0";
+        private static readonly bool write_legacy_score_pp = Environment.GetEnvironmentVariable("WRITE_LEGACY_SCORE_PP") != "0";
 
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
@@ -122,77 +119,67 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (!score.passed)
                 return false;
 
-            long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            buildStore ??= new BuildStore();
 
-            if (buildStore == null || BeatmapStore == null || (refresh_stores_periodically && currentTimestamp - lastStoreRefresh > 60_000))
-            {
-                buildStore = await BuildStore.CreateAsync(connection, transaction);
-                BeatmapStore = await BeatmapStore.CreateAsync(connection, transaction);
+            score.beatmap ??= await BeatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction);
 
-                lastStoreRefresh = currentTimestamp;
-            }
-
-            try
-            {
-                score.beatmap ??= (await BeatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction));
-
-                if (score.beatmap is not Beatmap beatmap)
-                    return false;
-
-                // TODO: will fail for newly ranked beatmaps for up to one minute (beatmap store purge).
-                if (!BeatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
-                    return false;
-
-                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
-                Mod[] mods = score.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray();
-
-                if (!AllModsValidForPerformance(score, mods))
-                    return false;
-
-                // Performance needs to be allowed for the build.
-                // legacy scores don't need a build id
-                if (check_client_version && score.legacy_score_id == null && (score.build_id == null || buildStore.GetBuild(score.build_id.Value)?.allow_performance != true))
-                    return false;
-
-                DifficultyAttributes difficultyAttributes = await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
-                PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(score.ToScoreInfo(), difficultyAttributes);
-
-                if (performanceAttributes == null)
-                    return false;
-
-                if (score.pp != null && Math.Abs(score.pp.Value - performanceAttributes.Total) < 0.1)
-                    return false;
-
-                if (score.is_legacy_score && write_legacy_score_pp)
-                {
-                    score.pp = performanceAttributes.Total;
-
-                    var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
-                    await connection.ExecuteAsync($"UPDATE scores SET pp = @Pp WHERE id = @ScoreId; UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
-                    {
-                        ScoreId = score.id,
-                        LegacyScoreId = score.legacy_score_id,
-                        Pp = score.pp
-                    }, transaction: transaction);
-                }
-                else
-                {
-                    score.pp = performanceAttributes.Total;
-
-                    await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
-                    {
-                        ScoreId = score.id,
-                        Pp = score.pp,
-                    }, transaction: transaction);
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
+            if (score.beatmap is not Beatmap beatmap)
                 return false;
+
+            // TODO: will fail for newly ranked beatmaps for up to one minute (beatmap store purge).
+            if (!BeatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
+                return false;
+
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
+            Mod[] mods = score.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray();
+
+            if (!AllModsValidForPerformance(score, mods))
+                return false;
+
+            // Performance needs to be allowed for the build.
+            // legacy scores don't need a build id
+            if (check_client_version && score.legacy_score_id == null && (score.build_id == null || (await buildStore.GetBuildAsync(score.build_id.Value, connection, transaction))?.allow_performance != true))
+                return false;
+
+            DifficultyAttributes difficultyAttributes = await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
+            PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(score.ToScoreInfo(), difficultyAttributes);
+
+            if (performanceAttributes == null)
+                return false;
+
+            if (score.pp != null && Math.Abs(score.pp.Value - performanceAttributes.Total) < 0.1)
+                return false;
+
+            if (Verbose)
+            {
+                Console.WriteLine(
+                    $"{score.id.ToString(),-12}: {score.pp ?? -1,-4:N2} -> {performanceAttributes.Total,-4:N2} "
+                    + $"({performanceAttributes.Total - (score.pp ?? 0),-5:+#,0.00;-#,0.00;+#,0.00})"
+                    + (score.is_legacy_score ? " LEGACY" : string.Empty));
             }
+
+            score.pp = performanceAttributes.Total;
+
+            if (score.is_legacy_score && write_legacy_score_pp)
+            {
+                var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+                await connection.ExecuteAsync($"UPDATE scores SET pp = @Pp WHERE id = @ScoreId; UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
+                {
+                    ScoreId = score.id,
+                    LegacyScoreId = score.legacy_score_id,
+                    Pp = score.pp
+                }, transaction: transaction);
+            }
+            else
+            {
+                await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
+                {
+                    ScoreId = score.id,
+                    Pp = score.pp,
+                }, transaction: transaction);
+            }
+
+            return true;
         }
 
         /// <summary>

@@ -30,9 +30,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
         [Option(Description = "Number of threads to use.")]
         public int Threads { get; set; } = 1;
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output verbose information on processing.")]
+        public bool Verbose { get; set; }
+
         public virtual async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            ScoreProcessor = new ScorePerformanceProcessor();
+            ScoreProcessor = new ScorePerformanceProcessor { Verbose = Verbose };
             TotalProcessor = new UserTotalPerformanceProcessor();
             ManiaKeyModeProcessor = new ManiaKeyModeUserStatsProcessor();
             return await ExecuteAsync(cancellationToken);
@@ -107,7 +110,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                 double rankScoreBefore = userStats.rank_score;
                 double accBefore = userStats.accuracy_new;
 
-                await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, transaction, updateIndex: false);
+                await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, transaction);
 
                 if (Math.Abs(rankScoreBefore - userStats.rank_score) > 0.1 ||
                     Math.Abs(accBefore - userStats.accuracy_new) > 0.1)
@@ -116,7 +119,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                 }
 
                 if (Interlocked.Increment(ref processedCount) % 1000 == 0)
-                    Console.WriteLine($"Processed {processedCount} of {userIds.Length}");
+                    Console.WriteLine($"Processed {processedCount} of {userIds.Length} (current id {userStats.user_id})");
             }, cancellationToken);
         }
 
@@ -165,7 +168,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                         if (transaction == null)
                             await startTransaction(connection);
 
-                        await processFunc(connection, transaction!, partition.Current);
+                        try
+                        {
+                            await processFunc(connection, transaction!, partition.Current);
+                        }
+                        catch
+                        {
+                            Console.WriteLine($"Error encountered on {partition.Current}");
+                            throw;
+                        }
 
                         if (++transactionSize >= max_transaction_size)
                             await commit();

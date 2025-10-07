@@ -14,10 +14,11 @@ using MySqlConnector;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
-    [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
+    [Command(Name = "all", Description = "Computes pp of all scores from all users. Note that this doesn't update the ES index.")]
     public class UpdateAllScoresCommand : PerformanceCommand
     {
         [Option(Description = "The size of each batch, which is then distributed to threads.")]
@@ -122,10 +123,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                             if (cancellationToken.IsCancellationRequested)
                                 return;
 
-                            bool changed = await ScoreProcessor.ProcessScoreAsync(partition.Current, connection, transaction);
+                            try
+                            {
+                                bool changed = await ScoreProcessor.ProcessScoreAsync(partition.Current, connection, transaction);
 
-                            if (changed)
-                                Interlocked.Increment(ref changedPp);
+                                if (changed)
+                                    Interlocked.Increment(ref changedPp);
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine($"Failed to process score {partition.Current.id}: {e}");
+                            }
                         }
 
                         await transaction.CommitAsync(cancellationToken);
@@ -146,7 +154,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 else
                     rate = rate * 0.95 + 0.05 * ((double)scores.Count / sw.ElapsedMilliseconds * 1000);
 
-                Console.WriteLine(ScoreProcessor.BeatmapStore?.GetCacheStats());
+                Console.WriteLine(BeatmapStore.GetCacheStats());
                 Console.WriteLine($"processed up to: {currentScoreId} changed: {changedPp:N0} {(float)(currentScoreId - From) / (lastScoreId - From):P1} {rate:N0}/s");
             }
 

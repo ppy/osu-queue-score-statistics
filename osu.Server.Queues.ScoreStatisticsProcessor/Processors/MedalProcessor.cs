@@ -12,7 +12,6 @@ using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -78,8 +77,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 },
                 transaction) ?? new DailyChallengeUserStats();
 
-            var beatmapStore = BeatmapStore.CreateAsync(conn, transaction).Result;
-            var context = new MedalAwarderContext(score, userStats, dailyChallengeUserStats, beatmapStore, conn, transaction);
+            var context = new MedalAwarderContext(score, userStats, dailyChallengeUserStats, conn, transaction);
 
             foreach (var awarder in medal_awarders)
             {
@@ -104,7 +102,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private void awardMedal(SoloScore score, Medal medal)
         {
             Console.WriteLine($"Awarding medal {medal.name} to user {score.user_id} (score {score.id})");
-            LegacyDatabaseHelper.RunSharedInteropCommand($"user-achievement/{score.user_id}/{medal.achievement_id}/{score.beatmap_id}", "POST");
+            WebRequestHelper.RunSharedInteropCommand($"user-achievement/{score.user_id}/{medal.achievement_id}/{score.beatmap_id}", "POST");
             MedalAwarded?.Invoke(new AwardedMedal(medal, score));
         }
 

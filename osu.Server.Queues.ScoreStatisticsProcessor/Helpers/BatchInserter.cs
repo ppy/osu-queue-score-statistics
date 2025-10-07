@@ -23,6 +23,7 @@ using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using BeatmapStore = osu.Server.Queues.ScoreStatisticsProcessor.Stores.BeatmapStore;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
@@ -57,6 +58,40 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         public List<ElasticQueuePusher.ElasticScoreItem> ElasticScoreItems { get; } = new List<ElasticQueuePusher.ElasticScoreItem>();
 
         public List<ScoreItem> ScoreStatisticsItems { get; } = new List<ScoreItem>();
+
+        static BatchInserter()
+        {
+            _ = BeatmapStatusWatcher.StartPollingAsync(updates =>
+            {
+                foreach (int beatmapSetId in updates.BeatmapSetIDs)
+                {
+                    using (var db = DatabaseAccess.GetConnection())
+                    {
+                        ICollection<BeatmapLookup> scoringAttributesKeys = scoring_attributes_cache.Keys;
+                        ICollection<DifficultyAttributesLookup> difficultyAttributesKeys = attributes_cache.Keys;
+
+                        foreach (int beatmapId in db.Query<int>("SELECT beatmap_id FROM osu_beatmaps WHERE beatmapset_id = @beatmapSetId AND `deleted_at` IS NULL",
+                                     new { beatmapSetId }))
+                        {
+                            Console.WriteLine($"Invalidating cache for beatmap_id {beatmapId}");
+                            difficulty_info_cache.TryRemove(beatmapId, out _);
+
+                            foreach (var key in scoringAttributesKeys)
+                            {
+                                if (key.BeatmapId == beatmapId)
+                                    scoring_attributes_cache.TryRemove(key, out _);
+                            }
+
+                            foreach (var key in difficultyAttributesKeys)
+                            {
+                                if (key.BeatmapId == beatmapId)
+                                    attributes_cache.TryRemove(key, out _);
+                            }
+                        }
+                    }
+                }
+            });
+        }
 
         public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool dryRun = false, bool throwOnFailure = true)
         {
@@ -196,6 +231,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             insertBuilder.Append("; SELECT LAST_INSERT_ID()");
 
             string sql = insertBuilder.ToString();
+
+            if (dryRun)
+            {
+                Console.WriteLine($" DRY RUN would insert command with {sql.Length:#,0} bytes");
+                return;
+            }
 
             Console.WriteLine($" Running insert command with {sql.Length:#,0} bytes");
             sw.Restart();
@@ -374,14 +415,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             if (difficulty_info_cache.TryGetValue(beatmapId, out var existing))
                 return existing;
 
-            using (var connection = DatabaseAccess.GetConnection())
+            try
             {
-                Beatmap beatmap = connection.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                using (var connection = DatabaseAccess.GetConnection())
                 {
-                    BeatmapId = beatmapId
-                });
+                    Beatmap beatmap = connection.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                    {
+                        BeatmapId = beatmapId
+                    });
 
-                return difficulty_info_cache[beatmapId] = beatmap.GetLegacyBeatmapConversionDifficultyInfo();
+                    return difficulty_info_cache[beatmapId] = beatmap.GetLegacyBeatmapConversionDifficultyInfo();
+                }
+            }
+            catch (Exception e)
+            {
+                throw new AggregateException($"Beatmap {beatmapId} missing from database", e);
             }
         }
 
@@ -397,7 +445,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             {
                 IEnumerable<BeatmapDifficultyAttribute> dbAttributes =
                     connection.Query<BeatmapDifficultyAttribute>(
-                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
+                        $"SELECT * FROM {BeatmapStore.DIFF_ATTRIB_DATABASE}.osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
 
                 return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
             }
@@ -458,13 +506,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 }
                 else
                 {
-                    if (dryRun)
-                    {
-                        // We can't retrieve this from the database because it hasn't been inserted.
-                        ScoreStatisticsItems.Add(new ScoreItem(new SoloScore(), new ProcessHistory()));
-                        return;
-                    }
-
                     // the legacy PP value was not imported.
                     // push the score to redis for PP processing.
                     // on completion of PP processing, the score will be pushed to ES for indexing.

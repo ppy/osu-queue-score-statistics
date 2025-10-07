@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
@@ -16,6 +17,7 @@ using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
+using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
@@ -25,8 +27,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     /// <summary>
     /// A store for retrieving <see cref="Models.Beatmap"/>s.
     /// </summary>
-    public class BeatmapStore
+    public static class BeatmapStore
     {
+        public static readonly string? DIFF_ATTRIB_DATABASE = Environment.GetEnvironmentVariable("DB_NAME_DIFFICULTY") ?? Environment.GetEnvironmentVariable("DB_NAME") ?? "osu";
+
         private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
         private static readonly uint memory_cache_size_limit = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SIZE_LIMIT") ?? "128000000");
@@ -47,17 +51,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// </summary>
         private const int beatmap_size = 72;
 
-        private readonly MemoryCache attributeMemoryCache;
+        private static readonly MemoryCache attribute_memory_cache;
 
-        private readonly MemoryCache beatmapMemoryCache;
-        private readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
+        private static readonly MemoryCache beatmap_memory_cache;
 
-        private int beatmapCacheMiss;
-        private int attribCacheMiss;
+        private static readonly IReadOnlyDictionary<BlacklistEntry, byte> blacklist;
 
-        public string GetCacheStats()
+        private static int beatmapCacheMiss;
+        private static int attribCacheMiss;
+
+        public static void PurgeCaches()
         {
-            string output = $"caches: [beatmap {beatmapMemoryCache.Count:N0} +{beatmapCacheMiss:N0}] [attrib {attributeMemoryCache.Count:N0} +{attribCacheMiss:N0}]";
+            attribute_memory_cache.Clear();
+            beatmap_memory_cache.Clear();
+        }
+
+        public static string GetCacheStats()
+        {
+            string output = $"caches: [beatmap {beatmap_memory_cache.Count:N0} +{beatmapCacheMiss:N0}] [attrib {attribute_memory_cache.Count:N0} +{attribCacheMiss:N0}]";
 
             Interlocked.Exchange(ref beatmapCacheMiss, 0);
             Interlocked.Exchange(ref attribCacheMiss, 0);
@@ -65,35 +76,48 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             return output;
         }
 
-        private BeatmapStore(IEnumerable<KeyValuePair<BlacklistEntry, byte>> blacklist)
+        static BeatmapStore()
         {
-            this.blacklist = new Dictionary<BlacklistEntry, byte>(blacklist);
+            using (var connection = DatabaseAccess.GetConnection())
+            {
+                var dbBlacklist = connection.Query<PerformanceBlacklistEntry>("SELECT * FROM osu_beatmap_performance_blacklist");
+                blacklist = dbBlacklist.Select(b => new KeyValuePair<BlacklistEntry, byte>(new BlacklistEntry(b.beatmap_id, b.mode), 1)).ToImmutableDictionary();
+            }
 
-            attributeMemoryCache = new MemoryCache(new MemoryCacheOptions
+            attribute_memory_cache = new MemoryCache(new MemoryCacheOptions
             {
                 SizeLimit = memory_cache_size_limit,
             });
 
-            beatmapMemoryCache = new MemoryCache(new MemoryCacheOptions
+            beatmap_memory_cache = new MemoryCache(new MemoryCacheOptions
             {
                 SizeLimit = memory_cache_size_limit,
             });
-        }
 
-        /// <summary>
-        /// Creates a new <see cref="BeatmapStore"/>.
-        /// </summary>
-        /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
-        /// <param name="transaction">An existing transaction.</param>
-        /// <returns>The created <see cref="BeatmapStore"/>.</returns>
-        public static async Task<BeatmapStore> CreateAsync(MySqlConnection connection, MySqlTransaction? transaction = null)
-        {
-            var dbBlacklist = await connection.QueryAsync<PerformanceBlacklistEntry>("SELECT * FROM osu_beatmap_performance_blacklist", transaction: transaction);
+            _ = BeatmapStatusWatcher.StartPollingAsync(updates =>
+            {
+                foreach (int beatmapSetId in updates.BeatmapSetIDs)
+                {
+                    using (var db = DatabaseAccess.GetConnection())
+                    {
+                        var attributeCacheKeys = attribute_memory_cache.Keys.OfType<DifficultyAttributeKey>();
 
-            return new BeatmapStore
-            (
-                dbBlacklist.Select(b => new KeyValuePair<BlacklistEntry, byte>(new BlacklistEntry(b.beatmap_id, b.mode), 1))
-            );
+                        foreach (int beatmapId in db.Query<int>("SELECT beatmap_id FROM osu_beatmaps WHERE beatmapset_id = @beatmapSetId AND `deleted_at` IS NULL",
+                                     new { beatmapSetId }))
+                        {
+                            Console.WriteLine($"Invalidating cache for beatmap_id {beatmapId}");
+
+                            beatmap_memory_cache.Remove(beatmapId);
+
+                            foreach (var key in attributeCacheKeys)
+                            {
+                                if (key.BeatmapId == beatmapId)
+                                    attribute_memory_cache.Remove(key);
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         /// <summary>
@@ -107,7 +131,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <returns>The difficulty attributes or <c>null</c> if not existing.</returns>
         /// <exception cref="DifficultyAttributesMissingException">If the difficulty attributes don't exist in the database.</exception>
         /// <exception cref="Exception">If realtime difficulty attributes couldn't be computed.</exception>
-        public async Task<DifficultyAttributes> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
+        public static async Task<DifficultyAttributes> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             if (use_realtime_difficulty_calculation)
             {
@@ -128,12 +152,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
 
             DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, (uint)ruleset.RulesetInfo.OnlineID, (uint)getLegacyModsForAttributeLookup(beatmap, ruleset, mods));
 
-            return (await attributeMemoryCache.GetOrCreateAsync(key, async cacheEntry =>
+            return (await attribute_memory_cache.GetOrCreateAsync(key, async cacheEntry =>
             {
                 try
                 {
                     BeatmapDifficultyAttribute[] dbAttributes = (await connection.QueryAsync<BeatmapDifficultyAttribute>(
-                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
+                        $"SELECT * FROM {DIFF_ATTRIB_DATABASE}.osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @ModValue", new
                         {
                             key.BeatmapId,
                             key.RulesetId,
@@ -184,7 +208,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
         /// <returns>The retrieved beatmap, or <c>null</c> if not existing.</returns>
-        public Task<Beatmap?> GetBeatmapAsync(uint beatmapId, MySqlConnection connection, MySqlTransaction? transaction = null) => beatmapMemoryCache.GetOrCreateAsync(
+        public static Task<Beatmap?> GetBeatmapAsync(uint beatmapId, MySqlConnection connection, MySqlTransaction? transaction = null) => beatmap_memory_cache.GetOrCreateAsync(
             beatmapId,
             cacheEntry =>
             {
@@ -204,7 +228,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// </summary>
         /// <param name="beatmap">The beatmap.</param>
         /// <param name="rulesetId">The ruleset.</param>
-        public bool IsBeatmapValidForPerformance(Beatmap beatmap, uint rulesetId)
+        public static bool IsBeatmapValidForPerformance(Beatmap beatmap, uint rulesetId)
         {
             if (blacklist.ContainsKey(new BlacklistEntry(beatmap.beatmap_id, rulesetId)))
                 return false;

@@ -77,6 +77,12 @@ Database name.
 
 Defaults to `osu`.
 
+### DB_NAME_DIFFICULTY
+
+Database name for reading difficulty attributes from (all `osu_beatmap_difficulty_attribs` table access).
+
+Defaults to same as `DB_NAME`.
+
 ### DB_USER
 
 Database username.

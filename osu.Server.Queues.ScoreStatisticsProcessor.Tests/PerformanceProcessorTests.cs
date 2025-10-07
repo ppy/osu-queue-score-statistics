@@ -125,8 +125,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 218 from the single score above + 2pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 220, CancellationToken);
+            // 220 from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 222, CancellationToken);
         }
 
         [Fact]
@@ -582,11 +582,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             using (var db = Processor.GetDatabaseConnection())
             {
-                var beatmapStore = await BeatmapStore.CreateAsync(db);
-
-                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
-                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
-                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => beatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => BeatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => BeatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => BeatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
             }
 
             Assert.ThrowsAny<Exception>(() => SetScoreForBeatmap(TEST_BEATMAP_ID, score =>

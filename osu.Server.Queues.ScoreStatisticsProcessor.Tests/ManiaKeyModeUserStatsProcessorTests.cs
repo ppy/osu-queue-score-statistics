@@ -4,6 +4,8 @@
 using System;
 using System.Text;
 using Dapper;
+using osu.Game.Online.API;
+using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Scoring;
 using Xunit;
 
@@ -19,7 +21,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE `osu_user_stats_mania_4k`");
                 db.Execute("TRUNCATE TABLE `osu_user_stats_mania_7k`");
 
-                db.Execute("INSERT INTO `phpbb_users` (`user_id`, `username`, `country_acronym`, `user_permissions`, `user_sig`, `user_occ`, `user_interests`) VALUES (2, 'test', 'JP', '', '', '', '')");
+                db.Execute(
+                    "INSERT INTO `phpbb_users` (`user_id`, `username`, `country_acronym`, `user_permissions`, `user_sig`, `user_occ`, `user_interests`) VALUES (2, 'test', 'JP', '', '', '', '')");
             }
         }
 
@@ -89,6 +92,125 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             WaitForDatabaseState("SELECT `playcount` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", 1, CancellationToken, new { userId = 2 });
             WaitForDatabaseState("SELECT `playcount` FROM `osu_user_stats_mania_7k` WHERE `user_id` = @userId", 2, CancellationToken, new { userId = 2 });
+        }
+
+        [Fact]
+        public void PlaysOnMapsWithCorrectKeyCountAreCounted_ConvertedBeatmap()
+        {
+            WaitForDatabaseState("SELECT `s_rank_count` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", (int?)null, CancellationToken, new { userId = 2 });
+            WaitForDatabaseState("SELECT `s_rank_count` FROM `osu_user_stats_mania_7k` WHERE `user_id` = @userId", (int?)null, CancellationToken, new { userId = 2 });
+
+            var convert = AddBeatmap(b =>
+            {
+                // beatmap that converts to 4K
+                // stats lifted from https://osu.ppy.sh/beatmapsets/386151#osu/843308
+                b.beatmap_id = 843308;
+                b.playmode = 0;
+                b.diff_size = 3;
+                b.diff_drain = 2;
+                b.diff_overall = 3;
+                b.diff_approach = 4;
+                b.countNormal = 26;
+                b.countSlider = 32;
+                b.countTotal = 58;
+            }, s => s.beatmapset_id = 1);
+
+            SetScoreForBeatmap(convert.beatmap_id, s => s.Score.ruleset_id = 3);
+
+            WaitForDatabaseState("SELECT `s_rank_count` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", 1, CancellationToken, new { userId = 2 });
+            WaitForDatabaseState("SELECT `s_rank_count` FROM `osu_user_stats_mania_7k` WHERE `user_id` = @userId", (int?)null, CancellationToken, new { userId = 2 });
+        }
+
+        [Fact]
+        public void PlaysOnMapsWithCorrectKeyCountAreCounted_ConvertedBeatmapWithKeyMods()
+        {
+            WaitForDatabaseState("SELECT `s_rank_count` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", (int?)null, CancellationToken, new { userId = 2 });
+            WaitForDatabaseState("SELECT `s_rank_count` FROM `osu_user_stats_mania_7k` WHERE `user_id` = @userId", (int?)null, CancellationToken, new { userId = 2 });
+
+            var convert = AddBeatmap(b =>
+            {
+                // beatmap that converts to 4K
+                // stats lifted from https://osu.ppy.sh/beatmapsets/386151#osu/843308
+                b.beatmap_id = 843308;
+                b.playmode = 0;
+                b.diff_size = 3;
+                b.diff_drain = 2;
+                b.diff_overall = 3;
+                b.diff_approach = 4;
+                b.countNormal = 26;
+                b.countSlider = 32;
+                b.countTotal = 58;
+            }, s => s.beatmapset_id = 1);
+
+            SetScoreForBeatmap(convert.beatmap_id, s =>
+            {
+                s.Score.ruleset_id = 3;
+                s.Score.ScoreData.Mods = [new APIMod(new ManiaModKey7())];
+            });
+
+            WaitForDatabaseState("SELECT `s_rank_count` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", (int?)null, CancellationToken, new { userId = 2 });
+            WaitForDatabaseState("SELECT `s_rank_count` FROM `osu_user_stats_mania_7k` WHERE `user_id` = @userId", 1, CancellationToken, new { userId = 2 });
+        }
+
+        [Fact]
+        public void RankedScoreCorrect()
+        {
+            var beatmap4K = AddBeatmap(b =>
+            {
+                b.beatmap_id = 12;
+                b.playmode = 3;
+                b.diff_size = 4;
+            }, s => s.beatmapset_id = 1);
+            var beatmap7K = AddBeatmap(b =>
+            {
+                b.beatmap_id = 13;
+                b.playmode = 3;
+                b.diff_size = 7;
+            }, s => s.beatmapset_id = 2);
+
+            WaitForDatabaseState<(int?, int?)>("SELECT `a_rank_count`, `s_rank_count` FROM `osu_user_stats_mania_7k` WHERE `user_id` = @userId", (null, null), CancellationToken, new { userId = 2 });
+            WaitForDatabaseState<(int?, int?)>("SELECT `a_rank_count`, `s_rank_count` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", (null, null), CancellationToken, new { userId = 2 });
+
+            SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
+            {
+                s.Score.ranked = s.Score.preserve = true;
+                s.Score.total_score = 500_000;
+                s.Score.rank = ScoreRank.A;
+                s.Score.ruleset_id = 3;
+            });
+
+            WaitForDatabaseState<int?>("SELECT `ranked_score` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", 500_000, CancellationToken, new { userId = 2 });
+
+            SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
+            {
+                s.Score.ranked = s.Score.preserve = true;
+                s.Score.total_score = 300_000; // same map and keymode as above, lower score => should not count
+                s.Score.rank = ScoreRank.S;
+                s.Score.ruleset_id = 3;
+            });
+
+            WaitForDatabaseState<int?>("SELECT `ranked_score` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", 500_000, CancellationToken, new { userId = 2 });
+
+            SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
+            {
+                s.Score.ranked = s.Score.preserve = true;
+                s.Score.total_score = 700_000; // same map and keymode as above, higher score => should count
+                s.Score.rank = ScoreRank.S;
+                s.Score.ruleset_id = 3;
+            });
+
+            WaitForDatabaseState<int?>("SELECT `ranked_score` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", 700_000, CancellationToken, new { userId = 2 });
+
+            SetScoreForBeatmap(beatmap7K.beatmap_id, s =>
+            {
+                s.Score.ranked = s.Score.preserve = true;
+                s.Score.total_score = 200_000;
+                s.Score.ruleset_id = 3;
+                s.Score.rank = ScoreRank.A;
+            });
+
+            WaitForDatabaseState<int?>("SELECT `ranked_score` FROM `osu_user_stats_mania_4k` WHERE `user_id` = @userId", 700_000, CancellationToken, new { userId = 2 });
+            WaitForDatabaseState<int?>("SELECT `ranked_score` FROM `osu_user_stats_mania_7k` WHERE `user_id` = @userId", 200_000, CancellationToken, new { userId = 2 });
         }
 
         [Fact]
