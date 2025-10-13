@@ -74,8 +74,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 158pp from the single score above + 2pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 160, CancellationToken);
+            // 115pp from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 117, CancellationToken);
 
             // purposefully identical to score above, to confirm that you don't get pp for two scores on the same map twice
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
@@ -87,8 +87,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 158pp from the single score above + 4pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 162, CancellationToken);
+            // 115pp from the single score above + 4pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 119, CancellationToken);
         }
 
         /// <summary>
@@ -99,7 +99,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// For most difficulty calculators this doesn't matter because they access fairly simple properties.
         /// However taiko pp calculation code has _convert detection_ inside.
         /// Therefore it is _very_ important that the single particular access path that the taiko pp calculator uses right now
-        /// (https://github.com/ppy/osu/blob/555305bf7f650a3461df1e23832ff99b94ca710e/osu.Game.Rulesets.Taiko/Difficulty/TaikoPerformanceCalculator.cs#L44-L45)
+        /// (https://github.com/ppy/osu/blob/c7f50f35b7e6160f434cb8f5498c150aeaadd712/osu.Game.Rulesets.Taiko/Difficulty/TaikoPerformanceCalculator.cs#L65)
         /// has the ID of the ruleset for the beatmap BEFORE CONVERSION.
         /// This attempts to exercise that requirement in a bit of a dodgy way so that nobody silently breaks taiko pp on accident.
         /// </summary>
@@ -125,8 +125,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 220 from the single score above + 2pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 222, CancellationToken);
+            // 30pp from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 32, CancellationToken);
         }
 
         [Fact]
