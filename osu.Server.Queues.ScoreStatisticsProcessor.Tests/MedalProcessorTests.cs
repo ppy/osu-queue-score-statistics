@@ -1016,6 +1016,44 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AssertMedalAwarded(53);
         }
 
+        /// <summary>
+        /// No medals should be awarded to restricted users.
+        /// </summary>
+        [Fact]
+        public void TestDoesNotAwardForRestrictedUser()
+        {
+            var beatmap = AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, mods: [new OsuModDoubleTime()]);
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                db.Execute("TRUNCATE TABLE `phpbb_users`");
+                db.Execute(
+                    "INSERT INTO `phpbb_users` (`user_id`, `username`, `country_acronym`, `user_permissions`, `user_sig`, `user_occ`, `user_interests`, `user_warnings`) VALUES (102, 'test', 'JP', '', '', '', '', 2)");
+            }
+
+            AddPackMedal(7, 40, new[] { beatmap });
+
+            AssertNoMedalsAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.user_id = 102;
+                s.Score.build_id = TestBuildID;
+            });
+
+            AssertNoMedalsAwarded();
+
+            AddMedal(122);
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.user_id = 102;
+                s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()) };
+            });
+
+            AssertNoMedalsAwarded();
+        }
+
         private void setUpBeatmapsForPackMedal(IEnumerable<Beatmap> beatmaps, bool allModCombinations = false)
         {
             // for optimisation reasons challenge packs depend on PP awarding.

@@ -59,6 +59,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (score.beatmap!.approved <= 0)
                 return;
 
+            if (DatabaseHelper.IsUserRestricted(conn, userStats.user_id, transaction))
+                return;
+
             int[] alreadyAchieved = conn.Query<int>("SELECT achievement_id FROM osu_user_achievements WHERE user_id = @userId", new
             {
                 userId = score.user_id
