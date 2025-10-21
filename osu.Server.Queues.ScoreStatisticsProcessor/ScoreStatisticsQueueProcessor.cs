@@ -250,12 +250,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                     if (score.passed && !score.preserve)
                         Console.WriteLine($"Passed score {score.id} was processed but not preserved");
+
+                    conn.Execute("REPLACE INTO osu_counts (name, count) SELECT 'last_processed_score_id', MAX(score_id) FROM score_process_history");
                 }
 
                 elasticQueueProcessor.PushToQueue(new ElasticQueuePusher.ElasticScoreItem
                 {
                     ScoreId = (long)item.Score.id,
                 });
+
                 publishScoreProcessed(item);
             }
             catch (Exception e)
