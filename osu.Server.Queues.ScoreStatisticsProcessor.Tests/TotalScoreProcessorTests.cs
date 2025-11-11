@@ -169,7 +169,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestTotalScoreIncreasedOnBrokenRankedBeatmap()
+        public void TestTotalScoreNotIncreasedOnBrokenRankedBeatmap()
         {
             AddBeatmap();
 
@@ -189,7 +189,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(score);
-            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 500_001, CancellationToken);
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
         }
     }
 }
