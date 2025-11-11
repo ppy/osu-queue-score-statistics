@@ -16,7 +16,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestTotalScoreIncrease()
         {
-            AddBeatmap();
+            AddBeatmap(b => b.total_length = 180);
 
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
@@ -48,7 +48,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestLevelIncrease()
         {
-            AddBeatmap();
+            AddBeatmap(b => b.total_length = 180);
 
             WaitForDatabaseState("SELECT level FROM osu_user_stats WHERE user_id = 2", (float?)null, CancellationToken);
 
@@ -71,7 +71,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestTotalScoreForLegacyScoreDoesntIncrease()
         {
-            AddBeatmap();
+            AddBeatmap(b => b.total_length = 180);
 
             var score = CreateTestScore();
 
@@ -89,7 +89,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestTotalScoreReprocessDoesntIncrease()
         {
-            AddBeatmap();
+            AddBeatmap(b => b.total_length = 180);
 
             var score = CreateTestScore();
 
@@ -107,7 +107,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public async Task TestTotalScoreReprocessCorrectlyHandlesSwitchFromStandardisedToClassic()
         {
-            AddBeatmap();
+            AddBeatmap(b => b.total_length = 180);
 
             var score = CreateTestScore();
 
@@ -169,9 +169,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestTotalScoreIncreasedOnBrokenRankedBeatmap()
+        public void TestTotalScoreNotIncreasedOnBrokenRankedBeatmap()
         {
-            AddBeatmap();
+            AddBeatmap(b => b.total_length = 180);
 
             var score = CreateTestScore();
             score.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
@@ -189,7 +189,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(score);
-            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 500_001, CancellationToken);
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
         }
     }
 }
