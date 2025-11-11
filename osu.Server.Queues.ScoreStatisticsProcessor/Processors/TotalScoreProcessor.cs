@@ -4,7 +4,6 @@
 using System;
 using JetBrains.Annotations;
 using MySqlConnector;
-using osu.Game.Beatmaps;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -59,13 +58,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         }
 
         private static bool shouldIncludePlayInTotalScore(SoloScore score, long classicScore)
-        {
-            if (score.beatmap?.approved >= BeatmapOnlineStatus.Ranked)
-                return true;
-
-            int playLength = PlayValidityHelper.GetPlayLength(score);
-            return classicScore <= playLength * 500_000;
-        }
+            => classicScore <= PlayValidityHelper.GetPlayLength(score) * 500_000;
 
         private static float calculateLevel(long totalScore)
         {
