@@ -28,15 +28,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
         {
-            // we're not even trying this. user events are transient and only last 90 days anyway.
+            // not applicable because `ApplyToUserStats()` does nothing.
         }
 
         public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
         {
-            if (DatabaseHelper.IsUserRestricted(conn, userStats.user_id, transaction))
+            // not applicable.
+            // this processor is pretty much an orchestrator of external calls based on a few db queries
+            // and the accuracy of it is not very important in the large scale of things,
+            // so we do not want to prolong the core transaction in which the actual important processing takes place with this processor's logic.
+        }
+
+        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
+        {
+            if (DatabaseHelper.IsUserRestricted(conn, score.user_id))
                 return;
 
-            var userBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction);
+            var userBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn);
 
             // don't want to emit events if score isn't user's best
             if (userBestScore?.id != score.id)
@@ -45,7 +53,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             // also don't want to emit events if the user has tied their best.
             // this is possible because `GetUserBestScoreFor()` sorts scores by id descending in case of total score ties.
             // determining that is a bit difficult to do. for leaderboard placements let's just use total score as surrogate of leaderboard position.
-            var secondUserBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction, offset: 1);
+            var secondUserBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, offset: 1);
             if (secondUserBestScore != null && secondUserBestScore.total_score >= score.total_score)
                 return;
 
@@ -53,7 +61,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             if (scoreRank <= 1000)
             {
-                WebRequestHelper.RunSharedInteropCommand($"users/{userStats.user_id}/{score.beatmap_id}/{score.ruleset_id}/rank-achieved", "POST", new
+                WebRequestHelper.RunSharedInteropCommand($"users/{score.user_id}/{score.beatmap_id}/{score.ruleset_id}/rank-achieved", "POST", new
                 {
                     position_after = scoreRank,
                     rank = score.rank.ToString(),
@@ -69,7 +77,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     {
                         BeatmapId = score.beatmap_id,
                         RulesetId = score.ruleset_id,
-                    }, transaction);
+                    });
 
                 conn.Execute(
                     "INSERT INTO `beatmap_leaders` (`score_id`, `beatmap_id`, `ruleset_id`, `user_id`) VALUES (@ScoreId, @BeatmapId, @RulesetId, @UserId) " +
@@ -80,8 +88,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                         BeatmapId = score.beatmap_id,
                         RulesetId = score.ruleset_id,
                         UserId = score.user_id,
-                    },
-                    transaction);
+                    });
 
                 if (previousLeaderId != null && previousLeaderId != score.user_id && score.beatmap!.playcount > 100)
                 {
@@ -91,10 +98,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     });
                 }
             }
-        }
-
-        public void ApplyGlobal(SoloScore score, MySqlConnection conn)
-        {
         }
     }
 }
