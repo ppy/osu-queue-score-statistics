@@ -18,7 +18,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
-    [Command(Name = "all", Description = "Computes pp of all scores from all users. Note that this doesn't update the ES index.")]
+    [Command(Name = "all", Description = "Computes pp of all scores from all users.")]
     public class UpdateAllScoresCommand : PerformanceCommand
     {
         [Option(Description = "The size of each batch, which is then distributed to threads.")]
@@ -40,6 +40,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
         public string Where { get; set; } = "1 = 1";
 
         /// <summary>
+        /// Whether to push changed scores to the ES indexing queue.
+        /// </summary>
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--run-indexing")]
+        public bool RunIndexing { get; set; }
+
+        /// <summary>
         /// Whether to adjust processing rate based on slave latency. Defaults to <c>false</c>.
         /// </summary>
         [Option(CommandOptionType.SingleOrNoValue, Template = "--check-slave-latency")]
@@ -50,6 +56,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
         /// Managing our own connection pool doubles throughput.
         /// </summary>
         private readonly ConcurrentQueue<MySqlConnection> connections = new ConcurrentQueue<MySqlConnection>();
+
+        private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
+
+        private readonly ConcurrentBag<ElasticQueuePusher.ElasticScoreItem> elasticItems = new ConcurrentBag<ElasticQueuePusher.ElasticScoreItem>();
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
@@ -111,6 +121,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                 if (scores.Count == 0)
                     break;
 
+                elasticItems.Clear();
+
                 await Task.WhenAll(Partitioner.Create(scores).GetPartitions(Threads).Select(async partition =>
                 {
                     connections.TryDequeue(out var connection);
@@ -128,7 +140,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
                                 bool changed = await ScoreProcessor.ProcessScoreAsync(partition.Current, connection, transaction);
 
                                 if (changed)
+                                {
                                     Interlocked.Increment(ref changedPp);
+                                    elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)partition.Current.id });
+                                }
                             }
                             catch (Exception e)
                             {
@@ -144,6 +159,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
                 if (cancellationToken.IsCancellationRequested)
                     return -1;
+
+                if (RunIndexing && elasticItems.Count > 0)
+                {
+                    elasticQueueProcessor.PushToQueue(elasticItems.ToList());
+                    Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+                }
 
                 Interlocked.Add(ref processedCount, (ulong)scores.Count);
 
