@@ -167,6 +167,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         {
             var stopwatch = new Stopwatch();
             var tags = new List<string>();
+            var postTransactionActions = new List<Action>();
 
             try
             {
@@ -222,7 +223,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                             byte version = item.ProcessHistory.processed_version;
 
                             foreach (var p in enumerateValidProcessors(score))
-                                p.RevertFromUserStats(score, userStats, version, conn, transaction);
+                                p.RevertFromUserStats(score, userStats, version, conn, transaction, postTransactionActions);
                         }
                         else
                         {
@@ -234,7 +235,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         foreach (IProcessor p in enumerateValidProcessors(score))
                         {
                             stopwatch.Restart();
-                            p.ApplyToUserStats(score, userStats, conn, transaction);
+                            p.ApplyToUserStats(score, userStats, conn, transaction, postTransactionActions);
                             DogStatsd.Timer("apply_time_elapsed", stopwatch.ElapsedMilliseconds, tags: item.Tags.Append($"processor:{p.GetType().ReadableName()}").ToArray());
                         }
 
@@ -243,6 +244,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         updateHistoryEntry(item, conn, transaction);
 
                         transaction.Commit();
+                    }
+
+                    foreach (var action in postTransactionActions)
+                    {
+                        try
+                        {
+                            action.Invoke();
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"Post-transaction action failed: {e}");
+                        }
                     }
 
                     foreach (var p in enumerateValidProcessors(score))

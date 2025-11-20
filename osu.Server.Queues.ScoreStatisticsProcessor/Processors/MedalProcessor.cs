@@ -50,11 +50,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         // This processor needs to run after the play count and hit statistics have been applied, at very least.
         public int Order => int.MaxValue;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
             if (score.beatmap!.approved <= 0)
                 return;
@@ -92,7 +92,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                 foreach (var awardedMedal in awarder.Check(availableMedalsForUser, context))
                 {
-                    awardMedal(score, awardedMedal);
+                    postTransactionActions.Add(() => awardMedal(score, awardedMedal));
                 }
             }
         }
@@ -102,7 +102,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             return availableMedals ??= conn.Query<Medal>("SELECT * FROM osu_achievements WHERE enabled = 1", transaction: transaction).ToImmutableArray();
         }
 
-        private void awardMedal(SoloScore score, Medal medal)
+        private static void awardMedal(SoloScore score, Medal medal)
         {
             Console.WriteLine($"Awarding medal {medal.name} to user {score.user_id} (score {score.id})");
             WebRequestHelper.RunSharedInteropCommand($"user-achievement/{score.user_id}/{medal.achievement_id}/{score.beatmap_id}", "POST");

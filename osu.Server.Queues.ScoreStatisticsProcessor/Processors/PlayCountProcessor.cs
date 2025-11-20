@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using Dapper;
 using JetBrains.Annotations;
@@ -25,7 +26,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
             if (!score.IsValidForPlayTracking(out _) && previousVersion >= 10)
                 return;
@@ -40,7 +41,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
             if (!score.IsValidForPlayTracking(out _))
                 return;
@@ -63,7 +64,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 adjustUserBeatmapPlaycount(score, conn, transaction);
 
                 adjustGlobalPlaycount(conn, transaction);
-                adjustGlobalBeatmapPlaycount(score, conn, transaction);
+                adjustGlobalBeatmapPlaycount(score, conn, transaction, postTransactionActions);
             }
         }
 
@@ -86,7 +87,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
         }
 
-        private static void adjustGlobalBeatmapPlaycount(SoloScore score, MySqlConnection conn, MySqlTransaction transaction)
+        private static void adjustGlobalBeatmapPlaycount(SoloScore score, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
             // We want to reduce database overhead here, so we only update the global beatmap playcount every n plays.
             // Note that we use a non-round number to make the display more natural.
@@ -112,7 +113,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
                 // Reindex beatmap occasionally.
                 if (RNG.Next(0, 10) == 0)
-                    WebRequestHelper.RunSharedInteropCommand("indexing/bulk", "POST", new { beatmapset = new[] { score.beatmap.beatmapset_id } });
+                    postTransactionActions.Add(() => WebRequestHelper.RunSharedInteropCommand("indexing/bulk", "POST", new { beatmapset = new[] { score.beatmap.beatmapset_id } }));
 
                 // TODO: announce playcount milestones
                 // const int notify_amount = 1000000;
