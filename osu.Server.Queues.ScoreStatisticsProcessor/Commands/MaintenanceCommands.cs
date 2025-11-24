@@ -22,6 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(VerifyUserRankCounts))]
     [Subcommand(typeof(VerifyUserRankedScore))]
     [Subcommand(typeof(PopulateTotalScoreWithoutModsCommand))]
+    [Subcommand(typeof(RecalculateModMultipliersCommand))]
     public sealed class MaintenanceCommands
     {
         public Task<int> OnExecuteAsync(CommandLineApplication app, CancellationToken cancellationToken)
