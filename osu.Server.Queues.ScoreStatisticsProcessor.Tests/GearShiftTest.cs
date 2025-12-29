@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using osu.Game.Online.API;
+using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
@@ -16,6 +17,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             AddMedal(339);
             beatmap = AddBeatmap();
+
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, mods: [new OsuModDoubleTime()]);
         }
 
         [Fact]

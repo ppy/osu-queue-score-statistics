@@ -201,7 +201,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         protected Beatmap AddBeatmap(Action<Beatmap>? beatmapSetup = null, Action<BeatmapSet>? beatmapSetSetup = null)
         {
             var beatmap = new Beatmap { approved = BeatmapOnlineStatus.Ranked };
-            var beatmapSet = new BeatmapSet { approved = BeatmapOnlineStatus.Ranked };
+            var beatmapSet = new BeatmapSet { approved = BeatmapOnlineStatus.Ranked, approved_date = DateTimeOffset.Now.AddHours(-1) };
 
             beatmapSetup?.Invoke(beatmap);
             beatmapSetSetup?.Invoke(beatmapSet);

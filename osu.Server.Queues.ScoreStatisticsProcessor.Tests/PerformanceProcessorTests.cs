@@ -232,7 +232,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 new OsuModDifficultyAdjust(),
                 // Taiko
                 new TaikoModRandom(),
-                new TaikoModSwap(),
                 // Catch
                 new CatchModMirror(),
                 new CatchModFloatingFruits(),
