@@ -49,10 +49,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             const int beatmap_count = 12;
             const int over_time = 120;
 
-            int secondsForRecentScores = conn.QuerySingleOrDefault<int?>("SELECT UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(ended_at) FROM scores FORCE INDEX (user_recent) WHERE user_id = @user_id AND ruleset_id = @ruleset_id ORDER BY id DESC LIMIT 1 OFFSET @beatmap_count", new
+            int secondsForRecentScores = conn.QuerySingleOrDefault<int?>("SELECT UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(ended_at) FROM scores FORCE INDEX (user_recent) WHERE user_id = @user_id ORDER BY id DESC LIMIT 1 OFFSET @beatmap_count", new
             {
                 user_id = score.user_id,
-                ruleset_id = score.ruleset_id,
                 beatmap_count,
             }, transaction) ?? int.MaxValue;
 
