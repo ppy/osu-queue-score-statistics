@@ -48,7 +48,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public bool RunOnLegacyScores => true; // This is handled by each awarder.
 
         // This processor needs to run after the play count and hit statistics have been applied, at very least.
-        public int Order => int.MaxValue;
+        public int Order => int.MaxValue - 1;
 
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {

@@ -21,7 +21,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class ManiaKeyModeUserStatsProcessor : IProcessor
     {
-        public int Order => int.MaxValue;
+        public int Order => int.MaxValue - 1;
 
         public bool RunOnFailedScores => false;
         public bool RunOnLegacyScores => true;
