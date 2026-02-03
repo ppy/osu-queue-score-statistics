@@ -172,6 +172,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 rank = ScoreRank.S,
                 passed = true,
                 preserve = true,
+                accuracy = 0.99,
             };
 
             var scoreData = new SoloScoreData
@@ -222,10 +223,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     db.Insert(beatmapSet);
             }
 
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
-            AddBeatmapAttributes<TaikoDifficultyAttributes>(beatmap.beatmap_id, mode: 1);
-            AddBeatmapAttributes<CatchDifficultyAttributes>(beatmap.beatmap_id, mode: 2);
-            AddBeatmapAttributes<ManiaDifficultyAttributes>(beatmap.beatmap_id, mode: 3);
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, attr => attr.MaxCombo = MAX_COMBO);
+            AddBeatmapAttributes<TaikoDifficultyAttributes>(beatmap.beatmap_id, attr => attr.MaxCombo = MAX_COMBO, mode: 1);
+            AddBeatmapAttributes<CatchDifficultyAttributes>(beatmap.beatmap_id, attr => attr.MaxCombo = MAX_COMBO, mode: 2);
+            AddBeatmapAttributes<ManiaDifficultyAttributes>(beatmap.beatmap_id, attr => attr.MaxCombo = MAX_COMBO, mode: 3);
 
             return beatmap;
         }
