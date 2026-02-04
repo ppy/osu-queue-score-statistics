@@ -245,6 +245,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                                 Console.WriteLine($"Aborting processing of score {item.Score.id}: {abortException.Message}");
                                 tags.Add("type:aborted");
                                 transaction.Rollback();
+                                conn.Execute("UPDATE `scores` SET `ranked` = 0 WHERE `id` = @scoreId", new { scoreId = score.id });
                                 return;
                             }
 
