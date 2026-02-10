@@ -81,7 +81,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(playlistItem.ruleset_id);
 
-            HitResult maxRulesetJudgement = ruleset.GetHitResults().First().result;
+            HitResult maxRulesetJudgement = ruleset.GetHitResultsForDisplay().First().result;
 
             Dictionary<HitResult, int> statistics = JsonConvert.DeserializeObject<Dictionary<HitResult, int>>(score.statistics)!;
 
