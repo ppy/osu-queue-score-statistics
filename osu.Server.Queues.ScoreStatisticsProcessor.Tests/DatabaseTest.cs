@@ -179,12 +179,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 Statistics =
                 {
-                    { HitResult.Perfect, 5 },
+                    { HitResult.Great, 5 },
                     { HitResult.LargeBonus, 0 }
                 },
                 MaximumStatistics =
                 {
-                    { HitResult.Perfect, 5 },
+                    { HitResult.Great, 5 },
                     { HitResult.LargeBonus, 2 }
                 },
             };
