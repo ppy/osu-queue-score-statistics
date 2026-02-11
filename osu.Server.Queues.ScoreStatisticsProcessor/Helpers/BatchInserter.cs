@@ -462,7 +462,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
             HitResult maxBasicResult;
             using (var scoreProcessor = ruleset.CreateScoreProcessor())
-                maxBasicResult = ruleset.GetHitResults().Where(h => h.result.IsBasic()).Select(h => h.result).MaxBy(scoreProcessor.GetBaseScoreForResult);
+                maxBasicResult = ruleset.GetHitResultsForDisplay().Where(h => h.result.IsBasic()).Select(h => h.result).MaxBy(scoreProcessor.GetBaseScoreForResult);
 
             cache = new RulesetCache(ruleset, maxBasicResult, ruleset.CreateMod<ModClassic>()!);
 
