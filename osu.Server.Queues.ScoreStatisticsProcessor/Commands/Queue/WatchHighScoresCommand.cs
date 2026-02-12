@@ -37,7 +37,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private long lastCommitTimestamp;
         private long startupTimestamp;
 
-        private ScoreStatisticsQueueProcessor? scoreStatisticsQueueProcessor;
+        private ScoreStatisticsQueueProcessor scoreStatisticsQueueProcessor = null!;
 
         /// <summary>
         /// The number of seconds between console progress reports.
@@ -200,16 +200,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         private void pushCompletedScoreToQueue(BatchInserter inserter)
         {
-            if (scoreStatisticsQueueProcessor != null)
-            {
-                var scoreStatisticsItems = inserter.ScoreStatisticsItems.ToList();
+            var scoreStatisticsItems = inserter.ScoreStatisticsItems.ToList();
 
-                if (scoreStatisticsItems.Any())
-                {
-                    if (!DryRun)
-                        scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
-                    Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
-                }
+            if (scoreStatisticsItems.Any())
+            {
+                if (!DryRun)
+                    scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
+                Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
             }
         }
 
