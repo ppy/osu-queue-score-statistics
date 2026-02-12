@@ -54,8 +54,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             break;
 
                         Console.WriteLine($"Deleting score {score.id}...");
-                        scoreId.Value = score.id;
-                        await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
 
                         if (score.has_replay)
                         {
@@ -76,6 +74,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                     break;
                             }
                         }
+
+                        // TODO: as long as we're doing partition cycling, this is redundant.
+                        // in fact, we could move this inside the replay check. or we could update the initial query to only return `has_replay = 1` for cleanup.
+                        //
+                        // said another way, this whole method exists for the sole purpose of deleting attached replay data.
+                        // deleting the score is only really useful here as a marker that we've cleaned up the replay.
+                        scoreId.Value = score.id;
+                        await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
                     }
                 }
             }
