@@ -47,7 +47,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
         private readonly Ruleset ruleset;
 
-        private readonly bool importLegacyPP;
         private readonly bool dryRun;
         private readonly bool throwOnFailure;
 
@@ -93,10 +92,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             });
         }
 
-        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool dryRun = false, bool throwOnFailure = true)
+        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool dryRun = false, bool throwOnFailure = true)
         {
             this.ruleset = ruleset;
-            this.importLegacyPP = importLegacyPP;
             this.dryRun = dryRun;
             this.throwOnFailure = throwOnFailure;
 
@@ -493,37 +491,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         {
             for (ulong scoreId = firstId; scoreId <= lastId; scoreId++)
             {
-                if (importLegacyPP)
+                // the legacy PP value was not imported.
+                // push the score to redis for PP processing.
+                // on completion of PP processing, the score will be pushed to ES for indexing.
+                // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
+                // is not constructed anywhere before this...
+                var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id AND legacy_score_id IS NOT NULL",
+                    new { id = scoreId });
+
+                if (score == null)
                 {
-                    // TODO: this is queueing non-legacy scores for indexing unnecessarily.
-                    // consider querying first (as below in the `else`).
-
-                    // we can proceed by pushing the score directly to ES for indexing.
-                    ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
-                    {
-                        ScoreId = (long)scoreId
-                    });
+                    // likely a deletion; already queued for ES above.
+                    continue;
                 }
-                else
-                {
-                    // the legacy PP value was not imported.
-                    // push the score to redis for PP processing.
-                    // on completion of PP processing, the score will be pushed to ES for indexing.
-                    // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
-                    // is not constructed anywhere before this...
-                    var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id AND legacy_score_id IS NOT NULL",
-                        new { id = scoreId });
 
-                    if (score == null)
-                    {
-                        // likely a deletion; already queued for ES above.
-                        continue;
-                    }
+                var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id", new { id = scoreId });
 
-                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id", new { id = scoreId });
-
-                    ScoreStatisticsItems.Add(new ScoreItem(score, history));
-                }
+                ScoreStatisticsItems.Add(new ScoreItem(score, history));
             }
         }
     }

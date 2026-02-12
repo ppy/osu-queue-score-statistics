@@ -31,20 +31,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         [Option(CommandOptionType.SingleValue, Template = "--ruleset-id")]
         public int RulesetId { get; set; }
 
-        /// <summary>
-        /// When set to <c>true</c>, scores will not be queued to the score statistics processor,
-        /// instead being sent straight to the elasticsearch indexing queue.
-        /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-score-processor")]
-        public bool SkipScoreProcessor { get; set; }
-
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
         public bool DryRun { get; set; }
 
         private long lastCommitTimestamp;
         private long startupTimestamp;
 
-        private ElasticQueuePusher? elasticQueueProcessor;
         private ScoreStatisticsQueueProcessor? scoreStatisticsQueueProcessor;
 
         /// <summary>
@@ -101,16 +93,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 await Task.Delay(10000, cancellationToken);
             }
 
-            if (SkipScoreProcessor)
-            {
-                elasticQueueProcessor = new ElasticQueuePusher();
-                Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
-            }
-            else
-            {
-                scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
-                Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
-            }
+            scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
+            Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
@@ -184,7 +168,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         continue;
                     }
 
-                    var inserter = new BatchInserter(ruleset, highScores, importLegacyPP: SkipScoreProcessor, dryRun: DryRun);
+                    var inserter = new BatchInserter(ruleset, highScores, dryRun: DryRun);
 
                     while (!inserter.Task.IsCompleted)
                     {
@@ -225,18 +209,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     if (!DryRun)
                         scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
                     Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
-                }
-            }
-
-            if (elasticQueueProcessor != null)
-            {
-                var elasticItems = inserter.ElasticScoreItems.ToList();
-
-                if (elasticItems.Any())
-                {
-                    if (!DryRun)
-                        elasticQueueProcessor.PushToQueue(elasticItems);
-                    Console.WriteLine($"Queued {elasticItems.Count} item(s) for indexing");
                 }
             }
         }

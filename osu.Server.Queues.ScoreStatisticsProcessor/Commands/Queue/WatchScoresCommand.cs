@@ -31,12 +31,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         [Option(CommandOptionType.SingleValue, Template = "--ruleset-id")]
         public int RulesetId { get; set; }
 
-        /// <summary>
-        /// When set to <c>true</c>, scores will not be queued to the score statistics processor.
-        /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-score-processor")]
-        public bool SkipScoreProcessor { get; set; }
-
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
         public bool DryRun { get; set; }
 
@@ -63,11 +57,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             lastScoreId = await db.QuerySingleAsync<ulong>($"SELECT MAX(score_id) FROM {scoreTable}");
 
-            if (!SkipScoreProcessor)
-            {
-                scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
-                Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
-            }
+            scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
+            Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
@@ -101,7 +92,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                     // Need to obtain score_id before zeroing them out.
                     lastScoreId = scores.Last().score_id;
 
-                    var inserter = new BatchInserter(ruleset, scores, importLegacyPP: SkipScoreProcessor, dryRun: DryRun, throwOnFailure: false);
+                    var inserter = new BatchInserter(ruleset, scores, dryRun: DryRun, throwOnFailure: false);
 
                     while (!inserter.Task.IsCompleted)
                     {
