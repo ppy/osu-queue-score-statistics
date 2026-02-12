@@ -31,6 +31,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             using (var deleteCommand = deleteConnection.CreateCommand())
             using (var s3 = S3.GetClient())
             {
+                // TODO: for safety do we want to delete pins here? might be a race condition where user pins right as this process is running.
                 deleteCommand.CommandText = "DELETE FROM scores WHERE id = @id;";
 
                 MySqlParameter scoreId = deleteCommand.Parameters.Add("id", MySqlDbType.UInt64);
@@ -57,6 +58,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                         if (score.has_replay)
                         {
+                            if (score.is_legacy_score)
+                            {
+                                // TODO: we likely do want logic here to handle the cleanup of web-10 (at least the replay part?).
+                                // for now, make sure we don't attempt to clean up stable scores with replays here.
+                                throw new InvalidOperationException($"Legacy score id:{score.id} legacy_id:{score.legacy_score_id} has replay flag set");
+                            }
+
                             Console.WriteLine("* Removing replay from S3...");
                             var deleteResult = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
 
