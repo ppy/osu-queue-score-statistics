@@ -141,7 +141,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             if ((currentTimestamp - lastCommitTimestamp) / 1000f >= seconds_between_report)
             {
                 int inserted = Interlocked.Exchange(ref BatchInserter.CurrentReportInsertCount, 0);
-                int deleted = Interlocked.Exchange(ref BatchInserter.CurrentReportDeleteCount, 0);
 
                 // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
                 if (inserted > 0 && startupTimestamp == 0)
@@ -151,7 +150,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 double processingRate = BatchInserter.TotalInsertCount / secondsSinceStart;
 
                 Console.WriteLine($"Inserting up to {lastScoreId:N0}: "
-                                  + $"{BatchInserter.TotalInsertCount:N0} ins {BatchInserter.TotalDeleteCount:N0} del {BatchInserter.TotalSkipCount:N0} skip (+{inserted:N0} new +{deleted:N0} del) {processingRate:N0}/s");
+                                  + $"{BatchInserter.TotalInsertCount:N0} inserted (+{inserted:N0}) {processingRate:N0}/s");
 
                 lastCommitTimestamp = currentTimestamp;
             }
@@ -162,7 +161,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine();
             Console.WriteLine();
             Console.WriteLine($"Cancelled after {(DateTimeOffset.Now - startedAt).TotalSeconds} seconds.");
-            Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted, {BatchInserter.TotalSkipCount} skipped, {BatchInserter.TotalDeleteCount} deleted");
+            Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted");
             Console.WriteLine($"Resume from start id {lastScoreId}");
             Console.WriteLine();
             Console.WriteLine();

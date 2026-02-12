@@ -39,11 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
     public class BatchInserter
     {
         public static int CurrentReportInsertCount;
-        public static int CurrentReportDeleteCount;
         public static int TotalInsertCount;
-        public static int TotalDeleteCount;
-
-        public static int TotalSkipCount;
 
         private readonly Ruleset ruleset;
 
@@ -53,8 +49,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         public HighScore[] Scores { get; }
 
         public Task Task { get; }
-
-        public List<ElasticQueuePusher.ElasticScoreItem> ElasticScoreItems { get; } = new List<ElasticQueuePusher.ElasticScoreItem>();
 
         public List<ScoreItem> ScoreStatisticsItems { get; } = new List<ScoreItem>();
 
@@ -116,46 +110,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             {
                 try
                 {
-                    if (highScore.score_id == 0)
-                    {
-                        // Something really bad probably happened, abort for safety.
+                    // Something really bad probably happened, abort for safety.
+                    if (highScore.score_id == 0 || highScore.score == 0)
                         throw new InvalidOperationException("Score arrived with no ID");
-                    }
 
-                    // Yes this is a weird way of determining whether it's a deletion.
-                    // Look away please.
-                    bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
-
-                    if (isDeletion)
-                    {
-                        if (highScore.new_id == null)
-                        {
-                            Interlocked.Increment(ref TotalSkipCount);
-                            return;
-                        }
-
-                        using (var conn = DatabaseAccess.GetConnection())
-                        {
-                            conn.Execute("DELETE FROM score_pins WHERE user_id = @new_user_id AND score_id = @new_id;"
-                                         + "DELETE FROM scores WHERE id = @new_id", new
-                            {
-                                highScore.new_id,
-                                highScore.new_user_id,
-                            });
-                        }
-
-                        ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)highScore.new_id });
-
-                        Interlocked.Increment(ref TotalDeleteCount);
-                        Interlocked.Increment(ref CurrentReportDeleteCount);
-                        return;
-                    }
-
+                    // This used to be skipped, but should generally never happen these days.
                     if (highScore.new_id != null)
-                    {
-                        Interlocked.Increment(ref TotalSkipCount);
-                        return;
-                    }
+                        throw new InvalidOperationException("Score arrived with new ID already attached");
 
                     // At least one row in the old table have invalid dates.
                     // MySQL doesn't like empty dates, so let's ensure we have a valid one.
