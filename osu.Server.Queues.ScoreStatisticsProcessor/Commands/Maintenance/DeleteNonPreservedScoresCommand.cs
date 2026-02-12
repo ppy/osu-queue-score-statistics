@@ -38,7 +38,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 await deleteCommand.PrepareAsync(cancellationToken);
 
-                while (true)
+                while (!cancellationToken.IsCancellationRequested)
                 {
                     var scores = await readConnection.QueryAsync<SoloScore>(new CommandDefinition(
                         $"SELECT * FROM `scores` WHERE `preserve` = 0 AND `unix_updated_at` < UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR)) LIMIT 1000",
