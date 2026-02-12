@@ -31,21 +31,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         [Option(CommandOptionType.SingleValue, Template = "--ruleset-id")]
         public int RulesetId { get; set; }
 
-        /// <summary>
-        /// When set to <c>true</c>, scores will not be queued to the score statistics processor,
-        /// instead being sent straight to the elasticsearch indexing queue.
-        /// </summary>
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--skip-score-processor")]
-        public bool SkipScoreProcessor { get; set; }
-
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
         public bool DryRun { get; set; }
 
         private long lastCommitTimestamp;
         private long startupTimestamp;
 
-        private ElasticQueuePusher? elasticQueueProcessor;
-        private ScoreStatisticsQueueProcessor? scoreStatisticsQueueProcessor;
+        private ScoreStatisticsQueueProcessor scoreStatisticsQueueProcessor = null!;
 
         /// <summary>
         /// The number of seconds between console progress reports.
@@ -101,16 +93,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 await Task.Delay(10000, cancellationToken);
             }
 
-            if (SkipScoreProcessor)
-            {
-                elasticQueueProcessor = new ElasticQueuePusher();
-                Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
-            }
-            else
-            {
-                scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
-                Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
-            }
+            scoreStatisticsQueueProcessor = new ScoreStatisticsQueueProcessor();
+            Console.WriteLine($"Pushing imported scores to redis queue {scoreStatisticsQueueProcessor.QueueName}");
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
@@ -184,7 +168,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                         continue;
                     }
 
-                    var inserter = new BatchInserter(ruleset, highScores, importLegacyPP: SkipScoreProcessor, dryRun: DryRun);
+                    var inserter = new BatchInserter(ruleset, highScores, dryRun: DryRun);
 
                     while (!inserter.Task.IsCompleted)
                     {
@@ -216,28 +200,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         private void pushCompletedScoreToQueue(BatchInserter inserter)
         {
-            if (scoreStatisticsQueueProcessor != null)
+            var scoreStatisticsItems = inserter.ScoreStatisticsItems.ToList();
+
+            if (scoreStatisticsItems.Any())
             {
-                var scoreStatisticsItems = inserter.ScoreStatisticsItems.ToList();
-
-                if (scoreStatisticsItems.Any())
-                {
-                    if (!DryRun)
-                        scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
-                    Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
-                }
-            }
-
-            if (elasticQueueProcessor != null)
-            {
-                var elasticItems = inserter.ElasticScoreItems.ToList();
-
-                if (elasticItems.Any())
-                {
-                    if (!DryRun)
-                        elasticQueueProcessor.PushToQueue(elasticItems);
-                    Console.WriteLine($"Queued {elasticItems.Count} item(s) for indexing");
-                }
+                if (!DryRun)
+                    scoreStatisticsQueueProcessor.PushToQueue(scoreStatisticsItems);
+                Console.WriteLine($"Queued {scoreStatisticsItems.Count} item(s) for statistics processing");
             }
         }
 
@@ -248,7 +217,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             if ((currentTimestamp - lastCommitTimestamp) / 1000f >= seconds_between_report)
             {
                 int inserted = Interlocked.Exchange(ref BatchInserter.CurrentReportInsertCount, 0);
-                int deleted = Interlocked.Exchange(ref BatchInserter.CurrentReportDeleteCount, 0);
 
                 // Only set startup timestamp after first insert actual insert/update run to avoid weighting during catch-up.
                 if (inserted > 0 && startupTimestamp == 0)
@@ -258,7 +226,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
                 double processingRate = BatchInserter.TotalInsertCount / secondsSinceStart;
 
                 Console.WriteLine($"Inserting up to {lastQueueId:N0}: "
-                                  + $"{BatchInserter.TotalInsertCount:N0} ins {BatchInserter.TotalDeleteCount:N0} del {BatchInserter.TotalSkipCount:N0} skip (+{inserted:N0} new +{deleted:N0} del) {processingRate:N0}/s");
+                                  + $"{BatchInserter.TotalInsertCount:N0} inserted {processingRate:N0}/s");
 
                 lastCommitTimestamp = currentTimestamp;
             }
@@ -269,7 +237,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             Console.WriteLine();
             Console.WriteLine();
             Console.WriteLine($"Cancelled after {(DateTimeOffset.Now - startedAt).TotalSeconds} seconds.");
-            Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted, {BatchInserter.TotalSkipCount} skipped, {BatchInserter.TotalDeleteCount} deleted");
+            Console.WriteLine($"Final stats: {BatchInserter.TotalInsertCount} inserted");
             Console.WriteLine($"Resume from start id {lastQueueId}");
             Console.WriteLine();
             Console.WriteLine();

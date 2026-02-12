@@ -39,23 +39,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
     public class BatchInserter
     {
         public static int CurrentReportInsertCount;
-        public static int CurrentReportDeleteCount;
         public static int TotalInsertCount;
-        public static int TotalDeleteCount;
-
-        public static int TotalSkipCount;
 
         private readonly Ruleset ruleset;
 
-        private readonly bool importLegacyPP;
         private readonly bool dryRun;
         private readonly bool throwOnFailure;
 
         public HighScore[] Scores { get; }
 
         public Task Task { get; }
-
-        public List<ElasticQueuePusher.ElasticScoreItem> ElasticScoreItems { get; } = new List<ElasticQueuePusher.ElasticScoreItem>();
 
         public List<ScoreItem> ScoreStatisticsItems { get; } = new List<ScoreItem>();
 
@@ -93,10 +86,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             });
         }
 
-        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool dryRun = false, bool throwOnFailure = true)
+        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool dryRun = false, bool throwOnFailure = true)
         {
             this.ruleset = ruleset;
-            this.importLegacyPP = importLegacyPP;
             this.dryRun = dryRun;
             this.throwOnFailure = throwOnFailure;
 
@@ -118,46 +110,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             {
                 try
                 {
-                    if (highScore.score_id == 0)
-                    {
-                        // Something really bad probably happened, abort for safety.
+                    // Something really bad probably happened, abort for safety.
+                    if (highScore.score_id == 0 || highScore.score == 0)
                         throw new InvalidOperationException("Score arrived with no ID");
-                    }
 
-                    // Yes this is a weird way of determining whether it's a deletion.
-                    // Look away please.
-                    bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
-
-                    if (isDeletion)
-                    {
-                        if (highScore.new_id == null)
-                        {
-                            Interlocked.Increment(ref TotalSkipCount);
-                            return;
-                        }
-
-                        using (var conn = DatabaseAccess.GetConnection())
-                        {
-                            conn.Execute("DELETE FROM score_pins WHERE user_id = @new_user_id AND score_id = @new_id;"
-                                         + "DELETE FROM scores WHERE id = @new_id", new
-                            {
-                                highScore.new_id,
-                                highScore.new_user_id,
-                            });
-                        }
-
-                        ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)highScore.new_id });
-
-                        Interlocked.Increment(ref TotalDeleteCount);
-                        Interlocked.Increment(ref CurrentReportDeleteCount);
-                        return;
-                    }
-
+                    // This used to be skipped, but should generally never happen these days.
                     if (highScore.new_id != null)
-                    {
-                        Interlocked.Increment(ref TotalSkipCount);
-                        return;
-                    }
+                        throw new InvalidOperationException("Score arrived with new ID already attached");
 
                     // At least one row in the old table have invalid dates.
                     // MySQL doesn't like empty dates, so let's ensure we have a valid one.
@@ -493,37 +452,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         {
             for (ulong scoreId = firstId; scoreId <= lastId; scoreId++)
             {
-                if (importLegacyPP)
-                {
-                    // TODO: this is queueing non-legacy scores for indexing unnecessarily.
-                    // consider querying first (as below in the `else`).
+                // the legacy PP value was not imported.
+                // push the score to redis for PP processing.
+                // on completion of PP processing, the score will be pushed to ES for indexing.
+                // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
+                // is not constructed anywhere before this...
+                var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id AND legacy_score_id IS NOT NULL",
+                    new { id = scoreId });
 
-                    // we can proceed by pushing the score directly to ES for indexing.
-                    ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
-                    {
-                        ScoreId = (long)scoreId
-                    });
-                }
-                else
-                {
-                    // the legacy PP value was not imported.
-                    // push the score to redis for PP processing.
-                    // on completion of PP processing, the score will be pushed to ES for indexing.
-                    // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
-                    // is not constructed anywhere before this...
-                    var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id AND legacy_score_id IS NOT NULL",
-                        new { id = scoreId });
+                if (score == null)
+                    throw new InvalidOperationException("Attempted to queue score for processing which is not in the database");
 
-                    if (score == null)
-                    {
-                        // likely a deletion; already queued for ES above.
-                        continue;
-                    }
+                var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id", new { id = scoreId });
 
-                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id", new { id = scoreId });
-
-                    ScoreStatisticsItems.Add(new ScoreItem(score, history));
-                }
+                ScoreStatisticsItems.Add(new ScoreItem(score, history));
             }
         }
     }
