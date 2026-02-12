@@ -461,10 +461,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                     new { id = scoreId });
 
                 if (score == null)
-                {
-                    // likely a deletion; already queued for ES above.
-                    continue;
-                }
+                    throw new InvalidOperationException("Attempted to queue score for processing which is not in the database");
 
                 var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id", new { id = scoreId });
 
