@@ -15,7 +15,7 @@ using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
-    [Command("cleanup", Description = "Delete non-preserved scores which are stale enough.")]
+    [Command("delete-non-preserved", Description = "Delete non-preserved scores which are stale enough.")]
     public class DeleteNonPreservedScoresCommand
     {
         /// <summary>
