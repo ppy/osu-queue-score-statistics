@@ -101,6 +101,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
                 BeatmapInfo = beatmapInfo,
                 Passed = passed,
                 TotalScore = total_score,
+                TotalScoreWithoutMods = ScoreData.TotalScoreWithoutMods ?? 0,
                 LegacyTotalScore = legacy_total_score,
                 Accuracy = accuracy,
                 MaxCombo = (int)max_combo,
