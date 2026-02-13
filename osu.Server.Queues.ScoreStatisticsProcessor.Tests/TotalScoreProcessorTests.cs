@@ -140,12 +140,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 10081, CancellationToken);
         }
 
-        [Fact]
-        public void TestTotalScoreNotIncreasedOnBrokenUnrankedBeatmap()
+        [Theory]
+        [InlineData(BeatmapOnlineStatus.Graveyard)]
+        [InlineData(BeatmapOnlineStatus.WIP)]
+        [InlineData(BeatmapOnlineStatus.Pending)]
+        [InlineData(BeatmapOnlineStatus.Qualified)]
+        [InlineData(BeatmapOnlineStatus.Loved)]
+        public void TestTotalScoreNotIncreasedOnBrokenNotRankedBeatmap(BeatmapOnlineStatus status)
         {
             AddBeatmap(b =>
             {
-                b.approved = BeatmapOnlineStatus.Graveyard;
+                b.approved = status;
                 b.total_length = 1; // seconds
             });
 
@@ -168,10 +173,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
         }
 
-        [Fact]
-        public void TestTotalScoreNotIncreasedOnBrokenRankedBeatmap()
+        [Theory]
+        [InlineData(BeatmapOnlineStatus.Ranked)]
+        [InlineData(BeatmapOnlineStatus.Approved)]
+        public void TestTotalScoreIncreasedOnBrokenRankedBeatmap(BeatmapOnlineStatus status)
         {
-            AddBeatmap(b => b.total_length = 180);
+            AddBeatmap(b =>
+            {
+                b.approved = status;
+                b.total_length = 1; // seconds
+            });
 
             var score = CreateTestScore();
             score.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
@@ -189,7 +200,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(score);
-            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
+            WaitForDatabaseState("SELECT total_score FROM osu_user_stats WHERE user_id = 2", 5_000_01, CancellationToken);
         }
     }
 }
