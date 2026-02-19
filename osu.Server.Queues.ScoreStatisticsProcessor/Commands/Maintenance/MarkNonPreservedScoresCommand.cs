@@ -29,6 +29,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
         public bool Verbose { get; set; }
 
+        [Option(Description = "Optional where clause", Template = "--where")]
+        public string Where { get; set; } = "1 = 1";
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
@@ -40,7 +43,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
             {
                 Console.WriteLine("Fetching all users...");
-                int[] userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable}")).ToArray();
+                int[] userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE {Where}")).ToArray();
                 Console.WriteLine($"Fetched {userIds.Length} users");
 
                 foreach (int userId in userIds)
@@ -58,7 +61,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 rulesetId = RulesetId,
             };
 
-            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition("SELECT * FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId", parameters, cancellationToken: cancellationToken));
+            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition("SELECT * FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
+                parameters, cancellationToken: cancellationToken));
 
             if (!scores.Any())
                 return;
