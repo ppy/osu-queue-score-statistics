@@ -2,11 +2,13 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Amazon.S3.Model;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
@@ -19,82 +21,143 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
     [Command("delete-non-preserved", Description = "Delete non-preserved scores which are stale enough.")]
     public class DeleteNonPreservedScoresCommand
     {
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run", Description = "Don't actually mark, just output.")]
+        public bool DryRun { get; set; }
+
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
+        public bool Verbose { get; set; }
+
         /// <summary>
-        /// How many hours non-preserved scores should be retained before being purged.
+        /// How many days non-preserved scores should be retained before being purged.
         /// </summary>
-        private const int preserve_hours = 48;
+        private const int preserve_days = 2;
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using (var readConnection = await DatabaseAccess.GetConnectionAsync(cancellationToken))
-            using (var deleteConnection = await DatabaseAccess.GetConnectionAsync(cancellationToken))
-            using (var deleteCommand = deleteConnection.CreateCommand())
-            using (var s3 = S3.GetClient())
+            using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
+            using var s3 = S3.GetClient();
+
+            DateTime cutoffDate = DateTime.UtcNow.Date.AddDays(-preserve_days);
+            Console.WriteLine($"Processing partitions older than {cutoffDate:yyyyMMdd}");
+
+            List<string> partitions = await getEligiblePartitionsAsync(db, cutoffDate, cancellationToken);
+
+            if (!partitions.Any())
             {
-                // TODO: for safety do we want to delete pins here? might be a race condition where user pins right as this process is running.
-                deleteCommand.CommandText = "DELETE FROM scores WHERE id = @id;";
+                Console.WriteLine("No eligible partitions found for deletion.");
+                return 0;
+            }
 
-                MySqlParameter scoreId = deleteCommand.Parameters.Add("id", MySqlDbType.UInt64);
+            Console.WriteLine($"Found {partitions.Count} partition(s) to process: {string.Join(", ", partitions)}");
 
-                await deleteCommand.PrepareAsync(cancellationToken);
+            foreach (string partition in partitions)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
 
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    var scores = await readConnection.QueryAsync<SoloScore>(new CommandDefinition(
-                        $"SELECT * FROM `scores` WHERE `preserve` = 0 AND `unix_updated_at` < UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR)) LIMIT 1000",
-                        cancellationToken: cancellationToken));
+                Console.WriteLine($"Processing partition {partition}...");
+                await processPartitionAsync(db, s3, partition, cancellationToken);
 
-                    if (!scores.Any())
-                        break;
-
-                    Console.WriteLine($"Processing next batch of {scores.Count()} scores");
-
-                    foreach (var score in scores)
-                    {
-                        if (cancellationToken.IsCancellationRequested)
-                            break;
-
-                        Console.WriteLine($"Deleting score {score.id}...");
-
-                        if (score.has_replay)
-                        {
-                            if (score.is_legacy_score)
-                            {
-                                // TODO: we likely do want logic here to handle the cleanup of web-10 (at least the replay part?).
-                                // for now, make sure we don't attempt to clean up stable scores with replays here.
-                                throw new InvalidOperationException($"Legacy score id:{score.id} legacy_id:{score.legacy_score_id} has replay flag set");
-                            }
-
-                            Console.WriteLine("* Removing replay from S3...");
-                            var deleteResult = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
-
-                            switch (deleteResult.HttpStatusCode)
-                            {
-                                case HttpStatusCode.NoContent:
-                                    // below wording is intentionally very roundabout, because s3 does not actually really seem to produce the types of error you'd expect.
-                                    // for instance, even if you request removal of a nonexistent object, it'll just throw a 204 No Content back
-                                    // with no real way to determine whether it actually even did anything.
-                                    Console.WriteLine("* Deletion request completed without error.");
-                                    break;
-
-                                default:
-                                    await Console.Error.WriteLineAsync($"* Received unexpected status code when attempting to delete replay: {deleteResult.HttpStatusCode}.");
-                                    break;
-                            }
-                        }
-
-                        // TODO: as long as we're doing partition cycling, this is redundant.
-                        // in fact, we could move this inside the replay check. or we could update the initial query to only return `has_replay = 1` for cleanup.
-                        //
-                        // said another way, this whole method exists for the sole purpose of deleting attached replay data.
-                        // deleting the score is only really useful here as a marker that we've cleaned up the replay.
-                        scoreId.Value = score.id;
-                        await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
-                    }
-                }
+                Console.WriteLine($"Dropping partition {partition}...");
+                if (!DryRun)
+                    await db.ExecuteAsync(new CommandDefinition($"ALTER TABLE `scores` DROP PARTITION {partition}", cancellationToken: cancellationToken));
+                Console.WriteLine($"Partition {partition} dropped successfully!");
             }
 
             return 0;
+        }
+
+        private async Task<List<string>> getEligiblePartitionsAsync(MySqlConnection db, DateTime cutoffDate, CancellationToken cancellationToken)
+        {
+            IEnumerable<string> partitions = await db.QueryAsync<string>(new CommandDefinition(
+                @"SELECT partition_name
+                FROM information_schema.partitions
+                WHERE table_schema = 'osu' AND table_name = 'scores'
+                AND partition_name IS NOT NULL
+                ORDER BY partition_name",
+                cancellationToken: cancellationToken));
+
+            List<string> eligiblePartitions = new List<string>();
+
+            foreach (string partition in partitions)
+            {
+                if (partition == "p0catch" || partition == "p1")
+                    continue;
+
+                if (DateTime.TryParseExact(partition.Substring(1), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var partitionDate))
+                {
+                    if (partitionDate < cutoffDate)
+                        eligiblePartitions.Add(partition);
+                }
+            }
+
+            return eligiblePartitions;
+        }
+
+        private async Task processPartitionAsync(MySqlConnection db, Amazon.S3.IAmazonS3 s3, string partitionName, CancellationToken cancellationToken)
+        {
+            using var markCleanCommand = db.CreateCommand();
+
+            // TODO: for safety do we want to delete pins here? might be a race condition where user pins right as this process is running.
+            markCleanCommand.CommandText = $"UPDATE scores PARTITION ({partitionName}) SET has_replay = 0 WHERE id = @id;";
+            MySqlParameter scoreId = markCleanCommand.Parameters.Add("id", MySqlDbType.UInt64);
+            await markCleanCommand.PrepareAsync(cancellationToken);
+
+            long count = await db.QuerySingleAsync<long>(
+                new CommandDefinition($"SELECT COUNT(id) FROM `scores` PARTITION ({partitionName})", cancellationToken: cancellationToken));
+            Console.WriteLine($"Partition contains {count:N0} scores.");
+
+            var scores = (await db.QueryAsync<SoloScore>(
+                    new CommandDefinition($"SELECT id, legacy_score_id FROM `scores` PARTITION ({partitionName}) WHERE `has_replay` = 1", cancellationToken: cancellationToken)))
+                .ToArray();
+
+            if (!scores.Any())
+            {
+                Console.WriteLine("No scores to clean up.");
+                return;
+            }
+
+            Console.WriteLine($"Cleaning up {scores.Length} scores with replays...");
+
+            foreach (var score in scores)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                if (Verbose)
+                    Console.WriteLine($"Deleting replay {score.id}...");
+
+                if (score.has_replay)
+                {
+                    if (score.is_legacy_score)
+                    {
+                        // TODO: we likely do want logic here to handle the cleanup of replays.
+                        // for now, make sure we don't attempt to clean up stable scores with replays here.
+                        throw new InvalidOperationException($"Legacy score id:{score.id} legacy_id:{score.legacy_score_id} has replay flag set");
+                    }
+
+                    if (!DryRun)
+                    {
+                        DeleteObjectResponse? deleteResult = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+
+                        switch (deleteResult.HttpStatusCode)
+                        {
+                            case HttpStatusCode.NoContent:
+                                break;
+
+                            default:
+                                await Console.Error.WriteLineAsync($"* Received unexpected status code when attempting to delete replay: {deleteResult.HttpStatusCode}.");
+                                break;
+                        }
+                    }
+                }
+
+                // As long as we're doing partition cycling, this is redundant, but marking rows means we can resume cleanup if cancelled on a specific partition.
+                // TODO: That said, we can probably get rid of this once we're happy with how things are running.
+                scoreId.Value = score.id;
+                if (!DryRun)
+                    await markCleanCommand.ExecuteNonQueryAsync(cancellationToken);
+            }
         }
     }
 }
