@@ -32,6 +32,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         /// </summary>
         private const int preserve_days = 2;
 
+        private const string scores_table = "scores";
+        private const string scores_cleanup_table = $"{scores_table}_cleanup";
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
@@ -65,7 +68,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 Console.WriteLine($"Dropping partition {partition}...");
                 if (!DryRun)
-                    await db.ExecuteAsync(new CommandDefinition($"ALTER TABLE `scores` DROP PARTITION {partition}", cancellationToken: cancellationToken));
+                    await db.ExecuteAsync(new CommandDefinition($"ALTER TABLE {scores_table} DROP PARTITION {partition}", cancellationToken: cancellationToken));
                 Console.WriteLine($"Partition {partition} dropped successfully!");
             }
 
@@ -75,9 +78,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         private async Task<List<string>> getEligiblePartitionsAsync(MySqlConnection db, DateTime cutoffDate, CancellationToken cancellationToken)
         {
             IEnumerable<string> partitions = await db.QueryAsync<string>(new CommandDefinition(
-                @"SELECT partition_name
+                $@"SELECT partition_name
                 FROM information_schema.partitions
-                WHERE table_schema = 'osu' AND table_name = 'scores'
+                WHERE table_schema = 'osu' AND table_name = '{scores_table}'
                 AND partition_name IS NOT NULL
                 ORDER BY partition_name",
                 cancellationToken: cancellationToken));
@@ -105,18 +108,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             {
                 Console.WriteLine("Moving partition contents to temporary table...");
 
-                await db.ExecuteAsync("CREATE TABLE scores_cleanup LIKE scores");
-                await db.ExecuteAsync("ALTER TABLE scores_cleanup REMOVE PARTITIONING");
+                await db.ExecuteAsync($"CREATE TABLE {scores_table}_cleanup LIKE {scores_table}");
+                await db.ExecuteAsync($"ALTER TABLE {scores_table}_cleanup REMOVE PARTITIONING");
 
                 // https://dev.mysql.com/doc/refman/8.4/en/partitioning-management-exchange.html
-                await db.ExecuteAsync($"ALTER TABLE scores EXCHANGE PARTITION {partitionName} WITH TABLE scores_cleanup WITHOUT VALIDATION");
+                await db.ExecuteAsync($"ALTER TABLE {scores_table} EXCHANGE PARTITION {partitionName} WITH TABLE {scores_table}_cleanup WITHOUT VALIDATION");
             }
 
-            long count = await db.QuerySingleAsync<long>(new CommandDefinition("SELECT COUNT(id) FROM `scores_cleanup`", cancellationToken: cancellationToken));
+            long count = await db.QuerySingleAsync<long>(new CommandDefinition($"SELECT COUNT(id) FROM `{scores_table}_cleanup`", cancellationToken: cancellationToken));
             Console.WriteLine($"Partition contains {count:N0} scores.");
 
             var scores = (await db.QueryAsync<SoloScore>(
-                    new CommandDefinition("SELECT id, legacy_score_id FROM `scores_cleanup` WHERE `has_replay` = 1", cancellationToken: cancellationToken)))
+                    new CommandDefinition($"SELECT id, legacy_score_id FROM `{scores_table}_cleanup` WHERE `has_replay` = 1", cancellationToken: cancellationToken)))
                 .ToArray();
 
             Console.WriteLine($"Cleaning up {scores.Length} scores with replays...");
@@ -155,7 +158,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (!DryRun)
             {
                 Console.WriteLine("Cleaning up temporary table...");
-                await db.ExecuteAsync("DROP TABLE scores_cleanup");
+                await db.ExecuteAsync($"DROP TABLE {scores_table}_cleanup");
             }
         }
     }
