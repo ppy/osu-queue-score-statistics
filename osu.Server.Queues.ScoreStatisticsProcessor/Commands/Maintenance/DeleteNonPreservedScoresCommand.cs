@@ -46,7 +46,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             // PARTITION p20260219 VALUES LESS THAN (0,1771372800) ENGINE = InnoDB
             // translates to p20260219 partition stores scores order than 2026-02-18 00:00:00 UTC+0
             DateTime cutoffDate = DateTime.UtcNow.Date.AddDays(1 - preserve_days);
-            Console.WriteLine($"Processing partitions starting from p{cutoffDate:yyyyMMdd}");
+            Console.WriteLine($"Processing partitions on {scores_table} starting from p{cutoffDate:yyyyMMdd}");
 
             List<string> partitions = await getEligiblePartitionsAsync(db, cutoffDate, cancellationToken);
 
@@ -104,12 +104,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private async Task processPartitionAsync(MySqlConnection db, Amazon.S3.IAmazonS3 s3, string partitionName, CancellationToken cancellationToken)
         {
+            await db.ExecuteAsync($"CREATE TABLE {scores_table}_cleanup LIKE {scores_table}");
+            await db.ExecuteAsync($"ALTER TABLE {scores_table}_cleanup REMOVE PARTITIONING");
+
             if (!DryRun)
             {
                 Console.WriteLine("Moving partition contents to temporary table...");
-
-                await db.ExecuteAsync($"CREATE TABLE {scores_table}_cleanup LIKE {scores_table}");
-                await db.ExecuteAsync($"ALTER TABLE {scores_table}_cleanup REMOVE PARTITIONING");
 
                 // https://dev.mysql.com/doc/refman/8.4/en/partitioning-management-exchange.html
                 await db.ExecuteAsync($"ALTER TABLE {scores_table} EXCHANGE PARTITION {partitionName} WITH TABLE {scores_table}_cleanup WITHOUT VALIDATION");
@@ -155,11 +155,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 }
             }
 
-            if (!DryRun)
-            {
-                Console.WriteLine("Cleaning up temporary table...");
-                await db.ExecuteAsync($"DROP TABLE {scores_table}_cleanup");
-            }
+            Console.WriteLine("Cleaning up temporary table...");
+            await db.ExecuteAsync($"DROP TABLE {scores_table}_cleanup");
         }
     }
 }
