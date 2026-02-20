@@ -63,7 +63,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
+                Console.WriteLine();
                 Console.WriteLine($"Processing partition {partition}...");
+
                 await processPartitionAsync(db, s3, partition, cancellationToken);
 
                 Console.WriteLine($"Dropping partition {partition}...");
@@ -104,22 +106,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private async Task processPartitionAsync(MySqlConnection db, Amazon.S3.IAmazonS3 s3, string partitionName, CancellationToken cancellationToken)
         {
-            await db.ExecuteAsync($"CREATE TABLE {scores_table}_cleanup LIKE {scores_table}");
-            await db.ExecuteAsync($"ALTER TABLE {scores_table}_cleanup REMOVE PARTITIONING");
+            await db.ExecuteAsync($"CREATE TABLE {scores_cleanup_table} LIKE {scores_table}");
+            await db.ExecuteAsync($"ALTER TABLE {scores_cleanup_table} REMOVE PARTITIONING");
 
             if (!DryRun)
             {
                 Console.WriteLine("Moving partition contents to temporary table...");
 
                 // https://dev.mysql.com/doc/refman/8.4/en/partitioning-management-exchange.html
-                await db.ExecuteAsync($"ALTER TABLE {scores_table} EXCHANGE PARTITION {partitionName} WITH TABLE {scores_table}_cleanup WITHOUT VALIDATION");
+                await db.ExecuteAsync($"ALTER TABLE {scores_table} EXCHANGE PARTITION {partitionName} WITH TABLE {scores_cleanup_table} WITHOUT VALIDATION");
             }
 
-            long count = await db.QuerySingleAsync<long>(new CommandDefinition($"SELECT COUNT(id) FROM `{scores_table}_cleanup`", cancellationToken: cancellationToken));
+            long count = await db.QuerySingleAsync<long>(new CommandDefinition($"SELECT COUNT(id) FROM `{scores_cleanup_table}`", cancellationToken: cancellationToken));
             Console.WriteLine($"Partition contains {count:N0} scores.");
 
             var scores = (await db.QueryAsync<SoloScore>(
-                    new CommandDefinition($"SELECT id, legacy_score_id FROM `{scores_table}_cleanup` WHERE `has_replay` = 1", cancellationToken: cancellationToken)))
+                    new CommandDefinition($"SELECT id, legacy_score_id FROM `{scores_cleanup_table}` WHERE `has_replay` = 1", cancellationToken: cancellationToken)))
                 .ToArray();
 
             Console.WriteLine($"Cleaning up {scores.Length} scores with replays...");
@@ -156,7 +158,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             }
 
             Console.WriteLine("Cleaning up temporary table...");
-            await db.ExecuteAsync($"DROP TABLE {scores_table}_cleanup");
+            await db.ExecuteAsync($"DROP TABLE {scores_cleanup_table}");
         }
     }
 }
