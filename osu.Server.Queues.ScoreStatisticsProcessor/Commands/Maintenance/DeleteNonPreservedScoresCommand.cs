@@ -44,7 +44,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             //
             // For instance:
             // PARTITION p20260219 VALUES LESS THAN (0,1771372800) ENGINE = InnoDB
-            // translates to p20260219 partition stores scores order than 2026-02-18 00:00:00 UTC+0
+            // translates to p20260219 partition stores scores older than 2026-02-18 00:00:00 UTC+0
             DateTime cutoffDate = DateTime.UtcNow.Date.AddDays(1 - preserve_days);
             Console.WriteLine($"Processing partitions on {scores_table} starting from p{cutoffDate:yyyyMMdd}");
 
