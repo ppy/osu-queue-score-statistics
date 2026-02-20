@@ -101,26 +101,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private async Task processPartitionAsync(MySqlConnection db, Amazon.S3.IAmazonS3 s3, string partitionName, CancellationToken cancellationToken)
         {
-            using var markCleanCommand = db.CreateCommand();
+            if (!DryRun)
+            {
+                Console.WriteLine("Moving partition contents to temporary table...");
 
-            // TODO: for safety do we want to delete pins here? might be a race condition where user pins right as this process is running.
-            markCleanCommand.CommandText = $"UPDATE scores PARTITION ({partitionName}) SET has_replay = 0 WHERE id = @id;";
-            MySqlParameter scoreId = markCleanCommand.Parameters.Add("id", MySqlDbType.UInt64);
-            await markCleanCommand.PrepareAsync(cancellationToken);
+                await db.ExecuteAsync("CREATE TABLE scores_cleanup LIKE scores");
+                await db.ExecuteAsync("ALTER TABLE scores_cleanup REMOVE PARTITIONING");
 
-            long count = await db.QuerySingleAsync<long>(
-                new CommandDefinition($"SELECT COUNT(id) FROM `scores` PARTITION ({partitionName})", cancellationToken: cancellationToken));
+                // https://dev.mysql.com/doc/refman/8.4/en/partitioning-management-exchange.html
+                await db.ExecuteAsync($"ALTER TABLE scores EXCHANGE PARTITION {partitionName} WITH TABLE scores_cleanup WITHOUT VALIDATION");
+            }
+
+            long count = await db.QuerySingleAsync<long>(new CommandDefinition("SELECT COUNT(id) FROM `scores_cleanup`", cancellationToken: cancellationToken));
             Console.WriteLine($"Partition contains {count:N0} scores.");
 
             var scores = (await db.QueryAsync<SoloScore>(
-                    new CommandDefinition($"SELECT id, legacy_score_id FROM `scores` PARTITION ({partitionName}) WHERE `has_replay` = 1", cancellationToken: cancellationToken)))
+                    new CommandDefinition("SELECT id, legacy_score_id FROM `scores_cleanup` WHERE `has_replay` = 1", cancellationToken: cancellationToken)))
                 .ToArray();
-
-            if (!scores.Any())
-            {
-                Console.WriteLine("No scores to clean up.");
-                return;
-            }
 
             Console.WriteLine($"Cleaning up {scores.Length} scores with replays...");
 
@@ -153,12 +150,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             break;
                     }
                 }
+            }
 
-                // As long as we're doing partition cycling, this is redundant, but marking rows means we can resume cleanup if cancelled on a specific partition.
-                // TODO: That said, we can probably get rid of this once we're happy with how things are running.
-                scoreId.Value = score.id;
-                if (!DryRun)
-                    await markCleanCommand.ExecuteNonQueryAsync(cancellationToken);
+            if (!DryRun)
+            {
+                Console.WriteLine("Cleaning up temporary table...");
+                await db.ExecuteAsync("DROP TABLE scores_cleanup");
             }
         }
     }
