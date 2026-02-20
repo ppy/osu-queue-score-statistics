@@ -132,28 +132,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (Verbose)
                     Console.WriteLine($"Deleting replay {score.id}...");
 
-                if (score.has_replay)
+                if (score.is_legacy_score)
                 {
-                    if (score.is_legacy_score)
+                    // TODO: we likely do want logic here to handle the cleanup of replays.
+                    // for now, make sure we don't attempt to clean up stable scores with replays here.
+                    throw new InvalidOperationException($"Legacy score id:{score.id} legacy_id:{score.legacy_score_id} has replay flag set");
+                }
+
+                if (!DryRun)
+                {
+                    DeleteObjectResponse? deleteResult = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+
+                    switch (deleteResult.HttpStatusCode)
                     {
-                        // TODO: we likely do want logic here to handle the cleanup of replays.
-                        // for now, make sure we don't attempt to clean up stable scores with replays here.
-                        throw new InvalidOperationException($"Legacy score id:{score.id} legacy_id:{score.legacy_score_id} has replay flag set");
-                    }
+                        case HttpStatusCode.NoContent:
+                            break;
 
-                    if (!DryRun)
-                    {
-                        DeleteObjectResponse? deleteResult = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
-
-                        switch (deleteResult.HttpStatusCode)
-                        {
-                            case HttpStatusCode.NoContent:
-                                break;
-
-                            default:
-                                await Console.Error.WriteLineAsync($"* Received unexpected status code when attempting to delete replay: {deleteResult.HttpStatusCode}.");
-                                break;
-                        }
+                        default:
+                            await Console.Error.WriteLineAsync($"* Received unexpected status code when attempting to delete replay: {deleteResult.HttpStatusCode}.");
+                            break;
                     }
                 }
 
