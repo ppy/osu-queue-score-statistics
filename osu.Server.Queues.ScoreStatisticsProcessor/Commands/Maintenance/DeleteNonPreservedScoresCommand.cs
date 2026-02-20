@@ -37,7 +37,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
             using var s3 = S3.GetClient();
 
-            DateTime cutoffDate = DateTime.UtcNow.Date.AddDays(-preserve_days);
+            // Partitions are actually off-by-one, so we +1 here.
+            //
+            // For instance:
+            // PARTITION p20260219 VALUES LESS THAN (0,1771372800) ENGINE = InnoDB
+            // translates to p20260219 partition stores scores less than 2026-02-18 00:00:00 UTC+0
+            DateTime cutoffDate = DateTime.UtcNow.Date.AddDays(1 - preserve_days);
             Console.WriteLine($"Processing partitions older than {cutoffDate:yyyyMMdd}");
 
             List<string> partitions = await getEligiblePartitionsAsync(db, cutoffDate, cancellationToken);
