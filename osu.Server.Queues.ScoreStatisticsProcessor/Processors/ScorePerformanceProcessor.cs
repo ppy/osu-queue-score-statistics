@@ -158,8 +158,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     + (score.is_legacy_score ? " LEGACY" : string.Empty));
             }
 
-            score.pp = performanceAttributes.Total;
-
             if (score.is_legacy_score && write_legacy_score_pp)
             {
                 var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
@@ -167,7 +165,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 {
                     ScoreId = score.id,
                     LegacyScoreId = score.legacy_score_id,
-                    Pp = score.pp
+                    Pp = performanceAttributes.Total,
                 }, transaction: transaction);
             }
             else
@@ -175,9 +173,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
                 {
                     ScoreId = score.id,
-                    Pp = score.pp,
+                    Pp = performanceAttributes.Total,
                 }, transaction: transaction);
             }
+
+            // WARNING: This write must occur LAST, AFTER the database writes.
+            // The reason for this is to cover off the case wherein the database writes FAIL.
+            // In such a case, the score will be re-queued for processing again to cover off transient failures -
+            // however, the re-queue process takes the `score` model verbatim, RE-SERIALISES IT to JSON, and then re-enqueues THAT.
+            // this means that if the write below is permitted to occur BEFORE the value is written to database,
+            // on the next retry the state of the score will be INCONSISTENT with the database
+            // because the database write of pp HAS NOT ACTUALLY HAPPENED
+            // but the score model as written to and then read from redis WILL HAVE PP POPULATED.
+            score.pp = performanceAttributes.Total;
 
             return true;
         }

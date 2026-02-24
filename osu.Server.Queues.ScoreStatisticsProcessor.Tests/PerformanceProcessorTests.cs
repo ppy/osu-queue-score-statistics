@@ -3,6 +3,7 @@
 
 using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
@@ -388,6 +389,59 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 ScoreId = score.Score.id
             });
+        }
+
+        [Fact]
+        public async Task TransientFailureDoesNotPreventPPWrites()
+        {
+            AddBeatmap();
+
+            using var conn = Processor.GetDatabaseConnection();
+
+            var score = CreateTestScore(beatmapId: TEST_BEATMAP_ID);
+            var semaphore = new SemaphoreSlim(0);
+
+            score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+            score.Score.max_combo = 100;
+            score.Score.accuracy = 1;
+            score.Score.build_id = TestBuildID;
+            score.Score.preserve = true;
+
+            conn.Insert(score.Score);
+
+            // we will provoke a database-level failure on the first attempt (and only on the first attempt) to update pp for the score.
+            // for this purpose we register an event callback that will signal to undo the failure cause.
+            Processor.Error += (_, _) => semaphore.Release();
+
+            var task = Task.Run(async () =>
+            {
+                // ReSharper disable AccessToDisposedClosure
+                // we are manually `await`ing on the returned task at the end of this test method.
+                // there's no risk of accessing anything disposed.
+
+                // we want to provoke a failure *specifically* on the pp update statement inside the processor.
+                // the most reliable way to do this is to rename the `pp` column to something else.
+                await conn.ExecuteAsync("ALTER TABLE scores CHANGE COLUMN pp not_pp FLOAT NULL");
+
+                // wait for the failure to trigger...
+                await semaphore.WaitAsync();
+
+                // and then undo the failure cause.
+                await conn.ExecuteAsync("ALTER TABLE scores CHANGE COLUMN not_pp pp FLOAT NULL");
+
+                // ReSharper restore AccessToDisposedClosure
+            });
+
+            Processor.PushToQueue(score);
+
+            // wait for the score to have processed...
+            WaitForDatabaseState($"SELECT score_id FROM score_process_history WHERE score_id = {score.Score.id}", score.Score.id, CancellationToken, throwOnError: false);
+            // and then confirm it did eventually receive pp.
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL", 1, CancellationToken, new
+            {
+                ScoreId = score.Score.id
+            }, throwOnError: false);
+            await task;
         }
 
         [Theory]
