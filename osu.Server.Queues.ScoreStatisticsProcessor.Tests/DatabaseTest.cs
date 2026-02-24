@@ -270,7 +270,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             throw new XunitException("All scores were not successfully processed");
         }
 
-        protected void WaitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken, object? param = null)
+        protected void WaitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken, object? param = null, bool throwOnError = true)
         {
             using (var db = Processor.GetDatabaseConnection())
             {
@@ -289,7 +289,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;
 
-                    firstError?.Rethrow();
+                    if (throwOnError)
+                        firstError?.Rethrow();
 
                     Thread.Sleep(50);
                 }
