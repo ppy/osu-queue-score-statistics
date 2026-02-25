@@ -123,18 +123,28 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private static bool checkIsUserHigh(IEnumerable<SoloScore> userScores, SoloScore candidate)
         {
-            var maxPPUserScore = userScores
-                                 .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s) && s.ranked)
-                                 .MaxBy(s => s.pp);
+            userScores = userScores.Where(s =>
+                s.beatmap_id == candidate.beatmap_id
+                && s.ruleset_id == candidate.ruleset_id
+                && compareMods(candidate, s)
+                && s.ranked
+            );
 
-            var maxScoreUserScore = userScores
-                                    .Where(s => s.beatmap_id == candidate.beatmap_id && s.ruleset_id == candidate.ruleset_id && compareMods(candidate, s) && s.ranked)
-                                    .MaxBy(s => s.total_score);
+            // TODO: this can likely be optimised (to not recalculate every score, in the case there's many candidates per beatmap).
+            var maxPPScore = userScores.MaxBy(s => s.pp);
+            var maxTotalScoreLazer = userScores.Where(s => s.legacy_total_score == 0).MaxBy(s => s.total_score);
+            // i'm not sure that we need this one but for now let's play it safe and not nuke scores users may care about.
+            var maxTotalScoreStable = userScores.Where(s => s.legacy_total_score > 0).MaxBy(s => s.legacy_total_score);
+            // there's a very high possibility that this one is either `maxTotalScoreLazer` or `maxTotalScoreStable`, but just to be 100% sure...
+            var maxTotalScore = userScores.MaxBy(s => s.total_score);
 
             // Check whether this score is the user's highest
-            return maxPPUserScore?.id == candidate.id || maxScoreUserScore?.id == candidate.id;
+            return maxPPScore?.id == candidate.id
+                   || maxTotalScoreStable?.id == candidate.id
+                   || maxTotalScoreLazer?.id == candidate.id
+                   || maxTotalScore?.id == candidate.id;
 
-            bool compareMods(SoloScore a, SoloScore b)
+            static bool compareMods(SoloScore a, SoloScore b)
             {
                 // Compare non-ordered mods, ignoring any settings applied.
                 var aMods = new HashSet<string>(a.ScoreData.Mods.Select(m => m.Acronym));
