@@ -135,11 +135,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             var maxTotalScoreLazer = userScores.Where(s => s.legacy_total_score == 0).MaxBy(s => s.total_score);
             // i'm not sure that we need this one but for now let's play it safe and not nuke scores users may care about.
             var maxTotalScoreStable = userScores.Where(s => s.legacy_total_score > 0).MaxBy(s => s.legacy_total_score);
+            // there's a very high possibility that this one is either `maxTotalScoreLazer` or `maxTotalScoreStable`, but just to be 100% sure...
+            var maxTotalScore = userScores.MaxBy(s => s.total_score);
 
             // Check whether this score is the user's highest
             return maxPPScore?.id == candidate.id
                    || maxTotalScoreStable?.id == candidate.id
-                   || maxTotalScoreLazer?.id == candidate.id;
+                   || maxTotalScoreLazer?.id == candidate.id
+                   || maxTotalScore?.id == candidate.id;
 
             static bool compareMods(SoloScore a, SoloScore b)
             {
