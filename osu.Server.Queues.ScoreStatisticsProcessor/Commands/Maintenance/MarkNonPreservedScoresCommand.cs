@@ -72,9 +72,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             if (Verbose) Console.WriteLine("Fetching scores..");
 
+            // We only care about beatmaps where the user has more than one score.
+            // This is because if there's only a single score on a beatmap, it can be assumed to be the high user score
+            // and therefore no cleanup needs to occur.
+            //
+            // Using Common Table Expression to pre-fetch relevant beatmaps optimises this fetch process beyond my
+            // imagination (relying on the `user_ruleset_index` index, which contains `user_id`, `ruleset_id`,
+            // `beatmap_id` in this specific order).
+            //
+            // See https://dev.mysql.com/doc/refman/8.0/en/with.html
+            //
+            // We can also greatly reduce network bandwidth by extracting just the mods from the JSON data.
             IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
-                "SELECT id, beatmap_id, ranked, data, total_score, legacy_total_score, pp FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId and beatmap_id in (SELECT beatmap_id FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId GROUP BY beatmap_id HAVING count(id) > 1)",
-                parameters, cancellationToken: cancellationToken));
+                """
+                WITH beatmaps AS (
+                    SELECT beatmap_id
+                    FROM scores
+                    WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId
+                    GROUP BY beatmap_id
+                    HAVING COUNT(*) > 1
+                )
+                SELECT s.id, s.beatmap_id, s.ranked,
+                IF(s.data->'$.mods' IS NULL, '{}', JSON_OBJECT('mods', s.data->'$.mods')) as data,
+                       s.total_score, s.legacy_total_score, s.pp
+                FROM beatmaps b
+                STRAIGHT_JOIN scores s FORCE INDEX (beatmap_user_index)
+                    ON s.beatmap_id = b.beatmap_id
+                   AND s.user_id = @userId
+                WHERE s.preserve = 1 AND s.ruleset_id = @rulesetId
+                """, parameters, cancellationToken: cancellationToken));
 
             if (!scores.Any())
                 return;
