@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -139,25 +140,37 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private static bool checkIsUserHigh(IEnumerable<SoloScore> userScores, SoloScore candidate, out HashSet<SoloScore> preservedAlternatives)
         {
-            userScores = userScores.Where(s =>
+            var scores = userScores.Where(s =>
                 s.beatmap_id == candidate.beatmap_id
                 && s.ruleset_id == candidate.ruleset_id
                 && compareMods(candidate, s)
                 && s.ranked
             );
 
+            // As a special case, if the score we are checking is non-ranked, preserve ranked alternatives but if there are none, compare against non-ranked instead.
+            if (!candidate.ranked && !scores.Any())
+            {
+                scores = userScores.Where(s =>
+                    s.beatmap_id == candidate.beatmap_id
+                    && s.ruleset_id == candidate.ruleset_id
+                    && compareMods(candidate, s)
+                );
+            }
+
+            Debug.Assert(scores.Any());
+
             preservedAlternatives = new HashSet<SoloScore>();
 
             // TODO: this can likely be optimised (to not recalculate every score, in the case there's many candidates per beatmap).
-            if (userScores.MaxBy(s => s.pp) is SoloScore maxPPScore)
+            if (scores.MaxBy(s => s.pp) is SoloScore maxPPScore)
                 preservedAlternatives.Add(maxPPScore);
-            if (userScores.Where(s => s.legacy_total_score == 0).MaxBy(s => s.total_score) is SoloScore maxTotalScoreLazer)
+            if (scores.Where(s => s.legacy_total_score == 0).MaxBy(s => s.total_score) is SoloScore maxTotalScoreLazer)
                 preservedAlternatives.Add(maxTotalScoreLazer);
             // i'm not sure that we need this one but for now let's play it safe and not nuke scores users may care about.
-            if (userScores.Where(s => s.legacy_total_score > 0).MaxBy(s => s.legacy_total_score) is SoloScore maxTotalScoreStable)
+            if (scores.Where(s => s.legacy_total_score > 0).MaxBy(s => s.legacy_total_score) is SoloScore maxTotalScoreStable)
                 preservedAlternatives.Add(maxTotalScoreStable);
             // there's a very high possibility that this one is either `maxTotalScoreLazer` or `maxTotalScoreStable`, but just to be 100% sure...
-            if (userScores.MaxBy(s => s.total_score) is SoloScore maxTotalScore)
+            if (scores.MaxBy(s => s.total_score) is SoloScore maxTotalScore)
                 preservedAlternatives.Add(maxTotalScore);
 
             // Check whether this score is the user's highest
