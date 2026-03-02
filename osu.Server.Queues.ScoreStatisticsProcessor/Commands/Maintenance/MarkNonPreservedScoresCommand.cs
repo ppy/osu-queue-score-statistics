@@ -71,7 +71,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (Verbose) Console.WriteLine("Fetching scores..");
 
             IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
-                "SELECT id, beatmap_id, ranked, data, total_score, legacy_total_score, pp FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
+                "SELECT id, beatmap_id, ranked, data, total_score, legacy_total_score, pp FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId and beatmap_id in (SELECT beatmap_id FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId GROUP BY beatmap_id HAVING count(id) > 1)",
                 parameters, cancellationToken: cancellationToken));
 
             if (!scores.Any())
