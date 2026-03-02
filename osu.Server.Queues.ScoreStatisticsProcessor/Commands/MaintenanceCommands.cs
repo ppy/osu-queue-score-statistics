@@ -11,8 +11,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Command(Name = "maintenance", Description = "General database maintenance commands which are usually run on a cron schedule.")]
     [Subcommand(typeof(DeleteNonPreservedScoresCommand))]
     [Subcommand(typeof(MarkNonPreservedScoresCommand))]
-    [Subcommand(typeof(MigratePlaylistScoresToSoloScoresCommand))]
-    [Subcommand(typeof(MigrateSoloScoresCommand))]
     [Subcommand(typeof(VerifyImportedScoresCommand))]
     [Subcommand(typeof(VerifyScoreRanksCommand))]
     [Subcommand(typeof(ReorderIncorrectlyImportedTiedScoresCommand))]
