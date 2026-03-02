@@ -65,7 +65,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 rulesetId = RulesetId,
             };
 
-            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition("SELECT * FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
+            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
+                "SELECT id, beatmap_id, ranked, data, total_score, legacy_total_score, pp FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
                 parameters, cancellationToken: cancellationToken));
 
             if (!scores.Any())
