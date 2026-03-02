@@ -71,6 +71,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 return;
 
             IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId", parameters);
+            IEnumerable<ulong> multiplayerScores = db.Query<ulong>("SELECT score_id FROM multiplayer_playlist_item_scores WHERE user_id = @userId", parameters);
 
             Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
 
@@ -86,7 +87,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     continue;
                 }
 
-                if (await checkIsMultiplayerScoreAsync(db, score))
+                if (multiplayerScores.Contains(score.id))
                 {
                     if (Verbose)
                         formatOutput(score, false, "multiplayer score");
