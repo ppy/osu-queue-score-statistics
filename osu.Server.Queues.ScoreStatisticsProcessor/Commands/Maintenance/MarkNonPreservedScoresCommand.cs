@@ -149,10 +149,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     foreach (SoloScore alternative in preservedAlternatives)
                         Console.WriteLine($"            https://osu.ppy.sh/scores/{alternative.id}");
                 }
-                else
-                {
-                    Console.WriteLine($"Marking score {score.id} for deletion");
-                }
 
                 if (!DryRun)
                 {
@@ -173,6 +169,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 Console.WriteLine();
                 Console.WriteLine($"Scores marked for deletion: {markedCount:N0}");
                 Console.WriteLine($"Scores kept:                {scores.Count() - markedCount:N0}");
+            }
+            else if (markedCount > 0)
+            {
+                Console.WriteLine($" {markedCount:N0} marked for deletion");
             }
         }
 
