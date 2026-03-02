@@ -18,7 +18,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
     [Command("mark-non-preserved", Description = "Mark any scores which no longer need to be preserved.")]
     public class MarkNonPreservedScoresCommand
     {
-        private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
+        private ElasticQueuePusher? elasticQueueProcessor;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process.")]
         public int RulesetId { get; set; }
@@ -34,6 +34,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
+            if (!DryRun)
+                elasticQueueProcessor = new ElasticQueuePusher();
+
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 
             Console.WriteLine($"Running for ruleset {RulesetId}");
@@ -117,7 +120,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         scoreId = score.id
                     });
 
-                    elasticQueueProcessor.PushToQueue(new ElasticQueuePusher.ElasticScoreItem
+                    elasticQueueProcessor!.PushToQueue(new ElasticQueuePusher.ElasticScoreItem
                     {
                         ScoreId = (long?)score.id
                     });
