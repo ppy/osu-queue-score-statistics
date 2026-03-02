@@ -79,26 +79,36 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (pins.Contains(score.id))
                 {
                     if (Verbose)
-                        Console.WriteLine($"Maintaining preservation for {score.id} (is pinned)");
+                        formatOutput(score, false, "pinned score");
                     continue;
                 }
 
                 if (await checkIsMultiplayerScoreAsync(db, score))
                 {
                     if (Verbose)
-                        Console.WriteLine($"Maintaining preservation for {score.id} (is multiplayer)");
+                        formatOutput(score, false, "multiplayer score");
                     continue;
                 }
 
                 // check whether this score is a user high (either total_score or pp)
-                if (checkIsUserHigh(scores, score))
+                if (checkIsUserHigh(scores, score, out var preservedAlternatives))
                 {
                     if (Verbose)
-                        Console.WriteLine($"Maintaining preservation for {score.id} (is user high)");
+                        formatOutput(score, false, "user high");
                     continue;
                 }
 
-                Console.WriteLine($"Marking score {score.id} non-preserved...");
+                if (Verbose)
+                {
+                    formatOutput(score, true, "superseded");
+                    Console.WriteLine("         -> remaining:");
+                    foreach (SoloScore alternative in preservedAlternatives)
+                        Console.WriteLine($"            https://osu.ppy.sh/scores/{alternative.id}");
+                }
+                else
+                {
+                    Console.WriteLine($"Marking score {score.id} for deletion");
+                }
 
                 if (!DryRun)
                 {
@@ -115,13 +125,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             }
         }
 
-        private async Task<bool> checkIsMultiplayerScoreAsync(MySqlConnection db, SoloScore score) =>
-            await db.QuerySingleOrDefaultAsync<ulong?>("SELECT `playlist_item_id` FROM `multiplayer_playlist_item_scores` WHERE `score_id` = @scoreId", new
-            {
-                scoreId = score.id
-            }) != null;
+        private static void formatOutput(SoloScore score, bool delete, string reason)
+        {
+            Console.WriteLine(delete
+                ? $"[DELETE] https://osu.ppy.sh/scores/{score.id}#beatmap_id={score.beatmap_id,-10} ({reason})"
+                : $"[ KEEP ] https://osu.ppy.sh/scores/{score.id}#beatmap_id={score.beatmap_id,-10} ({reason})"
+            );
+        }
 
-        private static bool checkIsUserHigh(IEnumerable<SoloScore> userScores, SoloScore candidate)
+        private static bool checkIsUserHigh(IEnumerable<SoloScore> userScores, SoloScore candidate, out HashSet<SoloScore> preservedAlternatives)
         {
             userScores = userScores.Where(s =>
                 s.beatmap_id == candidate.beatmap_id
@@ -130,19 +142,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 && s.ranked
             );
 
+            preservedAlternatives = new HashSet<SoloScore>();
+
             // TODO: this can likely be optimised (to not recalculate every score, in the case there's many candidates per beatmap).
-            var maxPPScore = userScores.MaxBy(s => s.pp);
-            var maxTotalScoreLazer = userScores.Where(s => s.legacy_total_score == 0).MaxBy(s => s.total_score);
+            if (userScores.MaxBy(s => s.pp) is SoloScore maxPPScore)
+                preservedAlternatives.Add(maxPPScore);
+            if (userScores.Where(s => s.legacy_total_score == 0).MaxBy(s => s.total_score) is SoloScore maxTotalScoreLazer)
+                preservedAlternatives.Add(maxTotalScoreLazer);
             // i'm not sure that we need this one but for now let's play it safe and not nuke scores users may care about.
-            var maxTotalScoreStable = userScores.Where(s => s.legacy_total_score > 0).MaxBy(s => s.legacy_total_score);
+            if (userScores.Where(s => s.legacy_total_score > 0).MaxBy(s => s.legacy_total_score) is SoloScore maxTotalScoreStable)
+                preservedAlternatives.Add(maxTotalScoreStable);
             // there's a very high possibility that this one is either `maxTotalScoreLazer` or `maxTotalScoreStable`, but just to be 100% sure...
-            var maxTotalScore = userScores.MaxBy(s => s.total_score);
+            if (userScores.MaxBy(s => s.total_score) is SoloScore maxTotalScore)
+                preservedAlternatives.Add(maxTotalScore);
 
             // Check whether this score is the user's highest
-            return maxPPScore?.id == candidate.id
-                   || maxTotalScoreStable?.id == candidate.id
-                   || maxTotalScoreLazer?.id == candidate.id
-                   || maxTotalScore?.id == candidate.id;
+            return preservedAlternatives.Any(s => s.id == candidate.id);
 
             static bool compareMods(SoloScore a, SoloScore b)
             {
