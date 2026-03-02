@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +27,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public int RulesetId { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run", Description = "Don't actually mark, just output.")]
+        [MemberNotNullWhen(false, nameof(elasticQueueProcessor))]
         public bool DryRun { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
@@ -133,7 +135,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         scoreId = score.id
                     });
 
-                    elasticQueueProcessor!.PushToQueue(new ElasticQueuePusher.ElasticScoreItem
+                    elasticQueueProcessor.PushToQueue(new ElasticQueuePusher.ElasticScoreItem
                     {
                         ScoreId = (long?)score.id
                     });
