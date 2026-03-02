@@ -80,9 +80,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 return;
 
             if (Verbose) Console.WriteLine("Fetching pins..");
-            IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId", parameters);
+            IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId", parameters).ToHashSet();
             if (Verbose) Console.WriteLine("Fetching multiplayer scores..");
-            IEnumerable<ulong> multiplayerScores = db.Query<ulong>("SELECT score_id FROM multiplayer_playlist_item_scores WHERE user_id = @userId", parameters);
+            IEnumerable<ulong> multiplayerScores = db.Query<ulong>("SELECT score_id FROM multiplayer_playlist_item_scores WHERE user_id = @userId", parameters).ToHashSet();
 
             Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
 
@@ -167,7 +167,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 s.beatmap_id == candidate.beatmap_id
                 && compareMods(candidate, s)
                 && s.ranked
-            );
+            ).ToArray();
 
             // As a special case, if the score we are checking is non-ranked, preserve ranked alternatives but if there are none, compare against non-ranked instead.
             if (!candidate.ranked && !scores.Any())
@@ -175,13 +175,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 scores = userScores.Where(s =>
                     s.beatmap_id == candidate.beatmap_id
                     && compareMods(candidate, s)
-                );
+                ).ToArray();
             }
 
             Debug.Assert(scores.Any());
 
             // shortcut for case of single score match
-            if (scores.Take(2).Count() == 1)
+            if (scores.Length == 1)
             {
                 preservedAlternatives = new HashSet<SoloScore> { candidate };
                 return true;
