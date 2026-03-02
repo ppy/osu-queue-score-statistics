@@ -142,7 +142,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             var scores = userScores.Where(s =>
                 s.beatmap_id == candidate.beatmap_id
-                && s.ruleset_id == candidate.ruleset_id
                 && compareMods(candidate, s)
                 && s.ranked
             );
@@ -152,7 +151,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             {
                 scores = userScores.Where(s =>
                     s.beatmap_id == candidate.beatmap_id
-                    && s.ruleset_id == candidate.ruleset_id
                     && compareMods(candidate, s)
                 );
             }
