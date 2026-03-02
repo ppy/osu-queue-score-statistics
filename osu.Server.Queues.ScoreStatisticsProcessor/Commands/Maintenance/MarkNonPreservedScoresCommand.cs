@@ -207,7 +207,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             Debug.Assert(scores.Any());
 
             // shortcut for case of single score match
-            if (scores.Length == 1)
+            if (scores.Length == 1 && scores.Single().id == candidate.id)
             {
                 preservedAlternatives = new HashSet<SoloScore> { candidate };
                 return true;
