@@ -104,6 +104,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     continue;
                 }
 
+                Debug.Assert(preservedAlternatives.Any());
+
                 if (Verbose)
                 {
                     formatOutput(score, true, "superseded");
@@ -158,7 +160,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             Debug.Assert(scores.Any());
 
-            preservedAlternatives = new HashSet<SoloScore>();
+            // shortcut for case of single score match
+            if (scores.Take(2).Count() == 1)
+            {
+                preservedAlternatives = new HashSet<SoloScore> { candidate };
+                return true;
+            }
+
+            preservedAlternatives = new HashSet<SoloScore>(4);
 
             // TODO: this can likely be optimised (to not recalculate every score, in the case there's many candidates per beatmap).
             if (scores.MaxBy(s => s.pp) is SoloScore maxPPScore)
