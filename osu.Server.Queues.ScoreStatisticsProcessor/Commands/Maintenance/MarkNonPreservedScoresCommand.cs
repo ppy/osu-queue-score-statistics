@@ -59,11 +59,15 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private async Task processUser(MySqlConnection db, int userId, CancellationToken cancellationToken)
         {
+            int markedCount = 0;
+
             var parameters = new
             {
                 userId,
                 rulesetId = RulesetId,
             };
+
+            if (Verbose) Console.WriteLine("Fetching scores..");
 
             IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
                 "SELECT id, beatmap_id, ranked, data, total_score, legacy_total_score, pp FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
@@ -72,7 +76,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (!scores.Any())
                 return;
 
+            if (Verbose) Console.WriteLine("Fetching pins..");
             IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId", parameters);
+            if (Verbose) Console.WriteLine("Fetching multiplayer scores..");
             IEnumerable<ulong> multiplayerScores = db.Query<ulong>("SELECT score_id FROM multiplayer_playlist_item_scores WHERE user_id = @userId", parameters);
 
             Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
@@ -105,6 +111,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 }
 
                 Debug.Assert(preservedAlternatives.Any());
+                markedCount++;
 
                 if (Verbose)
                 {
@@ -130,6 +137,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         ScoreId = (long?)score.id
                     });
                 }
+            }
+
+            if (Verbose)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"Scores marked for deletion: {markedCount:N0}");
+                Console.WriteLine($"Scores kept:                {scores.Count() - markedCount:N0}");
             }
         }
 
