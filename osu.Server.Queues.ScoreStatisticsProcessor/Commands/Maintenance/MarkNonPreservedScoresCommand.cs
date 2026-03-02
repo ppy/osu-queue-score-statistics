@@ -80,10 +80,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
-                if (pins.Contains(score.id))
+                // check whether this score is a user high (either total_score or pp)
+                if (checkIsUserHigh(scores, score, out var preservedAlternatives))
                 {
                     if (Verbose)
-                        formatOutput(score, false, "pinned score");
+                        formatOutput(score, false, "user high");
                     continue;
                 }
 
@@ -94,11 +95,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     continue;
                 }
 
-                // check whether this score is a user high (either total_score or pp)
-                if (checkIsUserHigh(scores, score, out var preservedAlternatives))
+                if (pins.Contains(score.id))
                 {
                     if (Verbose)
-                        formatOutput(score, false, "user high");
+                        formatOutput(score, false, "pinned score");
                     continue;
                 }
 
