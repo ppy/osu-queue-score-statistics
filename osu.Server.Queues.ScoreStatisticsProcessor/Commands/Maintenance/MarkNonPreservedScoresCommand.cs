@@ -90,6 +90,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             // See https://dev.mysql.com/doc/refman/8.0/en/with.html
             //
             // We can also greatly reduce network bandwidth by extracting just the mods from the JSON data.
+            //
+            // One caveat of the `HAVING COUNT(*) > 1` shortcut is that if there is a single score on a beatmap
+            // for a user which is `preserve=1` and should not be, it will not be rectified by this command.
+            //
+            // This could for instance, be a case of a user pinning a score on an unranked beatmap, the unpinning
+            // at a future point in time. In the future we may want to consider cleaning these up, but the overhead
+            // of doing this with the *current structure* of this commmand loop is too high to be worthwhile.
             IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
                 """
                 WITH beatmaps AS (
