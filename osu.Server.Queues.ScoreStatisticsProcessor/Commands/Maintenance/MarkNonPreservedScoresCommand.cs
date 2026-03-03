@@ -3,12 +3,15 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
+using osu.Game.Extensions;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -18,12 +21,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
     [Command("mark-non-preserved", Description = "Mark any scores which no longer need to be preserved.")]
     public class MarkNonPreservedScoresCommand
     {
-        private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
+        private ElasticQueuePusher? elasticQueueProcessor;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process.")]
         public int RulesetId { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run", Description = "Don't actually mark, just output.")]
+        [MemberNotNullWhen(false, nameof(elasticQueueProcessor))]
         public bool DryRun { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
@@ -32,8 +36,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(Description = "Optional where clause", Template = "--where")]
         public string Where { get; set; } = "1 = 1";
 
+        private int totalMarked;
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
+            if (!DryRun)
+                elasticQueueProcessor = new ElasticQueuePusher();
+
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 
             Console.WriteLine($"Running for ruleset {RulesetId}");
@@ -46,8 +55,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 int[] userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE {Where}")).ToArray();
                 Console.WriteLine($"Fetched {userIds.Length} users");
 
-                foreach (int userId in userIds)
-                    await processUser(db, userId, cancellationToken);
+                for (int i = 0; i < userIds.Length; i++)
+                {
+                    await processUser(db, userIds[i], cancellationToken);
+
+                    if (i > 0 && i % 100 == 0)
+                        Console.WriteLine($"Processed {i:N0} of {userIds.Length:N0} users ({totalMarked:N0} marked)");
+                }
             }
 
             return 0;
@@ -55,19 +69,60 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private async Task processUser(MySqlConnection db, int userId, CancellationToken cancellationToken)
         {
+            int userMarkedCount = 0;
+
             var parameters = new
             {
                 userId,
                 rulesetId = RulesetId,
             };
 
-            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition("SELECT * FROM scores WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
-                parameters, cancellationToken: cancellationToken));
+            if (Verbose) Console.WriteLine("Fetching scores..");
+
+            // We only care about beatmaps where the user has more than one score.
+            // This is because if there's only a single score on a beatmap, it can be assumed to be the high user score
+            // and therefore no cleanup needs to occur.
+            //
+            // Using Common Table Expression to pre-fetch relevant beatmaps optimises this fetch process beyond my
+            // imagination (relying on the `user_ruleset_index` index, which contains `user_id`, `ruleset_id`,
+            // `beatmap_id` in this specific order).
+            //
+            // See https://dev.mysql.com/doc/refman/8.0/en/with.html
+            //
+            // We can also greatly reduce network bandwidth by extracting just the mods from the JSON data.
+            //
+            // One caveat of the `HAVING COUNT(*) > 1` shortcut is that if there is a single score on a beatmap
+            // for a user which is `preserve=1` and should not be, it will not be rectified by this command.
+            //
+            // This could for instance, be a case of a user pinning a score on an unranked beatmap, the unpinning
+            // at a future point in time. In the future we may want to consider cleaning these up, but the overhead
+            // of doing this with the *current structure* of this commmand loop is too high to be worthwhile.
+            IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
+                """
+                WITH beatmaps AS (
+                    SELECT beatmap_id
+                    FROM scores
+                    WHERE preserve = 1 AND user_id = @userId AND ruleset_id = @rulesetId
+                    GROUP BY beatmap_id
+                    HAVING COUNT(*) > 1
+                )
+                SELECT s.id, s.beatmap_id, s.ranked,
+                IF(s.data->'$.mods' IS NULL, '{}', JSON_OBJECT('mods', s.data->'$.mods')) as data,
+                       s.total_score, s.legacy_total_score, s.pp
+                FROM beatmaps b
+                STRAIGHT_JOIN scores s FORCE INDEX (beatmap_user_index)
+                    ON s.beatmap_id = b.beatmap_id
+                   AND s.user_id = @userId
+                WHERE s.preserve = 1 AND s.ruleset_id = @rulesetId
+                """, parameters, cancellationToken: cancellationToken));
 
             if (!scores.Any())
                 return;
 
-            IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId", parameters);
+            if (Verbose) Console.WriteLine("Fetching pins..");
+            IEnumerable<ulong> pins = db.Query<ulong>("SELECT score_id FROM score_pins WHERE user_id = @userId AND ruleset_id = @rulesetId", parameters).ToHashSet();
+            if (Verbose) Console.WriteLine("Fetching multiplayer scores..");
+            IEnumerable<ulong> multiplayerScores = db.Query<ulong>("SELECT score_id FROM multiplayer_playlist_item_scores WHERE user_id = @userId", parameters).ToHashSet();
 
             Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
 
@@ -76,29 +131,40 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
+                // check whether this score is a user high (either total_score or pp)
+                if (checkIsUserHigh(scores, score, out var preservedAlternatives))
+                {
+                    if (Verbose)
+                        formatOutput(score, false, "user high");
+                    continue;
+                }
+
+                if (multiplayerScores.Contains(score.id))
+                {
+                    if (Verbose)
+                        formatOutput(score, false, "multiplayer score");
+                    continue;
+                }
+
                 if (pins.Contains(score.id))
                 {
                     if (Verbose)
-                        Console.WriteLine($"Maintaining preservation for {score.id} (is pinned)");
+                        formatOutput(score, false, "pinned score");
                     continue;
                 }
 
-                if (await checkIsMultiplayerScoreAsync(db, score))
+                Debug.Assert(preservedAlternatives.Any());
+
+                userMarkedCount++;
+                totalMarked++;
+
+                if (Verbose)
                 {
-                    if (Verbose)
-                        Console.WriteLine($"Maintaining preservation for {score.id} (is multiplayer)");
-                    continue;
+                    formatOutput(score, true, "superseded");
+                    Console.WriteLine("         -> remaining:");
+                    foreach (SoloScore alternative in preservedAlternatives)
+                        Console.WriteLine($"            https://osu.ppy.sh/scores/{alternative.id}");
                 }
-
-                // check whether this score is a user high (either total_score or pp)
-                if (checkIsUserHigh(scores, score))
-                {
-                    if (Verbose)
-                        Console.WriteLine($"Maintaining preservation for {score.id} (is user high)");
-                    continue;
-                }
-
-                Console.WriteLine($"Marking score {score.id} non-preserved...");
 
                 if (!DryRun)
                 {
@@ -113,44 +179,91 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     });
                 }
             }
+
+            if (Verbose)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"Scores marked for deletion: {userMarkedCount:N0}");
+                Console.WriteLine($"Scores kept:                {scores.Count() - userMarkedCount:N0}");
+            }
+            else if (userMarkedCount > 0)
+            {
+                Console.WriteLine($" {userMarkedCount:N0} marked for deletion");
+            }
         }
 
-        private async Task<bool> checkIsMultiplayerScoreAsync(MySqlConnection db, SoloScore score) =>
-            await db.QuerySingleOrDefaultAsync<ulong?>("SELECT `playlist_item_id` FROM `multiplayer_playlist_item_scores` WHERE `score_id` = @scoreId", new
-            {
-                scoreId = score.id
-            }) != null;
-
-        private static bool checkIsUserHigh(IEnumerable<SoloScore> userScores, SoloScore candidate)
+        private static void formatOutput(SoloScore score, bool delete, string reason)
         {
-            userScores = userScores.Where(s =>
+            Console.WriteLine(delete
+                ? $"[DELETE] https://osu.ppy.sh/scores/{score.id}#beatmap_id={score.beatmap_id,-10} ({reason})"
+                : $"[ KEEP ] https://osu.ppy.sh/scores/{score.id}#beatmap_id={score.beatmap_id,-10} ({reason})"
+            );
+        }
+
+        private static readonly HashSet<string> a_hash_set = new HashSet<string>();
+        private static readonly HashSet<string> b_hash_set = new HashSet<string>();
+
+        private static bool checkIsUserHigh(IEnumerable<SoloScore> userScores, SoloScore candidate, out HashSet<SoloScore> preservedAlternatives)
+        {
+            var scores = userScores.Where(s =>
                 s.beatmap_id == candidate.beatmap_id
-                && s.ruleset_id == candidate.ruleset_id
                 && compareMods(candidate, s)
                 && s.ranked
-            );
+            ).ToArray();
+
+            // As a special case, if the score we are checking is non-ranked, preserve ranked alternatives but if there are none, compare against non-ranked instead.
+            if (!candidate.ranked && !scores.Any())
+            {
+                scores = userScores.Where(s =>
+                    s.beatmap_id == candidate.beatmap_id
+                    && compareMods(candidate, s)
+                ).ToArray();
+            }
+
+            Debug.Assert(scores.Any());
+
+            // shortcut for case of single score match
+            if (scores.Length == 1 && scores.Single().id == candidate.id)
+            {
+                preservedAlternatives = new HashSet<SoloScore> { candidate };
+                return true;
+            }
+
+            preservedAlternatives = new HashSet<SoloScore>(4);
 
             // TODO: this can likely be optimised (to not recalculate every score, in the case there's many candidates per beatmap).
-            var maxPPScore = userScores.MaxBy(s => s.pp);
-            var maxTotalScoreLazer = userScores.Where(s => s.legacy_total_score == 0).MaxBy(s => s.total_score);
+            if (scores.MaxBy(s => s.pp) is SoloScore maxPPScore)
+                preservedAlternatives.Add(maxPPScore);
+            if (scores.Where(s => s.legacy_total_score == 0).MaxBy(s => s.total_score) is SoloScore maxTotalScoreLazer)
+                preservedAlternatives.Add(maxTotalScoreLazer);
             // i'm not sure that we need this one but for now let's play it safe and not nuke scores users may care about.
-            var maxTotalScoreStable = userScores.Where(s => s.legacy_total_score > 0).MaxBy(s => s.legacy_total_score);
+            if (scores.Where(s => s.legacy_total_score > 0).MaxBy(s => s.legacy_total_score) is SoloScore maxTotalScoreStable)
+                preservedAlternatives.Add(maxTotalScoreStable);
             // there's a very high possibility that this one is either `maxTotalScoreLazer` or `maxTotalScoreStable`, but just to be 100% sure...
-            var maxTotalScore = userScores.MaxBy(s => s.total_score);
+            if (scores.MaxBy(s => s.total_score) is SoloScore maxTotalScore)
+                preservedAlternatives.Add(maxTotalScore);
 
             // Check whether this score is the user's highest
-            return maxPPScore?.id == candidate.id
-                   || maxTotalScoreStable?.id == candidate.id
-                   || maxTotalScoreLazer?.id == candidate.id
-                   || maxTotalScore?.id == candidate.id;
+            return preservedAlternatives.Any(s => s.id == candidate.id);
 
             static bool compareMods(SoloScore a, SoloScore b)
             {
-                // Compare non-ordered mods, ignoring any settings applied.
-                var aMods = new HashSet<string>(a.ScoreData.Mods.Select(m => m.Acronym));
-                var bMods = new HashSet<string>(b.ScoreData.Mods.Select(m => m.Acronym));
+                var aMods = a.ScoreData.Mods;
+                var bMods = b.ScoreData.Mods;
 
-                return aMods.SetEquals(bMods);
+                if (aMods.Length == 0 && bMods.Length == 0)
+                    return true;
+
+                if (aMods.Length != bMods.Length)
+                    return false;
+
+                a_hash_set.Clear();
+                a_hash_set.AddRange(aMods.Select(m => m.Acronym));
+
+                b_hash_set.Clear();
+                b_hash_set.AddRange(bMods.Select(m => m.Acronym));
+
+                return a_hash_set.SetEquals(b_hash_set);
             }
         }
     }
