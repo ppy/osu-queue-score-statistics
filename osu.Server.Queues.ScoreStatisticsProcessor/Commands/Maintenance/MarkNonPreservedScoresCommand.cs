@@ -36,6 +36,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(Description = "Optional where clause", Template = "--where")]
         public string Where { get; set; } = "1 = 1";
 
+        private int totalMarked;
+
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             if (!DryRun)
@@ -53,8 +55,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 int[] userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE {Where}")).ToArray();
                 Console.WriteLine($"Fetched {userIds.Length} users");
 
-                foreach (int userId in userIds)
-                    await processUser(db, userId, cancellationToken);
+                for (int i = 0; i < userIds.Length; i++)
+                {
+                    await processUser(db, userIds[i], cancellationToken);
+
+                    if (i > 0 && i % 100 == 0)
+                        Console.WriteLine($"Processed {i:N0} of {userIds.Length:N0} users ({totalMarked:N0} marked)");
+                }
             }
 
             return 0;
@@ -62,7 +69,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private async Task processUser(MySqlConnection db, int userId, CancellationToken cancellationToken)
         {
-            int markedCount = 0;
+            int userMarkedCount = 0;
 
             var parameters = new
             {
@@ -140,7 +147,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 }
 
                 Debug.Assert(preservedAlternatives.Any());
-                markedCount++;
+
+                userMarkedCount++;
+                totalMarked++;
 
                 if (Verbose)
                 {
@@ -167,12 +176,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (Verbose)
             {
                 Console.WriteLine();
-                Console.WriteLine($"Scores marked for deletion: {markedCount:N0}");
-                Console.WriteLine($"Scores kept:                {scores.Count() - markedCount:N0}");
+                Console.WriteLine($"Scores marked for deletion: {userMarkedCount:N0}");
+                Console.WriteLine($"Scores kept:                {scores.Count() - userMarkedCount:N0}");
             }
-            else if (markedCount > 0)
+            else if (userMarkedCount > 0)
             {
-                Console.WriteLine($" {markedCount:N0} marked for deletion");
+                Console.WriteLine($" {userMarkedCount:N0} marked for deletion");
             }
         }
 
