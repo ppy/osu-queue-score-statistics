@@ -15,6 +15,7 @@ using MySqlConnector;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -37,6 +38,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
+            DogStatsd.Configure(new StatsdConfig
+            {
+                Prefix = "osu.server.commands.mark_non_preserved",
+            });
+
             using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
             using var s3 = S3.GetClient();
 
@@ -143,6 +149,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 if (!DryRun)
                 {
+                    DogStatsd.Increment("replays_deleted");
                     DeleteObjectResponse? deleteResult = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
 
                     switch (deleteResult.HttpStatusCode)

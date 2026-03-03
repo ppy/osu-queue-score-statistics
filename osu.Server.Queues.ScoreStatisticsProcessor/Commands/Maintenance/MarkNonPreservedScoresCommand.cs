@@ -15,6 +15,7 @@ using osu.Game.Extensions;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -40,6 +41,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
+            DogStatsd.Configure(new StatsdConfig
+            {
+                Prefix = "osu.server.commands.mark_non_preserved",
+            });
+
             Stopwatch stopwatch = Stopwatch.StartNew();
 
             if (!DryRun)
@@ -163,6 +169,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 userMarkedCount++;
                 totalMarked++;
+                DogStatsd.Increment("total_marked");
 
                 if (Verbose)
                 {
