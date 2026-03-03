@@ -40,6 +40,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
             if (!DryRun)
                 elasticQueueProcessor = new ElasticQueuePusher();
 
@@ -49,20 +51,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
-            using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
+            using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
+
+            Console.WriteLine("Fetching all users...");
+            int[] userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE {Where}")).ToArray();
+            Console.WriteLine($"Fetched {userIds.Length} users");
+
+            for (int i = 0; i < userIds.Length; i++)
             {
-                Console.WriteLine("Fetching all users...");
-                int[] userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE {Where}")).ToArray();
-                Console.WriteLine($"Fetched {userIds.Length} users");
+                await processUser(db, userIds[i], cancellationToken);
 
-                for (int i = 0; i < userIds.Length; i++)
-                {
-                    await processUser(db, userIds[i], cancellationToken);
-
-                    if (i > 0 && i % 100 == 0)
-                        Console.WriteLine($"Processed {i:N0} of {userIds.Length:N0} users ({totalMarked:N0} marked)");
-                }
+                if (i > 0 && i % 100 == 0)
+                    Console.WriteLine($"Processed {i:N0} of {userIds.Length:N0} users ({totalMarked:N0} marked)");
             }
+
+            Console.WriteLine();
+            Console.WriteLine($"Finished in {stopwatch.Elapsed.TotalSeconds:N0} s!");
+            Console.WriteLine($"Processed {userIds.Length} users");
+            Console.WriteLine($"{totalMarked:N0} marked for deletion");
 
             return 0;
         }
