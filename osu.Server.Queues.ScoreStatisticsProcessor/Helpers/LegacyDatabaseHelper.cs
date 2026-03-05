@@ -40,6 +40,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             public readonly string LeadersTable;
             public readonly string UserStatsTable;
             public readonly string ReplayTable;
+            public readonly string ReplayBucket;
             public readonly string LastProcessedPpUserCount;
             public readonly string LastProcessedPpScoreCount;
             public readonly string TodaysRankColumn;
@@ -60,6 +61,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 LeadersTable = $"`{dbName}`.`osu_leaders{tableSuffix}`";
                 UserStatsTable = $"`{dbName}`.`osu_user_stats{tableSuffix}`";
                 ReplayTable = $"`{dbName}`.`osu_replays{tableSuffix}`";
+                ReplayBucket = $"replay-{rulesetIdentifier}";
+
                 LastProcessedPpUserCount = $"pp_last_user_id{tableSuffix}";
                 LastProcessedPpScoreCount = $"pp_last_score_id{tableSuffix}";
                 TodaysRankColumn = $"pp_rank_column_{rulesetIdentifier}";

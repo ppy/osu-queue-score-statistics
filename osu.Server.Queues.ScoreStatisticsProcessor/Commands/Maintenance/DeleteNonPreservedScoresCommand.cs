@@ -142,9 +142,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 if (score.is_legacy_score)
                 {
-                    // TODO: we likely do want logic here to handle the cleanup of replays.
-                    // for now, make sure we don't attempt to clean up stable scores with replays here.
-                    throw new InvalidOperationException($"Legacy score id:{score.id} legacy_id:{score.legacy_score_id} has replay flag set");
+                    DogStatsd.Increment("legacy_scores_deleted");
+                    var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+
+                    await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id.ToString(), cancellationToken);
+
+                    await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.ReplayTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
+                    await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
                 }
 
                 if (!DryRun)
