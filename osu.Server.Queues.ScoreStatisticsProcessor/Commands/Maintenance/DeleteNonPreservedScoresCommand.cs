@@ -112,7 +112,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private async Task processPartitionAsync(MySqlConnection db, Amazon.S3.IAmazonS3 s3, string partitionName, CancellationToken cancellationToken)
         {
-            int s3Failures = 0;
+            int consecutiveS3Failures = 0;
 
             await db.ExecuteAsync($"CREATE TABLE {scores_cleanup_table} LIKE {scores_table}");
             await db.ExecuteAsync($"ALTER TABLE {scores_cleanup_table} REMOVE PARTITIONING");
@@ -151,26 +151,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         var result = await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id.ToString(), cancellationToken);
 
                         if (await checkS3Success(result))
-                            DogStatsd.Increment("legacy_scores_deleted");
+                            DogStatsd.Increment("replays_deleted", tags: ["type:legacy"]);
 
+                        DogStatsd.Increment("scores_deleted", tags: ["type:legacy"]);
                         await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.ReplayTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
                         await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
                     }
                     else
                     {
                         var result = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
-
                         if (await checkS3Success(result))
-                        {
-                            DogStatsd.Increment("replays_deleted");
-                        }
+                            DogStatsd.Increment("replays_deleted", tags: ["type:new"]);
+                        DogStatsd.Increment("scores_deleted", tags: ["type:lazer"]);
                     }
                 }
 
-                if (s3Failures > 10)
+                if (consecutiveS3Failures > 10)
                 {
                     // Intentionally leave the temporary table in place for inspection.
-                    throw new Exception("Too many S3 failures");
+                    throw new Exception("Too many consecutive S3 failures");
                 }
             }
 
@@ -182,11 +181,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 switch (result.HttpStatusCode)
                 {
                     case HttpStatusCode.NoContent:
+                        consecutiveS3Failures = 0;
                         return true;
 
                     default:
                         await Console.Error.WriteLineAsync($"* Received unexpected status code when attempting to delete replay: {result.HttpStatusCode}.");
-                        s3Failures++;
+                        consecutiveS3Failures++;
                         return false;
                 }
             }
