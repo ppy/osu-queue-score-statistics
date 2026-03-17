@@ -112,6 +112,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private async Task processPartitionAsync(MySqlConnection db, Amazon.S3.IAmazonS3 s3, string partitionName, CancellationToken cancellationToken)
         {
+            int s3Failures = 0;
+
             await db.ExecuteAsync($"CREATE TABLE {scores_cleanup_table} LIKE {scores_table}");
             await db.ExecuteAsync($"ALTER TABLE {scores_cleanup_table} REMOVE PARTITIONING");
 
@@ -140,36 +142,54 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (Verbose)
                     Console.WriteLine($"Deleting replay {score.id}...");
 
-                if (score.is_legacy_score)
-                {
-                    DogStatsd.Increment("legacy_scores_deleted");
-                    var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
-
-                    await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id.ToString(), cancellationToken);
-
-                    await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.ReplayTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
-                    await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
-                }
-
                 if (!DryRun)
                 {
-                    DogStatsd.Increment("replays_deleted");
-                    DeleteObjectResponse? deleteResult = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
-
-                    switch (deleteResult.HttpStatusCode)
+                    if (score.is_legacy_score)
                     {
-                        case HttpStatusCode.NoContent:
-                            break;
+                        var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
 
-                        default:
-                            await Console.Error.WriteLineAsync($"* Received unexpected status code when attempting to delete replay: {deleteResult.HttpStatusCode}.");
-                            break;
+                        var result = await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id.ToString(), cancellationToken);
+
+                        if (await checkS3Success(result))
+                            DogStatsd.Increment("legacy_scores_deleted");
+
+                        await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.ReplayTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
+                        await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
                     }
+                    else
+                    {
+                        var result = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+
+                        if (await checkS3Success(result))
+                        {
+                            DogStatsd.Increment("replays_deleted");
+                        }
+                    }
+                }
+
+                if (s3Failures > 10)
+                {
+                    // Intentionally leave the temporary table in place for inspection.
+                    throw new Exception("Too many S3 failures");
                 }
             }
 
             Console.WriteLine("Cleaning up temporary table...");
             await db.ExecuteAsync($"DROP TABLE {scores_cleanup_table}");
+
+            async Task<bool> checkS3Success(DeleteObjectResponse result)
+            {
+                switch (result.HttpStatusCode)
+                {
+                    case HttpStatusCode.NoContent:
+                        return true;
+
+                    default:
+                        await Console.Error.WriteLineAsync($"* Received unexpected status code when attempting to delete replay: {result.HttpStatusCode}.");
+                        s3Failures++;
+                        return false;
+                }
+            }
         }
     }
 }
