@@ -146,6 +146,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 {
                     if (score.is_legacy_score)
                     {
+                        if (score.legacy_score_id < 1)
+                            throw new InvalidOperationException("Legacy score cleanup attempted without a valid score ID");
+
                         var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
 
                         var result = await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id.ToString(), cancellationToken);
