@@ -59,21 +59,41 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
-            Console.WriteLine("Fetching all users...");
-            int[] userIds = (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE {Where}")).ToArray();
-            Console.WriteLine($"Fetched {userIds.Length} users");
+            const int users_per_fetch = 1000;
 
-            for (int i = 0; i < userIds.Length; i++)
+            int lastUserId = 0;
+            int totalUsersProcessed = 0;
+
+            while (!cancellationToken.IsCancellationRequested)
             {
-                await processUser(db, userIds[i], cancellationToken);
+                Console.WriteLine("Fetching more users...");
 
-                if (i > 0 && i % 100 == 0)
-                    Console.WriteLine($"Processed {i:N0} of {userIds.Length:N0} users ({totalMarked:N0} marked)");
+                int[] userIds =
+                    (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE {Where} AND user_id > {lastUserId} ORDER BY user_id LIMIT {users_per_fetch}")).ToArray();
+
+                if (userIds.Length == 0)
+                    break;
+
+                Console.WriteLine($"Fetched {userIds.Length} users");
+
+                for (int i = 0; i < userIds.Length; i++)
+                {
+                    int userId = userIds[i];
+
+                    await processUser(db, userId, cancellationToken);
+
+                    if (i > 0 && i % 100 == 0)
+                        Console.WriteLine($"Processed {i:N0} of {userIds.Length:N0} users ({totalMarked:N0} marked)");
+
+                    lastUserId = userId;
+
+                    Interlocked.Increment(ref totalUsersProcessed);
+                }
             }
 
             Console.WriteLine();
             Console.WriteLine($"Finished in {stopwatch.Elapsed.TotalSeconds:N0} s!");
-            Console.WriteLine($"Processed {userIds.Length} users");
+            Console.WriteLine($"Processed {totalUsersProcessed} users");
             Console.WriteLine($"{totalMarked:N0} marked for deletion");
 
             return 0;
@@ -108,7 +128,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             //
             // This could for instance, be a case of a user pinning a score on an unranked beatmap, the unpinning
             // at a future point in time. In the future we may want to consider cleaning these up, but the overhead
-            // of doing this with the *current structure* of this commmand loop is too high to be worthwhile.
+            // of doing this with the *current structure* of this command loop is too high to be worthwhile.
             IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
                 """
                 WITH beatmaps AS (
