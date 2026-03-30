@@ -23,9 +23,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
     [Command("delete-non-preserved", Description = "Delete non-preserved scores which are stale enough.")]
     public class DeleteNonPreservedScoresCommand
     {
-        [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run", Description = "Don't actually mark, just output.")]
-        public bool DryRun { get; set; }
-
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
         public bool Verbose { get; set; }
 
@@ -82,8 +79,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 await processPartitionAsync(db, s3, partition, cancellationToken);
 
                 Console.WriteLine($"Dropping partition {partition}...");
-                if (!DryRun)
-                    await db.ExecuteAsync(new CommandDefinition($"ALTER TABLE {scores_table} DROP PARTITION {partition}", cancellationToken: cancellationToken));
+                await db.ExecuteAsync(new CommandDefinition($"ALTER TABLE {scores_table} DROP PARTITION {partition}", cancellationToken: cancellationToken));
                 Console.WriteLine($"Partition {partition} dropped successfully!");
             }
 
@@ -122,13 +118,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             await db.ExecuteAsync($"CREATE TABLE {scores_cleanup_table} LIKE {scores_table}");
             await db.ExecuteAsync($"ALTER TABLE {scores_cleanup_table} REMOVE PARTITIONING");
 
-            if (!DryRun)
-            {
-                Console.WriteLine("Moving partition contents to temporary table...");
+            Console.WriteLine("Moving partition contents to temporary table...");
 
-                // https://dev.mysql.com/doc/refman/8.4/en/partitioning-management-exchange.html
-                await db.ExecuteAsync($"ALTER TABLE {scores_table} EXCHANGE PARTITION {partitionName} WITH TABLE {scores_cleanup_table} WITHOUT VALIDATION");
-            }
+            // https://dev.mysql.com/doc/refman/8.4/en/partitioning-management-exchange.html
+            await db.ExecuteAsync($"ALTER TABLE {scores_table} EXCHANGE PARTITION {partitionName} WITH TABLE {scores_cleanup_table} WITHOUT VALIDATION");
 
             await processCleanupTable(db, s3, cancellationToken);
         }
@@ -154,37 +147,34 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (Verbose)
                     Console.WriteLine($"Deleting replay {score.id}...");
 
-                if (!DryRun)
+                if (score.is_legacy_score)
                 {
-                    if (score.is_legacy_score)
-                    {
-                        if (score.legacy_score_id < 1)
-                            throw new InvalidOperationException("Legacy score cleanup attempted without a valid score ID");
+                    if (score.legacy_score_id < 1)
+                        throw new InvalidOperationException("Legacy score cleanup attempted without a valid score ID");
 
-                        var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+                    var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
 
-                        if (Verbose)
-                            Console.WriteLine($"S3 purge s3://{rulesetSpecifics.ReplayBucket}/{score.id}...");
+                    if (Verbose)
+                        Console.WriteLine($"S3 purge s3://{rulesetSpecifics.ReplayBucket}/{score.id}...");
 
-                        var result = await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id!.Value.ToString(CultureInfo.InvariantCulture), cancellationToken);
+                    var result = await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id!.Value.ToString(CultureInfo.InvariantCulture), cancellationToken);
 
-                        if (await checkS3Success(result))
-                            DogStatsd.Increment("replays_deleted", tags: ["type:legacy"]);
+                    if (await checkS3Success(result))
+                        DogStatsd.Increment("replays_deleted", tags: ["type:legacy"]);
 
-                        DogStatsd.Increment("scores_deleted", tags: ["type:legacy"]);
-                        await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.ReplayTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
-                        await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
-                    }
-                    else
-                    {
-                        if (Verbose)
-                            Console.WriteLine($"S3 purge s3://{S3.REPLAYS_BUCKET}/{score.id.ToString(CultureInfo.InvariantCulture)}...");
+                    DogStatsd.Increment("scores_deleted", tags: ["type:legacy"]);
+                    await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.ReplayTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
+                    await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
+                }
+                else
+                {
+                    if (Verbose)
+                        Console.WriteLine($"S3 purge s3://{S3.REPLAYS_BUCKET}/{score.id.ToString(CultureInfo.InvariantCulture)}...");
 
-                        var result = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
-                        if (await checkS3Success(result))
-                            DogStatsd.Increment("replays_deleted", tags: ["type:new"]);
-                        DogStatsd.Increment("scores_deleted", tags: ["type:lazer"]);
-                    }
+                    var result = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+                    if (await checkS3Success(result))
+                        DogStatsd.Increment("replays_deleted", tags: ["type:new"]);
+                    DogStatsd.Increment("scores_deleted", tags: ["type:lazer"]);
                 }
 
                 if (consecutiveS3Failures > 10)
