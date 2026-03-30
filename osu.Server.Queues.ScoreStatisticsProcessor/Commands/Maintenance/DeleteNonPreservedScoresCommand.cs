@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Amazon.S3;
 using Amazon.S3.Model;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
@@ -45,6 +46,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
             using var s3 = S3.GetClient();
+
+            if (db.ExecuteScalar<int>($"SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{scores_cleanup_table}' AND TABLE_SCHEMA = DATABASE()") > 0)
+            {
+                Console.WriteLine("Processing left-over cleanup table");
+                await processCleanupTable(db, s3, cancellationToken);
+            }
 
             // Partitions are actually off-by-one, so we +1 here.
             //
@@ -110,10 +117,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             return eligiblePartitions;
         }
 
-        private async Task processPartitionAsync(MySqlConnection db, Amazon.S3.IAmazonS3 s3, string partitionName, CancellationToken cancellationToken)
+        private async Task processPartitionAsync(MySqlConnection db, IAmazonS3 s3, string partitionName, CancellationToken cancellationToken)
         {
-            int consecutiveS3Failures = 0;
-
             await db.ExecuteAsync($"CREATE TABLE {scores_cleanup_table} LIKE {scores_table}");
             await db.ExecuteAsync($"ALTER TABLE {scores_cleanup_table} REMOVE PARTITIONING");
 
@@ -124,6 +129,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 // https://dev.mysql.com/doc/refman/8.4/en/partitioning-management-exchange.html
                 await db.ExecuteAsync($"ALTER TABLE {scores_table} EXCHANGE PARTITION {partitionName} WITH TABLE {scores_cleanup_table} WITHOUT VALIDATION");
             }
+
+            await processCleanupTable(db, s3, cancellationToken);
+        }
+
+        private async Task processCleanupTable(MySqlConnection db, IAmazonS3 s3, CancellationToken cancellationToken)
+        {
+            int consecutiveS3Failures = 0;
 
             long count = await db.QuerySingleAsync<long>(new CommandDefinition($"SELECT COUNT(id) FROM `{scores_cleanup_table}`", cancellationToken: cancellationToken));
             Console.WriteLine($"Partition contains {count:N0} scores.");
