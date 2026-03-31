@@ -174,7 +174,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     var result = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
                     if (await checkS3Success(result))
                         DogStatsd.Increment("replays_deleted", tags: ["type:new"]);
-                    DogStatsd.Increment("scores_deleted", tags: ["type:lazer"]);
+                    DogStatsd.Increment("scores_deleted", tags: ["type:new"]);
                 }
 
                 if (consecutiveS3Failures > 10)
