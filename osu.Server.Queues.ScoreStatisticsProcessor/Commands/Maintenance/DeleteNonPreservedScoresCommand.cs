@@ -133,6 +133,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             long count = await db.QuerySingleAsync<long>(new CommandDefinition($"SELECT COUNT(id) FROM `{scores_cleanup_table}`", cancellationToken: cancellationToken));
             Console.WriteLine($"Partition contains {count:N0} scores.");
 
+            DogStatsd.Increment("total_scores_deleted", (int)count);
+
             var scores = (await db.QueryAsync<SoloScore>(
                     new CommandDefinition($"SELECT id, legacy_score_id FROM `{scores_cleanup_table}` WHERE `has_replay` = 1", cancellationToken: cancellationToken)))
                 .ToArray();
@@ -159,10 +161,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     var result = await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id!.Value.ToString(CultureInfo.InvariantCulture), cancellationToken);
 
-                    if (await checkS3Success(result))
-                        DogStatsd.Increment("replays_deleted", tags: ["type:legacy"]);
+                    bool success = await checkS3Success(result);
+                    DogStatsd.Increment("replays_deleted", tags: ["type:legacy", $"success:{success}"]);
 
-                    DogStatsd.Increment("scores_deleted", tags: ["type:legacy"]);
+                    DogStatsd.Increment("legacy_table_scores_deleted");
                     await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.ReplayTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
                     await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
                 }
@@ -172,9 +174,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         Console.WriteLine($"S3 purge s3://{S3.REPLAYS_BUCKET}/{score.id.ToString(CultureInfo.InvariantCulture)}...");
 
                     var result = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
-                    if (await checkS3Success(result))
-                        DogStatsd.Increment("replays_deleted", tags: ["type:new"]);
-                    DogStatsd.Increment("scores_deleted", tags: ["type:new"]);
+                    bool success = await checkS3Success(result);
+                    DogStatsd.Increment("replays_deleted", tags: ["type:new", $"success:{success}"]);
                 }
 
                 if (consecutiveS3Failures > 10)
