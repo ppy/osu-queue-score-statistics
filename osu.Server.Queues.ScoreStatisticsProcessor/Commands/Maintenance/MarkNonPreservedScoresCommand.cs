@@ -53,20 +53,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 
-            Console.WriteLine($"Running for ruleset {RulesetId}");
+            Console.WriteLine($"Running against {databaseInfo.UserStatsTable}");
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
 
             using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
-            const int users_per_fetch = 1000;
+            const int users_per_fetch = 10000;
+
+            int totalCount = await db.QuerySingleAsync<int>($"SELECT COUNT(*) FROM {databaseInfo.UserStatsTable} WHERE {Where}");
+            Console.WriteLine($"Processing a total of {totalCount} users");
 
             int lastUserId = 0;
             int totalUsersProcessed = 0;
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                Console.WriteLine("Fetching more users...");
+                if (lastUserId > 0)
+                    Console.WriteLine($"Continuing processing starting from user_id {lastUserId}...");
 
                 int[] userIds =
                     (await db.QueryAsync<int>($"SELECT `user_id` FROM {databaseInfo.UserStatsTable} WHERE {Where} AND user_id > {lastUserId} ORDER BY user_id LIMIT {users_per_fetch}")).ToArray();
@@ -74,7 +78,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 if (userIds.Length == 0)
                     break;
 
-                Console.WriteLine($"Fetched {userIds.Length} users");
+                if (Verbose) Console.WriteLine($"Fetched {userIds.Length} users");
 
                 for (int i = 0; i < userIds.Length; i++)
                 {
@@ -82,7 +86,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     await processUser(db, userId, cancellationToken);
 
-                    if (i > 0 && i % 100 == 0)
+                    if (i > 0 && i % 1000 == 0)
                         Console.WriteLine($"Processed {i:N0} of {userIds.Length:N0} users ({totalMarked:N0} marked)");
 
                     lastUserId = userId;
@@ -156,7 +160,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             if (Verbose) Console.WriteLine("Fetching multiplayer scores..");
             IEnumerable<ulong> multiplayerScores = db.Query<ulong>("SELECT score_id FROM multiplayer_playlist_item_scores WHERE user_id = @userId", parameters).ToHashSet();
 
-            Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
+            if (Verbose) Console.WriteLine($"Processing user {userId} ({scores.Count()} scores)..");
 
             foreach (var score in scores)
             {
