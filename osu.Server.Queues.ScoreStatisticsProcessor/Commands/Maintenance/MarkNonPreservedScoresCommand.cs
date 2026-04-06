@@ -225,7 +225,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             }
             else if (userMarkedCount > 0)
             {
-                Console.WriteLine($" {userMarkedCount:N0} marked for deletion");
+                Console.WriteLine($"{userId}: {userMarkedCount:N0} marked for deletion");
             }
         }
 
