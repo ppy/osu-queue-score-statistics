@@ -141,6 +141,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             Console.WriteLine($"Cleaning up {scores.Length} scores with replays...");
 
+            int processedCount = 0;
+
             foreach (var score in scores)
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -183,6 +185,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     // Intentionally leave the temporary table in place for inspection.
                     throw new Exception("Too many consecutive S3 failures");
                 }
+
+                if (processedCount++ % 100 == 0)
+                    Console.WriteLine($"Processed {processedCount} scores");
             }
 
             Console.WriteLine("Cleaning up temporary table...");
