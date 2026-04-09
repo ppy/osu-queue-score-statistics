@@ -144,7 +144,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             while (!cancellationToken.IsCancellationRequested)
             {
                 var scores = (await db.QueryAsync<SoloScore>(
-                    new CommandDefinition($"SELECT id, legacy_score_id FROM `{scores_cleanup_table}` WHERE `has_replay` = 1 AND id > @last_processed_id LIMIT {scores_per_batch}", new
+                    new CommandDefinition($"SELECT id, legacy_score_id FROM `{scores_cleanup_table}` WHERE `has_replay` = 1 AND id > @last_processed_id ORDER BY `id` LIMIT {scores_per_batch}", new
                     {
                         last_processed_id = lastProcessedId
                     }, cancellationToken: cancellationToken))).ToArray();
