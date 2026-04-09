@@ -131,63 +131,81 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             int consecutiveS3Failures = 0;
 
             long count = await db.QuerySingleAsync<long>(new CommandDefinition($"SELECT COUNT(id) FROM `{scores_cleanup_table}`", cancellationToken: cancellationToken));
-            Console.WriteLine($"Partition contains {count:N0} scores.");
+            long countWithReplay =
+                await db.QuerySingleAsync<long>(new CommandDefinition($"SELECT COUNT(id) FROM `{scores_cleanup_table}` WHERE `has_replay` = 1", cancellationToken: cancellationToken));
+            Console.WriteLine($"Partition contains {count:N0} scores ({countWithReplay:N0} with replays).");
 
             DogStatsd.Increment("total_scores_deleted", (int)count);
 
-            var scores = (await db.QueryAsync<SoloScore>(
-                    new CommandDefinition($"SELECT id, legacy_score_id FROM `{scores_cleanup_table}` WHERE `has_replay` = 1", cancellationToken: cancellationToken)))
-                .ToArray();
+            ulong lastProcessedId = 0;
 
-            Console.WriteLine($"Cleaning up {scores.Length} scores with replays...");
+            const int scores_per_batch = 10000;
 
-            int processedCount = 0;
-
-            foreach (var score in scores)
+            while (true)
             {
-                if (cancellationToken.IsCancellationRequested)
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var scores = (await db.QueryAsync<SoloScore>(
+                    new CommandDefinition($"SELECT id, legacy_score_id FROM `{scores_cleanup_table}` WHERE `has_replay` = 1 AND id > @last_processed_id ORDER BY `id` LIMIT {scores_per_batch}", new
+                    {
+                        last_processed_id = lastProcessedId
+                    }, cancellationToken: cancellationToken))).ToArray();
+
+                if (scores.Length == 0)
                     break;
 
+                int processedCount = 0;
+
                 if (Verbose)
-                    Console.WriteLine($"Deleting replay {score.id}...");
+                    Console.WriteLine($"Processing next batch of {scores.Length} starting from {lastProcessedId}...");
 
-                if (score.is_legacy_score)
+                foreach (var score in scores)
                 {
-                    if (score.legacy_score_id < 1)
-                        throw new InvalidOperationException("Legacy score cleanup attempted without a valid score ID");
-
-                    var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+                    cancellationToken.ThrowIfCancellationRequested();
 
                     if (Verbose)
-                        Console.WriteLine($"S3 purge s3://{rulesetSpecifics.ReplayBucket}/{score.id}...");
+                        Console.WriteLine($"Deleting replay {score.id}...");
 
-                    var result = await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id!.Value.ToString(CultureInfo.InvariantCulture), cancellationToken);
+                    if (score.is_legacy_score)
+                    {
+                        if (score.legacy_score_id < 1)
+                            throw new InvalidOperationException("Legacy score cleanup attempted without a valid score ID");
 
-                    bool success = await checkS3Success(result);
-                    DogStatsd.Increment("replays_deleted", tags: ["type:legacy", $"success:{success}"]);
+                        var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
 
-                    DogStatsd.Increment("legacy_table_scores_deleted");
-                    await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.ReplayTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
-                    await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
+                        if (Verbose)
+                            Console.WriteLine($"S3 purge s3://{rulesetSpecifics.ReplayBucket}/{score.id}...");
+
+                        var result = await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id!.Value.ToString(CultureInfo.InvariantCulture), cancellationToken);
+
+                        bool success = await checkS3Success(result);
+                        DogStatsd.Increment("replays_deleted", tags: ["type:legacy", $"success:{success}"]);
+
+                        DogStatsd.Increment("legacy_table_scores_deleted");
+                        await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.ReplayTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
+                        await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
+                    }
+                    else
+                    {
+                        if (Verbose)
+                            Console.WriteLine($"S3 purge s3://{S3.REPLAYS_BUCKET}/{score.id.ToString(CultureInfo.InvariantCulture)}...");
+
+                        var result = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+                        bool success = await checkS3Success(result);
+                        DogStatsd.Increment("replays_deleted", tags: ["type:new", $"success:{success}"]);
+                    }
+
+                    if (consecutiveS3Failures > 10)
+                    {
+                        // Intentionally leave the temporary table in place for inspection.
+                        throw new Exception("Too many consecutive S3 failures");
+                    }
+
+                    if (processedCount++ % 100 == 0)
+                        Console.WriteLine($"Processed {processedCount} scores");
+
+                    lastProcessedId = score.id;
                 }
-                else
-                {
-                    if (Verbose)
-                        Console.WriteLine($"S3 purge s3://{S3.REPLAYS_BUCKET}/{score.id.ToString(CultureInfo.InvariantCulture)}...");
-
-                    var result = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
-                    bool success = await checkS3Success(result);
-                    DogStatsd.Increment("replays_deleted", tags: ["type:new", $"success:{success}"]);
-                }
-
-                if (consecutiveS3Failures > 10)
-                {
-                    // Intentionally leave the temporary table in place for inspection.
-                    throw new Exception("Too many consecutive S3 failures");
-                }
-
-                if (processedCount++ % 100 == 0)
-                    Console.WriteLine($"Processed {processedCount} scores");
             }
 
             Console.WriteLine("Cleaning up temporary table...");
