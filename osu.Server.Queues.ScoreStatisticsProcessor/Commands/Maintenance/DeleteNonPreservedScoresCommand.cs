@@ -141,8 +141,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             const int scores_per_batch = 10000;
 
-            while (!cancellationToken.IsCancellationRequested)
+            while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var scores = (await db.QueryAsync<SoloScore>(
                     new CommandDefinition($"SELECT id, legacy_score_id FROM `{scores_cleanup_table}` WHERE `has_replay` = 1 AND id > @last_processed_id ORDER BY `id` LIMIT {scores_per_batch}", new
                     {
@@ -159,8 +161,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 foreach (var score in scores)
                 {
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
+                    cancellationToken.ThrowIfCancellationRequested();
 
                     if (Verbose)
                         Console.WriteLine($"Deleting replay {score.id}...");
