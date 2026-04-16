@@ -4,13 +4,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
-using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
@@ -22,26 +22,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     /// </summary>
     public class ScorePerformanceProcessor : IProcessor
     {
+        private static readonly bool check_client_version = Environment.GetEnvironmentVariable("CLIENT_CHECK_VERSION") != "0";
+
         public const int ORDER = 0;
 
-        private BeatmapStore? beatmapStore;
         private BuildStore? buildStore;
-
-        private long lastStoreRefresh;
 
         public int Order => ORDER;
 
         public bool RunOnFailedScores => false;
 
-        public bool RunOnLegacyScores => false;
+        public bool RunOnLegacyScores => true;
+
+        public bool Verbose { get; set; }
 
         private static readonly bool write_legacy_score_pp = Environment.GetEnvironmentVariable("WRITE_LEGACY_SCORE_PP") != "0";
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
             ProcessScoreAsync(score, conn, transaction).Wait();
         }
@@ -57,7 +58,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="rulesetId">The ruleset for which scores should be processed.</param>
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
-        public async Task ProcessUserScoresAsync(uint userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null)
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>The number of scores which had their performance values updated.</returns>
+        public async Task<int> ProcessUserScoresAsync(uint userId, int rulesetId, MySqlConnection connection, MySqlTransaction? transaction = null, CancellationToken cancellationToken = default)
         {
             var scores = (await connection.QueryAsync<SoloScore>("SELECT * FROM scores WHERE `user_id` = @UserId AND `ruleset_id` = @RulesetId", new
             {
@@ -65,8 +68,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 RulesetId = rulesetId
             }, transaction: transaction)).ToArray();
 
+            if (!scores.Any())
+                return 0;
+
+            int totalUpdated = 0;
+
             foreach (SoloScore score in scores)
-                await ProcessScoreAsync(score, connection, transaction);
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                if (await ProcessScoreAsync(score, connection, transaction))
+                    totalUpdated++;
+            }
+
+            return totalUpdated;
         }
 
         /// <summary>
@@ -97,75 +113,81 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         /// <param name="score">The score to process.</param>
         /// <param name="connection">The <see cref="MySqlConnection"/>.</param>
         /// <param name="transaction">An existing transaction.</param>
-        public async Task ProcessScoreAsync(SoloScore score, MySqlConnection connection, MySqlTransaction? transaction = null)
+        public async Task<bool> ProcessScoreAsync(SoloScore score, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
             // Usually checked via "RunOnFailedScores", but this method is also used by the CLI batch processor.
             if (!score.passed)
-                return;
+                return false;
 
-            long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            buildStore ??= new BuildStore();
 
-            if (buildStore == null || beatmapStore == null || currentTimestamp - lastStoreRefresh > 60_000)
+            score.beatmap ??= await BeatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction);
+
+            if (score.beatmap is not Beatmap beatmap)
+                return false;
+
+            // TODO: will fail for newly ranked beatmaps for up to one minute (beatmap store purge).
+            if (!BeatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
+                return false;
+
+            Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
+            Mod[] mods = score.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray();
+
+            if (!AllModsValidForPerformance(score, mods))
+                return false;
+
+            // Performance needs to be allowed for the build.
+            // legacy scores don't need a build id
+            if (check_client_version && score.legacy_score_id == null && (score.build_id == null || (await buildStore.GetBuildAsync(score.build_id.Value, connection, transaction))?.allow_performance != true))
+                return false;
+
+            DifficultyAttributes difficultyAttributes = await BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
+            PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(score.ToScoreInfo(), difficultyAttributes);
+
+            if (performanceAttributes == null)
+                return false;
+
+            if (score.pp != null && Math.Abs(score.pp.Value - performanceAttributes.Total) < 0.1)
+                return false;
+
+            if (Verbose)
             {
-                buildStore = await BuildStore.CreateAsync(connection, transaction);
-                beatmapStore = await BeatmapStore.CreateAsync(connection, transaction);
-
-                lastStoreRefresh = currentTimestamp;
+                Console.WriteLine(
+                    $"{score.id.ToString(),-12}: {score.pp ?? -1,-4:N2} -> {performanceAttributes.Total,-4:N2} "
+                    + $"({performanceAttributes.Total - (score.pp ?? 0),-5:+#,0.00;-#,0.00;+#,0.00})"
+                    + (score.is_legacy_score ? " LEGACY" : string.Empty));
             }
 
-            try
+            if (score.is_legacy_score && write_legacy_score_pp)
             {
-                score.beatmap ??= (await beatmapStore.GetBeatmapAsync(score.beatmap_id, connection, transaction));
-
-                if (score.beatmap is not Beatmap beatmap)
-                    return;
-
-                if (!beatmapStore.IsBeatmapValidForPerformance(beatmap, score.ruleset_id))
-                    return;
-
-                Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
-                Mod[] mods = score.ScoreData.Mods.Select(m => m.ToMod(ruleset)).ToArray();
-
-                if (!AllModsValidForPerformance(score, mods))
-                    return;
-
-                DifficultyAttributes? difficultyAttributes = await beatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, connection, transaction);
-
-                // Performance needs to be allowed for the build.
-                // legacy scores don't need a build id
-                if (score.legacy_score_id == null && (score.build_id == null || buildStore.GetBuild(score.build_id.Value)?.allow_performance != true))
-                    return;
-
-                if (difficultyAttributes == null)
-                    return;
-
-                ScoreInfo scoreInfo = score.ToScoreInfo();
-                PerformanceAttributes? performanceAttributes = ruleset.CreatePerformanceCalculator()?.Calculate(scoreInfo, difficultyAttributes);
-
-                if (performanceAttributes == null)
-                    return;
-
+                var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+                await connection.ExecuteAsync($"UPDATE scores SET pp = @Pp WHERE id = @ScoreId; UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
+                {
+                    ScoreId = score.id,
+                    LegacyScoreId = score.legacy_score_id,
+                    Pp = performanceAttributes.Total,
+                }, transaction: transaction);
+            }
+            else
+            {
                 await connection.ExecuteAsync("UPDATE scores SET pp = @Pp WHERE id = @ScoreId", new
                 {
                     ScoreId = score.id,
-                    Pp = performanceAttributes.Total
+                    Pp = performanceAttributes.Total,
                 }, transaction: transaction);
+            }
 
-                // for the following code to take effect, `RunOnLegacyScores` must also be true (currently is false).
-                if (score.is_legacy_score && write_legacy_score_pp)
-                {
-                    var helper = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
-                    await connection.ExecuteAsync($"UPDATE {helper.HighScoreTable} SET pp = @Pp WHERE score_id = @LegacyScoreId", new
-                    {
-                        LegacyScoreId = score.legacy_score_id,
-                        Pp = performanceAttributes.Total,
-                    }, transaction: transaction);
-                }
-            }
-            catch (Exception ex)
-            {
-                await Console.Error.WriteLineAsync($"{score.id} failed with: {ex}");
-            }
+            // WARNING: This write must occur LAST, AFTER the database writes.
+            // The reason for this is to cover off the case wherein the database writes FAIL.
+            // In such a case, the score will be re-queued for processing again to cover off transient failures -
+            // however, the re-queue process takes the `score` model verbatim, RE-SERIALISES IT to JSON, and then re-enqueues THAT.
+            // this means that if the write below is permitted to occur BEFORE the value is written to database,
+            // on the next retry the state of the score will be INCONSISTENT with the database
+            // because the database write of pp HAS NOT ACTUALLY HAPPENED
+            // but the score model as written to and then read from redis WILL HAVE PP POPULATED.
+            score.pp = performanceAttributes.Total;
+
+            return true;
         }
 
         /// <summary>

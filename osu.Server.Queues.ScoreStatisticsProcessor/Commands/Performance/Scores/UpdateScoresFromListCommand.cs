@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
-using osu.Server.QueueProcessor;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 {
@@ -27,10 +26,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
 
             int processedCount = 0;
 
-            await ProcessPartitioned(scoreIds, async id =>
+            await ProcessPartitioned(scoreIds, async (conn, transaction, id) =>
             {
-                using (var db = DatabaseAccess.GetConnection())
-                    await ScoreProcessor.ProcessScoreAsync(id, db);
+                await ScoreProcessor.ProcessScoreAsync(id, conn, transaction);
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {scoreIds.Length}");
             }, cancellationToken);
 

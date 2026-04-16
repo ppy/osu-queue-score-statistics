@@ -22,10 +22,10 @@ using osu.Game.Rulesets.Scoring.Legacy;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Server.QueueProcessor;
-using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using BeatmapStore = osu.Server.Queues.ScoreStatisticsProcessor.Stores.BeatmapStore;
 
-namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
+namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     /// <summary>
     /// Handles one batch insertion of <see cref="HighScore"/>s. Can be used to parallelize work.
@@ -39,15 +39,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
     public class BatchInserter
     {
         public static int CurrentReportInsertCount;
-        public static int CurrentReportDeleteCount;
         public static int TotalInsertCount;
-        public static int TotalDeleteCount;
-
-        public static int TotalSkipCount;
 
         private readonly Ruleset ruleset;
 
-        private readonly bool importLegacyPP;
         private readonly bool dryRun;
         private readonly bool throwOnFailure;
 
@@ -55,14 +50,45 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public Task Task { get; }
 
-        public List<ElasticQueuePusher.ElasticScoreItem> ElasticScoreItems { get; } = new List<ElasticQueuePusher.ElasticScoreItem>();
-
         public List<ScoreItem> ScoreStatisticsItems { get; } = new List<ScoreItem>();
 
-        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool importLegacyPP, bool dryRun = false, bool throwOnFailure = true)
+        static BatchInserter()
+        {
+            _ = BeatmapStatusWatcher.StartPollingAsync(updates =>
+            {
+                foreach (int beatmapSetId in updates.BeatmapSetIDs)
+                {
+                    using (var db = DatabaseAccess.GetConnection())
+                    {
+                        ICollection<BeatmapLookup> scoringAttributesKeys = scoring_attributes_cache.Keys;
+                        ICollection<DifficultyAttributesLookup> difficultyAttributesKeys = attributes_cache.Keys;
+
+                        foreach (int beatmapId in db.Query<int>("SELECT beatmap_id FROM osu_beatmaps WHERE beatmapset_id = @beatmapSetId AND `deleted_at` IS NULL",
+                                     new { beatmapSetId }))
+                        {
+                            Console.WriteLine($"Invalidating cache for beatmap_id {beatmapId}");
+                            difficulty_info_cache.TryRemove(beatmapId, out _);
+
+                            foreach (var key in scoringAttributesKeys)
+                            {
+                                if (key.BeatmapId == beatmapId)
+                                    scoring_attributes_cache.TryRemove(key, out _);
+                            }
+
+                            foreach (var key in difficultyAttributesKeys)
+                            {
+                                if (key.BeatmapId == beatmapId)
+                                    attributes_cache.TryRemove(key, out _);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        public BatchInserter(Ruleset ruleset, HighScore[] scores, bool dryRun = false, bool throwOnFailure = true)
         {
             this.ruleset = ruleset;
-            this.importLegacyPP = importLegacyPP;
             this.dryRun = dryRun;
             this.throwOnFailure = throwOnFailure;
 
@@ -84,46 +110,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 try
                 {
-                    if (highScore.score_id == 0)
-                    {
-                        // Something really bad probably happened, abort for safety.
+                    // Something really bad probably happened, abort for safety.
+                    if (highScore.score_id == 0 || highScore.score == 0)
                         throw new InvalidOperationException("Score arrived with no ID");
-                    }
 
-                    // Yes this is a weird way of determining whether it's a deletion.
-                    // Look away please.
-                    bool isDeletion = highScore.user_id == 0 && highScore.score == 0;
-
-                    if (isDeletion)
-                    {
-                        if (highScore.new_id == null)
-                        {
-                            Interlocked.Increment(ref TotalSkipCount);
-                            return;
-                        }
-
-                        using (var conn = DatabaseAccess.GetConnection())
-                        {
-                            conn.Execute("DELETE FROM score_pins WHERE user_id = @new_user_id AND score_id = @new_id;"
-                                         + "DELETE FROM scores WHERE id = @new_id", new
-                            {
-                                highScore.new_id,
-                                highScore.new_user_id,
-                            });
-                        }
-
-                        ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long)highScore.new_id });
-
-                        Interlocked.Increment(ref TotalDeleteCount);
-                        Interlocked.Increment(ref CurrentReportDeleteCount);
-                        return;
-                    }
-
+                    // This used to be skipped, but should generally never happen these days.
                     if (highScore.new_id != null)
-                    {
-                        Interlocked.Increment(ref TotalSkipCount);
-                        return;
-                    }
+                        throw new InvalidOperationException("Score arrived with new ID already attached");
 
                     // At least one row in the old table have invalid dates.
                     // MySQL doesn't like empty dates, so let's ensure we have a valid one.
@@ -198,10 +191,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             string sql = insertBuilder.ToString();
 
+            if (dryRun)
+            {
+                Console.WriteLine($" DRY RUN would insert command with {sql.Length:#,0} bytes");
+                return;
+            }
+
             Console.WriteLine($" Running insert command with {sql.Length:#,0} bytes");
             sw.Restart();
 
-            using (var db = DatabaseAccess.GetConnection())
+            using (var db = await DatabaseAccess.GetConnectionAsync())
             {
                 // https://dev.mysql.com/doc/refman/8.0/en/information-functions.html#function_last-insert-id
                 // If you insert multiple rows using a single INSERT statement, LAST_INSERT_ID() returns the value generated for the first inserted row only.
@@ -339,7 +338,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
 #pragma warning restore CS0618
 
-            var difficulty = getDificultyInfo(highScore.beatmap_id);
+            var difficulty = getDifficultyInfo(highScore.beatmap_id);
 
             StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, rulesetCache.Ruleset, difficulty, scoreAttributes.ToAttributes());
 
@@ -370,19 +369,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         private static readonly ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo> difficulty_info_cache =
             new ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo>();
 
-        private static LegacyBeatmapConversionDifficultyInfo getDificultyInfo(int beatmapId)
+        private static LegacyBeatmapConversionDifficultyInfo getDifficultyInfo(int beatmapId)
         {
             if (difficulty_info_cache.TryGetValue(beatmapId, out var existing))
                 return existing;
 
-            using (var connection = DatabaseAccess.GetConnection())
+            try
             {
-                Beatmap beatmap = connection.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                using (var connection = DatabaseAccess.GetConnection())
                 {
-                    BeatmapId = beatmapId
-                });
+                    Beatmap beatmap = connection.QuerySingle<Beatmap>("SELECT * FROM osu_beatmaps WHERE `beatmap_id` = @BeatmapId", new
+                    {
+                        BeatmapId = beatmapId
+                    });
 
-                return difficulty_info_cache[beatmapId] = beatmap.GetLegacyBeatmapConversionDifficultyInfo();
+                    return difficulty_info_cache[beatmapId] = beatmap.GetLegacyBeatmapConversionDifficultyInfo();
+                }
+            }
+            catch (Exception e)
+            {
+                throw new AggregateException($"Beatmap {beatmapId} missing from database", e);
             }
         }
 
@@ -398,7 +404,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
             {
                 IEnumerable<BeatmapDifficultyAttribute> dbAttributes =
                     connection.Query<BeatmapDifficultyAttribute>(
-                        "SELECT * FROM osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
+                        $"SELECT * FROM {BeatmapStore.DIFF_ATTRIB_DATABASE}.osu_beatmap_difficulty_attribs WHERE `beatmap_id` = @BeatmapId AND `mode` = @RulesetId AND `mods` = @Mods", lookup);
 
                 return attributes_cache[lookup] = dbAttributes.ToDictionary(a => (int)a.attrib_id, a => a);
             }
@@ -415,7 +421,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
             HitResult maxBasicResult;
             using (var scoreProcessor = ruleset.CreateScoreProcessor())
-                maxBasicResult = ruleset.GetHitResults().Where(h => h.result.IsBasic()).Select(h => h.result).MaxBy(scoreProcessor.GetBaseScoreForResult);
+                maxBasicResult = ruleset.GetHitResultsForDisplay().Where(h => h.result.IsBasic()).Select(h => h.result).MaxBy(scoreProcessor.GetBaseScoreForResult);
 
             cache = new RulesetCache(ruleset, maxBasicResult, ruleset.CreateMod<ModClassic>()!);
 
@@ -446,44 +452,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
         {
             for (ulong scoreId = firstId; scoreId <= lastId; scoreId++)
             {
-                if (importLegacyPP)
-                {
-                    // TODO: this is queueing non-legacy scores for indexing unnecessarily.
-                    // consider querying first (as below in the `else`).
+                // the legacy PP value was not imported.
+                // push the score to redis for PP processing.
+                // on completion of PP processing, the score will be pushed to ES for indexing.
+                // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
+                // is not constructed anywhere before this...
+                var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id AND legacy_score_id IS NOT NULL",
+                    new { id = scoreId });
 
-                    // we can proceed by pushing the score directly to ES for indexing.
-                    ElasticScoreItems.Add(new ElasticQueuePusher.ElasticScoreItem
-                    {
-                        ScoreId = (long)scoreId
-                    });
-                }
-                else
-                {
-                    if (dryRun)
-                    {
-                        // We can't retrieve this from the database because it hasn't been inserted.
-                        ScoreStatisticsItems.Add(new ScoreItem(new SoloScore(), new ProcessHistory()));
-                        return;
-                    }
+                if (score == null)
+                    throw new InvalidOperationException("Attempted to queue score for processing which is not in the database");
 
-                    // the legacy PP value was not imported.
-                    // push the score to redis for PP processing.
-                    // on completion of PP processing, the score will be pushed to ES for indexing.
-                    // the score refetch here is wasteful, but convenient and reliable, as the actual updated/inserted `SoloScore` row
-                    // is not constructed anywhere before this...
-                    var score = await connection.QuerySingleOrDefaultAsync<SoloScore>("SELECT * FROM `scores` WHERE `id` = @id AND legacy_score_id IS NOT NULL",
-                        new { id = scoreId });
+                var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id", new { id = scoreId });
 
-                    if (score == null)
-                    {
-                        // likely a deletion; already queued for ES above.
-                        continue;
-                    }
-
-                    var history = await connection.QuerySingleOrDefaultAsync<ProcessHistory>("SELECT * FROM `score_process_history` WHERE `score_id` = @id", new { id = scoreId });
-
-                    ScoreStatisticsItems.Add(new ScoreItem(score, history));
-                }
+                ScoreStatisticsItems.Add(new ScoreItem(score, history));
             }
         }
     }

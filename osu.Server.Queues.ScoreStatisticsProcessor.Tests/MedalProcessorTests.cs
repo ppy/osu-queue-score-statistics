@@ -10,14 +10,12 @@ using Dapper;
 using Dapper.Contrib.Extensions;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API;
-using osu.Game.Rulesets.Mania.Difficulty;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
-using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Utils;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
@@ -105,6 +103,28 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         /// <summary>
+        /// The pack awarder should not skip scores that are set on stable.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestPackMedalsAwardedOnLegacyScores(int medalId, int packId)
+        {
+            var beatmap = AddBeatmap();
+
+            AddPackMedal(medalId, packId, new[] { beatmap });
+
+            AssertNoMedalsAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.passed = s.Score.preserve = true;
+                s.Score.legacy_score_id = 1234;
+                s.Score.build_id = TestBuildID;
+            });
+
+            AssertSingleMedalAwarded(medalId);
+        }
+
+        /// <summary>
         /// The pack awarder should skip scores that are failed.
         /// </summary>
         [Theory]
@@ -132,6 +152,47 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 s.Score.passed = true;
                 s.Score.preserve = true;
                 s.Score.build_id = TestBuildID;
+            });
+            AssertNoMedalsAwarded();
+        }
+
+        [Theory]
+        [MemberData(nameof(MEDAL_PACK_IDS))]
+        public void TestConvertsNotAllowedForPackMedals(int medalId, int packId)
+        {
+            var firstBeatmap = AddBeatmap(b =>
+            {
+                b.beatmap_id = 1234;
+                b.playmode = 0;
+            }, s => s.beatmapset_id = 4321);
+            var secondBeatmap = AddBeatmap(b =>
+            {
+                b.beatmap_id = 5678;
+                b.playmode = 0;
+            }, s => s.beatmapset_id = 8765);
+
+            AddPackMedal(medalId, packId, [firstBeatmap, secondBeatmap]);
+            setUpBeatmapsForPackMedal([firstBeatmap, secondBeatmap]);
+
+            AssertNoMedalsAwarded();
+
+            SetScoreForBeatmap(firstBeatmap.beatmap_id, s =>
+            {
+                s.Score.passed = true;
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+                s.Score.ruleset_id = 3;
+                s.Score.pp = 10;
+            });
+            AssertNoMedalsAwarded();
+
+            SetScoreForBeatmap(secondBeatmap.beatmap_id, s =>
+            {
+                s.Score.passed = true;
+                s.Score.preserve = true;
+                s.Score.build_id = TestBuildID;
+                s.Score.ruleset_id = 0;
+                s.Score.pp = 10;
             });
             AssertNoMedalsAwarded();
         }
@@ -312,6 +373,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 AssertNoMedalsAwarded();
             }
 
+            AddBeatmapAttributes<OsuDifficultyAttributes>(allBeatmaps[0].beatmap_id, mods: [new OsuModEasy()]);
+
             // Pass the first map with Easy mod (difficulty reduction)
             SetScoreForBeatmap(allBeatmaps[0].beatmap_id, s =>
             {
@@ -393,6 +456,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id = 122;
 
             var beatmap = AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, mods: [new OsuModDoubleTime()]);
 
             AddMedal(medal_id);
 
@@ -424,6 +488,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id = 122;
 
             var beatmap = AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, mods: [new OsuModDoubleTime()]);
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, mods: [new OsuModDoubleTime(), new OsuModTouchDevice()]);
 
             AddMedal(medal_id);
 
@@ -451,7 +517,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 b.beatmap_id = getNextBeatmapId();
                 b.approved = onlineStatus;
             });
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             AddMedal(medal_id_pass);
             AddMedal(medal_id_fc);
@@ -507,7 +572,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_fc = 67;
 
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             AddMedal(medal_id_pass);
             AddMedal(medal_id_fc);
@@ -544,7 +608,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_4_star = 58;
 
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             AddMedal(medal_id_5_star);
             AddMedal(medal_id_4_star);
@@ -574,7 +637,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void TestStarRatingMedalsNotAwardedWhenDifficultyReductionOrUnrankedModsAreActive(APIMod[] mods)
         {
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             int[] passMedalIds = { 55, 56, 57, 58, 59, 60, 61, 62, 242, 244 };
             int[] fcMedalIds = { 63, 64, 65, 66, 67, 68, 69, 70, 243, 245 };
@@ -615,7 +677,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             // Taiko medals have an exception for https://osu.ppy.sh/beatmapsets/2626#taiko/19990
             var beatmap = AddBeatmap(b => b.beatmap_id = 19990);
-            AddBeatmapAttributes<TaikoDifficultyAttributes>(beatmap.beatmap_id, mode: 1);
 
             AddMedal(medal_id_5_star);
 
@@ -636,7 +697,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             const int medal_id_5_star = 91;
 
             var beatmap = AddBeatmap(b => b.beatmap_id = getNextBeatmapId());
-            AddBeatmapAttributes<ManiaDifficultyAttributes>(beatmap.beatmap_id, mode: 3);
 
             AddMedal(medal_id_5_star);
 
@@ -685,7 +745,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 b.beatmap_id = getNextBeatmapId();
                 b.approved = onlineStatus;
             });
-            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id);
 
             AddMedal(medal_id_5_star);
 
@@ -843,6 +902,54 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AssertSingleMedalAwarded(medal_id);
         }
 
+        /// <summary>
+        /// This tests the hit statistic-based medals are not awarded for stable scores.
+        /// </summary>
+        /// <remarks>
+        /// This applies to most other awarders and is really just a representative to check that the flag is working fine.
+        /// At some point all awarders will probably switched on and web-10 medal logic will be decommissioned.
+        /// </remarks>
+        [Fact]
+        public void TestHitStatisticMedalNotAwardedOnStableScores()
+        {
+            const int medal_id = 46;
+
+            var beatmap = AddBeatmap();
+
+            AddMedal(medal_id);
+
+            // Set up user stats with 39998 mania key presses
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                UserStatsMania stats = new UserStatsMania
+                {
+                    user_id = 2,
+                    count300 = 39998
+                };
+                db.Insert(stats);
+            }
+
+            AssertNoMedalsAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.ScoreData.Statistics = new Dictionary<HitResult, int> { { HitResult.Perfect, 1 } };
+                s.Score.ruleset_id = 3;
+            });
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats_mania WHERE user_id = 2", 39999, CancellationToken);
+
+            // After passing the beatmap for the first time we only reach 39999 key count,
+            // the medal shouldn't be awarded.
+            AssertNoMedalsAwarded();
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.ScoreData.Statistics = new Dictionary<HitResult, int> { { HitResult.Perfect, 1 } };
+                s.Score.ruleset_id = 3;
+                s.Score.legacy_score_id = 123123;
+            });
+            AssertNoMedalsAwarded();
+        }
+
         [Fact]
         public void TestRankMilestoneMedal()
         {
@@ -909,6 +1016,44 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             AssertMedalAwarded(53);
         }
 
+        /// <summary>
+        /// No medals should be awarded to restricted users.
+        /// </summary>
+        [Fact]
+        public void TestDoesNotAwardForRestrictedUser()
+        {
+            var beatmap = AddBeatmap();
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, mods: [new OsuModDoubleTime()]);
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                db.Execute("TRUNCATE TABLE `phpbb_users`");
+                db.Execute(
+                    "INSERT INTO `phpbb_users` (`user_id`, `username`, `country_acronym`, `user_permissions`, `user_sig`, `user_occ`, `user_interests`, `user_warnings`) VALUES (102, 'test', 'JP', '', '', '', '', 2)");
+            }
+
+            AddPackMedal(7, 40, new[] { beatmap });
+
+            AssertNoMedalsAwarded();
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.user_id = 102;
+                s.Score.build_id = TestBuildID;
+            });
+
+            AssertNoMedalsAwarded();
+
+            AddMedal(122);
+
+            SetScoreForBeatmap(beatmap.beatmap_id, s =>
+            {
+                s.Score.user_id = 102;
+                s.Score.ScoreData.Mods = new[] { new APIMod(new OsuModDoubleTime()) };
+            });
+
+            AssertNoMedalsAwarded();
+        }
+
         private void setUpBeatmapsForPackMedal(IEnumerable<Beatmap> beatmaps, bool allModCombinations = false)
         {
             // for optimisation reasons challenge packs depend on PP awarding.
@@ -929,7 +1074,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                         attr.Mods = ModUtils.FlattenMod(combination).ToArray();
                         attr.AimDifficulty = 3;
                         attr.SpeedDifficulty = 3;
-                        attr.OverallDifficulty = 3;
                     });
                 }
             }

@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Diagnostics;
+using osu.Game.Rulesets.Scoring;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
@@ -58,6 +60,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, CancellationToken);
+        }
+
+        [Fact]
+        public void TestHitStatisticsIncreaseOnCatchTickHits()
+        {
+            AddBeatmap();
+
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats_fruits WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var testScore = CreateTestScore(rulesetId: 2);
+            testScore.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
+            {
+                [HitResult.Great] = 100,
+                [HitResult.LargeTickHit] = 20,
+                [HitResult.SmallTickHit] = 40,
+                [HitResult.LargeTickMiss] = 1,
+                [HitResult.SmallTickMiss] = 2,
+            };
+
+            PushToQueueAndWaitForProcess(testScore);
+            WaitForDatabaseState("SELECT count300, count100, count50, countmiss FROM osu_user_stats_fruits WHERE user_id = 2", (100, 20, 40, 1), CancellationToken);
         }
     }
 }

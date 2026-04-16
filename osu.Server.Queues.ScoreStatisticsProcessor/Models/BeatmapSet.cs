@@ -24,5 +24,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public double bpm { get; set; }
 
         public BeatmapOnlineStatus approved { get; set; }
+        public DateTimeOffset? approved_date { get; set; }
     }
 }

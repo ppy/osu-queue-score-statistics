@@ -10,6 +10,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 {
     [Command("scores", Description = "Updates individual score PP values.")]
     [Subcommand(typeof(UpdateAllScoresCommand))]
+    [Subcommand(typeof(UpdateAllScoresByUserCommand))]
     [Subcommand(typeof(UpdateScoresFromListCommand))]
     [Subcommand(typeof(UpdateScoresFromSqlCommand))]
     [Subcommand(typeof(UpdateScoresForUsersCommand))]

@@ -36,7 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
 
         public bool passed { get; set; } = true;
 
-        public float accuracy { get; set; }
+        public double accuracy { get; set; }
 
         public uint max_combo { get; set; }
 
@@ -84,19 +84,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
         public ScoreInfo ToScoreInfo()
         {
             var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(ruleset_id);
+            var beatmapInfo = new LightweightBeatmapInfo
+            {
+                OnlineID = (int)beatmap_id,
+                Ruleset = new RulesetInfo { OnlineID = beatmap!.playmode },
+                Difficulty = new BeatmapDifficulty(beatmap.GetLegacyBeatmapConversionDifficultyInfo())
+            };
 
-            return new ScoreInfo
+            return new LightweightScoreInfo
             {
                 OnlineID = (long)id,
                 LegacyOnlineID = (long?)legacy_score_id ?? -1,
                 IsLegacyScore = is_legacy_score,
                 User = new APIUser { Id = (int)user_id },
-                BeatmapInfo = new BeatmapInfo
-                {
-                    OnlineID = (int)beatmap_id,
-                    Ruleset = new RulesetInfo { OnlineID = beatmap!.playmode }
-                },
                 Ruleset = new RulesetInfo { OnlineID = ruleset_id },
+                BeatmapInfo = beatmapInfo,
                 Passed = passed,
                 TotalScore = total_score,
                 LegacyTotalScore = legacy_total_score,
@@ -111,6 +113,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
                 PP = pp,
                 Ranked = ranked,
             };
+        }
+
+        private class LightweightBeatmapInfo : BeatmapInfo
+        {
+        }
+
+        private class LightweightScoreInfo : ScoreInfo
+        {
         }
     }
 }

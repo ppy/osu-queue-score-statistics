@@ -1,7 +1,9 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Dapper.Contrib.Extensions;
@@ -12,6 +14,7 @@ using osu.Game.Online.API;
 using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
@@ -19,6 +22,7 @@ using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Rulesets.Taiko.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
@@ -38,7 +42,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void PerformanceIndexUpdates()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -61,7 +64,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 attr.AimDifficulty = 3;
                 attr.SpeedDifficulty = 3;
-                attr.OverallDifficulty = 3;
             });
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
@@ -73,8 +75,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 165pp from the single score above + 2pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 167, CancellationToken);
+            // 115pp from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 117, CancellationToken);
 
             // purposefully identical to score above, to confirm that you don't get pp for two scores on the same map twice
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
@@ -86,8 +88,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 165pp from the single score above + 4pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 169, CancellationToken);
+            // 115pp from the single score above + 4pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats WHERE user_id = 2", 119, CancellationToken);
         }
 
         /// <summary>
@@ -98,7 +100,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         /// For most difficulty calculators this doesn't matter because they access fairly simple properties.
         /// However taiko pp calculation code has _convert detection_ inside.
         /// Therefore it is _very_ important that the single particular access path that the taiko pp calculator uses right now
-        /// (https://github.com/ppy/osu/blob/555305bf7f650a3461df1e23832ff99b94ca710e/osu.Game.Rulesets.Taiko/Difficulty/TaikoPerformanceCalculator.cs#L44-L45)
+        /// (https://github.com/ppy/osu/blob/c7f50f35b7e6160f434cb8f5498c150aeaadd712/osu.Game.Rulesets.Taiko/Difficulty/TaikoPerformanceCalculator.cs#L65)
         /// has the ID of the ruleset for the beatmap BEFORE CONVERSION.
         /// This attempts to exercise that requirement in a bit of a dodgy way so that nobody silently breaks taiko pp on accident.
         /// </summary>
@@ -111,8 +113,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 attr.StaminaDifficulty = 3;
                 attr.RhythmDifficulty = 3;
                 attr.ColourDifficulty = 3;
-                attr.PeakDifficulty = 3;
-                attr.GreatHitWindow = 15;
             }, mode: 1);
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
@@ -126,8 +126,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            // 298pp from the single score above + 2pp from playcount bonus
-            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 300, CancellationToken);
+            // 30pp from the single score above + 2pp from playcount bonus
+            WaitForDatabaseState("SELECT rank_score FROM osu_user_stats_taiko WHERE user_id = 2", 32, CancellationToken);
         }
 
         [Fact]
@@ -233,7 +233,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 new OsuModDifficultyAdjust(),
                 // Taiko
                 new TaikoModRandom(),
-                new TaikoModSwap(),
                 // Catch
                 new CatchModMirror(),
                 new CatchModFloatingFruits(),
@@ -301,7 +300,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void FailedScoreDoesNotProcess()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -321,7 +319,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void LegacyScoreIsProcessedAndPpIsWrittenBackToLegacyTables()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             using (MySqlConnection conn = Processor.GetDatabaseConnection())
                 conn.Execute("INSERT INTO osu_scores_high (score_id, user_id) VALUES (1, 0)");
@@ -350,7 +347,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void NonLegacyScoreWithNoBuildIdIsNotRanked()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
@@ -370,7 +366,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public void ScoresThatHavePpButInvalidModsGetsNoPP()
         {
             AddBeatmap();
-            AddBeatmapAttributes<OsuDifficultyAttributes>();
 
             ScoreItem score;
 
@@ -394,6 +389,59 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 ScoreId = score.Score.id
             });
+        }
+
+        [Fact]
+        public async Task TransientFailureDoesNotPreventPPWrites()
+        {
+            AddBeatmap();
+
+            using var conn = Processor.GetDatabaseConnection();
+
+            var score = CreateTestScore(beatmapId: TEST_BEATMAP_ID);
+            var semaphore = new SemaphoreSlim(0);
+
+            score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+            score.Score.max_combo = 100;
+            score.Score.accuracy = 1;
+            score.Score.build_id = TestBuildID;
+            score.Score.preserve = true;
+
+            conn.Insert(score.Score);
+
+            // we will provoke a database-level failure on the first attempt (and only on the first attempt) to update pp for the score.
+            // for this purpose we register an event callback that will signal to undo the failure cause.
+            Processor.Error += (_, _) => semaphore.Release();
+
+            var task = Task.Run(async () =>
+            {
+                // ReSharper disable AccessToDisposedClosure
+                // we are manually `await`ing on the returned task at the end of this test method.
+                // there's no risk of accessing anything disposed.
+
+                // we want to provoke a failure *specifically* on the pp update statement inside the processor.
+                // the most reliable way to do this is to rename the `pp` column to something else.
+                await conn.ExecuteAsync("ALTER TABLE scores CHANGE COLUMN pp not_pp FLOAT NULL");
+
+                // wait for the failure to trigger...
+                await semaphore.WaitAsync();
+
+                // and then undo the failure cause.
+                await conn.ExecuteAsync("ALTER TABLE scores CHANGE COLUMN not_pp pp FLOAT NULL");
+
+                // ReSharper restore AccessToDisposedClosure
+            });
+
+            Processor.PushToQueue(score);
+
+            // wait for the score to have processed...
+            WaitForDatabaseState($"SELECT score_id FROM score_process_history WHERE score_id = {score.Score.id}", score.Score.id, CancellationToken, throwOnError: false);
+            // and then confirm it did eventually receive pp.
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL", 1, CancellationToken, new
+            {
+                ScoreId = score.Score.id
+            }, throwOnError: false);
+            await task;
         }
 
         [Theory]
@@ -574,6 +622,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 userId = 2,
                 mode = 0,
             });
+        }
+
+        [Fact]
+        public async Task MissingAttributesThrowsError()
+        {
+            var beatmap = AddBeatmap();
+
+            // Delete attributes - this could happen either as a result of diffcalc not being run or being out of date and not inserting some required attributes.
+            using (var db = Processor.GetDatabaseConnection())
+                await db.ExecuteAsync("TRUNCATE TABLE osu_beatmap_difficulty_attribs");
+
+            using (var db = Processor.GetDatabaseConnection())
+            {
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => BeatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => BeatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+                await Assert.ThrowsAnyAsync<DifficultyAttributesMissingException>(() => BeatmapStore.GetDifficultyAttributesAsync(beatmap, new OsuRuleset(), [], db));
+            }
+
+            Assert.ThrowsAny<Exception>(() => SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
+            {
+                score.Score.ScoreData.Statistics[HitResult.Great] = 100;
+                score.Score.max_combo = 100;
+                score.Score.accuracy = 1;
+                score.Score.build_id = TestBuildID;
+                score.Score.preserve = true;
+            }));
         }
 
         [Fact]

@@ -1,12 +1,15 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using Sentry;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -18,9 +21,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     {
         public bool RunOnFailedScores => false;
 
-        public bool RunOnLegacyScores => false;
+        public bool RunOnLegacyScores => true;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
             if (!score.BeatmapValidForRankedCounts())
                 return;
@@ -45,7 +48,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
             if (!score.BeatmapValidForRankedCounts())
                 return;
@@ -58,8 +61,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             // If this score is the new best and there's a previous higher score, that score's rank should be removed before we apply the new one.
             var secondBestScore = DatabaseHelper.GetUserBestScoreFor(score, conn, transaction, offset: 1);
+
             if (secondBestScore != null)
+            {
+                if (secondBestScore.ended_at < score.beatmap?.beatmapset?.approved_date)
+                {
+                    SentrySdk.CaptureMessage("Suspicious rank count operation - decrementing user rank count from a score set before beatmap was ranked "
+                                             + $"(userId:{score.user_id} newScoreId:{score.id} oldScoreId:{secondBestScore.id})", SentryLevel.Warning);
+                }
+
                 removeRank(userStats, secondBestScore.rank);
+            }
 
             Debug.Assert(bestScore != null);
             addRank(userStats, bestScore.rank);

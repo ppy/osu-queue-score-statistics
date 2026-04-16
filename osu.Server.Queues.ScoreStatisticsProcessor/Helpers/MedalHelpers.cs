@@ -58,7 +58,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         public static bool UserPassedPack(MedalAwarderContext context, bool noReductionMods, int packId)
         {
             string modsCriteria = string.Empty;
-            string rulesetCriteria = string.Empty;
+            string rulesetCriteria;
 
             if (noReductionMods)
             {
@@ -83,6 +83,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
                 rulesetCriteria = $"AND ruleset_id = {packRulesetId}";
             }
+            else
+            {
+                rulesetCriteria = "AND `s`.`ruleset_id` = `b`.`playmode`";
+            }
 
             // TODO: no index on (beatmap_id, user_id) may mean this is too slow.
             // note that the `preserve = 1` condition relies on the flag being set before score processing (https://github.com/ppy/osu-web/pull/10946).
@@ -96,6 +100,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             int countForPack = context.Connection.QuerySingle<int>($"SELECT COUNT(*) FROM `osu_beatmappacks_items` WHERE pack_id = {packId}", transaction: context.Transaction);
 
             return completed >= countForPack;
+        }
+
+        public static bool IsDailyChallengeScore(MedalAwarderContext context)
+        {
+            return context.Connection.QuerySingleOrDefault<string?>(
+                """
+                SELECT `multiplayer_rooms`.`category` FROM `scores`
+                JOIN `multiplayer_score_links` ON `multiplayer_score_links`.`score_id` = `scores`.`id`
+                JOIN `multiplayer_playlist_items` ON `multiplayer_playlist_items`.`id` = `multiplayer_score_links`.`playlist_item_id`
+                JOIN `multiplayer_rooms` ON `multiplayer_rooms`.`id` = `multiplayer_playlist_items`.`room_id`
+                WHERE `scores`.`id` = @score_id
+                """,
+                new
+                {
+                    score_id = context.Score.id,
+                },
+                transaction: context.Transaction) == "daily_challenge";
         }
     }
 }

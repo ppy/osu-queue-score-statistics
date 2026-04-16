@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using osu.Game.Online.API;
+using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Scoring;
 using Xunit;
@@ -17,6 +18,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         public PlayTimeProcessorTests()
         {
             AddBeatmap(b => b.total_length = beatmap_length);
+            AddBeatmapAttributes<OsuDifficultyAttributes>(mods: [new OsuModDoubleTime()]);
         }
 
         [Fact]

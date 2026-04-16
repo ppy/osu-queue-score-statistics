@@ -36,7 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             foreach (string id in PlaylistIds.Split(','))
             {
-                using (var db = DatabaseAccess.GetConnection())
+                using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
                 {
                     var playlistItems = await db.QueryAsync<MultiplayerPlaylistItem>("SELECT * FROM multiplayer_playlist_items WHERE room_id = @PlaylistId", new
                     {
@@ -81,7 +81,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             Ruleset ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(playlistItem.ruleset_id);
 
-            HitResult maxRulesetJudgement = ruleset.GetHitResults().First().result;
+            HitResult maxRulesetJudgement = ruleset.GetHitResultsForDisplay().First().result;
 
             Dictionary<HitResult, int> statistics = JsonConvert.DeserializeObject<Dictionary<HitResult, int>>(score.statistics)!;
 

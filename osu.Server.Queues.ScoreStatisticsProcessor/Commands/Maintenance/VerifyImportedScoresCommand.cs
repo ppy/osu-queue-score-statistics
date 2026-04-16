@@ -11,10 +11,11 @@ using System.Threading.Tasks;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
+using Newtonsoft.Json;
 using osu.Game.Scoring;
 using osu.Server.QueueProcessor;
-using osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using StringBuilder = System.Text.StringBuilder;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
@@ -68,7 +69,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             int deleted = 0;
             int fail = 0;
 
-            using var conn = DatabaseAccess.GetConnection();
+            using var conn = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             if (lastId == 0)
             {
@@ -101,6 +102,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     + "s.ranked,"
                     + "s.`rank`, "
                     + "s.`pp`, "
+                    + "s.`data`, "
                     + "h.* "
                     + "FROM scores s "
                     + $"LEFT JOIN {rulesetSpecifics.HighScoreTable} h ON (legacy_score_id = score_id) "
@@ -143,7 +145,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                         if (importedScore.HighScore == null) return;
 
-                        importedScore.ReferenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
+                        try
+                        {
+                            importedScore.ReferenceScore = BatchInserter.CreateReferenceScore(importedScore.ruleset_id, importedScore.HighScore);
+                        }
+                        catch (Exception e)
+                        {
+                            throw new AggregateException($"Processing score {importedScore.id} (legacy id {importedScore.legacy_score_id}) failed", e);
+                        }
                     });
                 }
 
@@ -244,6 +253,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                             requiresIndexing = true;
                             sqlBuffer.Append($"UPDATE scores SET `rank` = '{referenceScore.Rank.ToString()}' WHERE `id` = {importedScore.id};");
                         }
+
+                        if (!checkDictionary(importedScore.id, "maximum_statistics", importedScore.ScoreData.MaximumStatistics, referenceScore.MaximumStatistics))
+                        {
+                            Interlocked.Increment(ref fail);
+                            sqlBuffer.Append(
+                                $"UPDATE `scores` SET `data` = JSON_SET(`data`, '$.maximum_statistics', CAST('{JsonConvert.SerializeObject(referenceScore.MaximumStatistics)}' AS JSON)) WHERE `id` = {importedScore.id};");
+                        }
                     }
                     finally
                     {
@@ -280,14 +296,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             {
                 if (!DryRun)
                 {
-                    Console.WriteLine();
-                    Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
+                    if (!Quiet)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
+                    }
+
                     conn.Execute(sqlBuffer.ToString());
 
                     if (elasticItems.Count > 0)
                     {
                         elasticQueueProcessor.PushToQueue(elasticItems.ToList());
-                        Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+
+                        if (!Quiet)
+                            Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
+
                         elasticItems.Clear();
                     }
                 }
@@ -311,6 +334,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             return true;
         }
 
+        private bool checkDictionary<TKey, TValue>(ulong scoreId, string name, IDictionary<TKey, TValue>? imported, IDictionary<TKey, TValue>? original)
+        {
+            if (imported == null && original == null)
+                return true;
+
+            if (imported == null || original == null)
+                return false;
+
+            bool equal = imported.Count == original.Count
+                         && imported.All(kv => original.TryGetValue(kv.Key, out var originalValue) && EqualityComparer<TValue>.Default.Equals(kv.Value, originalValue));
+
+            if (!equal)
+            {
+                if (Verbose)
+                    Console.WriteLine($"{scoreId}: {name} doesn't match ({JsonConvert.SerializeObject(imported)} vs {JsonConvert.SerializeObject(original)})");
+                return false;
+            }
+
+            return true;
+        }
+
         [SuppressMessage("ReSharper", "InconsistentNaming")]
         public class ComparableScore
         {
@@ -323,6 +367,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             public ScoreRank rank;
             public bool ranked;
             public float? pp;
+
+            public SoloScoreData ScoreData = new SoloScoreData();
+
+            public string data
+            {
+                get => JsonConvert.SerializeObject(ScoreData);
+                set
+                {
+                    var soloScoreData = JsonConvert.DeserializeObject<SoloScoreData>(value);
+                    if (soloScoreData != null)
+                        ScoreData = soloScoreData;
+                }
+            }
 
             public HighScore? HighScore { get; set; }
             public ScoreInfo? ReferenceScore { get; set; }

@@ -3,6 +3,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,10 +13,16 @@ using MySqlConnector;
 using osu.Framework.Extensions.ExceptionExtensions;
 using osu.Game.Beatmaps;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Catch.Difficulty;
 using osu.Game.Rulesets.Difficulty;
+using osu.Game.Rulesets.Mania.Difficulty;
+using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Rulesets.Taiko.Difficulty;
 using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 using Xunit;
 using Xunit.Sdk;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
@@ -56,7 +63,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 // just a safety measure for now to ensure we don't hit production. since i was running on production until now.
                 // will throw if not on test database.
-                if (db.QueryFirstOrDefault<int?>("SELECT * FROM osu_counts WHERE name = 'is_production'") != null)
+                if (db.QueryFirstOrDefault<int?>("SELECT `count` FROM `osu_counts` WHERE `name` = 'is_production'") != null)
                     throw new InvalidOperationException("You are trying to do something very silly.");
 
                 db.Execute("TRUNCATE TABLE osu_user_stats");
@@ -82,6 +89,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE `osu_user_performance_rank_highest`");
             }
 
+            BeatmapStore.PurgeCaches();
+
             Task.Run(() => Processor.Run(CancellationToken), CancellationToken);
         }
 
@@ -93,38 +102,43 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
                 scoreSetup?.Invoke(score);
 
-                conn.Execute("INSERT INTO `scores` (`id`, `user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, "
-                             + "`rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, "
-                             + "`started_at`, `ended_at`, `build_id`) "
-                             + "VALUES (@id, @user_id, @ruleset_id, @beatmap_id, @has_replay, @preserve, @ranked, "
-                             + "@rank, @passed, @accuracy, @max_combo, @total_score, @data, @pp, @legacy_score_id, @legacy_total_score,"
-                             + "@started_at, @ended_at, @build_id)",
-                    new
-                    {
-                        score.Score.id,
-                        score.Score.user_id,
-                        score.Score.ruleset_id,
-                        score.Score.beatmap_id,
-                        score.Score.has_replay,
-                        score.Score.preserve,
-                        score.Score.ranked,
-                        rank = score.Score.rank.ToString(),
-                        score.Score.passed,
-                        score.Score.accuracy,
-                        score.Score.max_combo,
-                        score.Score.total_score,
-                        score.Score.data,
-                        score.Score.pp,
-                        score.Score.legacy_score_id,
-                        score.Score.legacy_total_score,
-                        score.Score.started_at,
-                        score.Score.ended_at,
-                        score.Score.build_id,
-                    });
+                InsertScore(conn, score);
                 PushToQueueAndWaitForProcess(score);
 
                 return score;
             }
+        }
+
+        protected static void InsertScore(MySqlConnection conn, ScoreItem score)
+        {
+            conn.Execute("INSERT INTO `scores` (`id`, `user_id`, `ruleset_id`, `beatmap_id`, `has_replay`, `preserve`, `ranked`, "
+                         + "`rank`, `passed`, `accuracy`, `max_combo`, `total_score`, `data`, `pp`, `legacy_score_id`, `legacy_total_score`, "
+                         + "`started_at`, `ended_at`, `build_id`) "
+                         + "VALUES (@id, @user_id, @ruleset_id, @beatmap_id, @has_replay, @preserve, @ranked, "
+                         + "@rank, @passed, @accuracy, @max_combo, @total_score, @data, @pp, @legacy_score_id, @legacy_total_score,"
+                         + "@started_at, @ended_at, @build_id)",
+                new
+                {
+                    score.Score.id,
+                    score.Score.user_id,
+                    score.Score.ruleset_id,
+                    score.Score.beatmap_id,
+                    score.Score.has_replay,
+                    score.Score.preserve,
+                    score.Score.ranked,
+                    rank = score.Score.rank.ToString(),
+                    score.Score.passed,
+                    score.Score.accuracy,
+                    score.Score.max_combo,
+                    score.Score.total_score,
+                    score.Score.data,
+                    score.Score.pp,
+                    score.Score.legacy_score_id,
+                    score.Score.legacy_total_score,
+                    score.Score.started_at,
+                    score.Score.ended_at,
+                    score.Score.build_id,
+                });
         }
 
         private static ulong scoreIDSource;
@@ -156,19 +170,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 max_combo = MAX_COMBO,
                 total_score = 100000,
                 rank = ScoreRank.S,
-                passed = true
+                passed = true,
+                preserve = true,
+                accuracy = 0.99,
             };
 
             var scoreData = new SoloScoreData
             {
                 Statistics =
                 {
-                    { HitResult.Perfect, 5 },
+                    { HitResult.Great, 5 },
                     { HitResult.LargeBonus, 0 }
                 },
                 MaximumStatistics =
                 {
-                    { HitResult.Perfect, 5 },
+                    { HitResult.Great, 5 },
                     { HitResult.LargeBonus, 2 }
                 },
             };
@@ -186,7 +202,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         protected Beatmap AddBeatmap(Action<Beatmap>? beatmapSetup = null, Action<BeatmapSet>? beatmapSetSetup = null)
         {
             var beatmap = new Beatmap { approved = BeatmapOnlineStatus.Ranked };
-            var beatmapSet = new BeatmapSet { approved = BeatmapOnlineStatus.Ranked };
+            var beatmapSet = new BeatmapSet { approved = BeatmapOnlineStatus.Ranked, approved_date = DateTimeOffset.Now.AddHours(-1) };
 
             beatmapSetup?.Invoke(beatmap);
             beatmapSetSetup?.Invoke(beatmapSet);
@@ -207,16 +223,22 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     db.Insert(beatmapSet);
             }
 
+            AddBeatmapAttributes<OsuDifficultyAttributes>(beatmap.beatmap_id, attr => attr.MaxCombo = MAX_COMBO);
+            AddBeatmapAttributes<TaikoDifficultyAttributes>(beatmap.beatmap_id, attr => attr.MaxCombo = MAX_COMBO, mode: 1);
+            AddBeatmapAttributes<CatchDifficultyAttributes>(beatmap.beatmap_id, attr => attr.MaxCombo = MAX_COMBO, mode: 2);
+            AddBeatmapAttributes<ManiaDifficultyAttributes>(beatmap.beatmap_id, attr => attr.MaxCombo = MAX_COMBO, mode: 3);
+
             return beatmap;
         }
 
-        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null, ushort mode = 0)
+        protected void AddBeatmapAttributes<TDifficultyAttributes>(uint? beatmapId = null, Action<TDifficultyAttributes>? setup = null, ushort mode = 0, Mod[]? mods = null)
             where TDifficultyAttributes : DifficultyAttributes, new()
         {
             var attribs = new TDifficultyAttributes
             {
                 StarRating = 5,
                 MaxCombo = 5,
+                Mods = mods ?? []
             };
 
             setup?.Invoke(attribs);
@@ -225,19 +247,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var rulesetInfo = rulesetStore.GetRuleset(mode)!;
             var ruleset = rulesetInfo.CreateInstance();
 
+            beatmapId ??= TEST_BEATMAP_ID;
+            uint modsInt = (uint)ruleset.ConvertToLegacyMods(attribs.Mods);
+
             using (var db = Processor.GetDatabaseConnection())
             {
-                foreach (var a in attribs.ToDatabaseAttributes())
-                {
-                    db.Insert(new BeatmapDifficultyAttribute
-                    {
-                        beatmap_id = beatmapId ?? TEST_BEATMAP_ID,
-                        mode = mode,
-                        mods = (uint)ruleset.ConvertToLegacyMods(attribs.Mods),
-                        attrib_id = (ushort)a.attributeId,
-                        value = Convert.ToSingle(a.value),
-                    });
-                }
+                string attribsString = string.Join(", ", attribs.ToDatabaseAttributes().Select(a => $"({beatmapId.Value}, {mode}, {modsInt}, {a.attributeId}, {a.value})"));
+                db.Execute($"INSERT INTO osu_beatmap_difficulty_attribs (beatmap_id, mode, mods, attrib_id, value) VALUES {attribsString} ON DUPLICATE KEY UPDATE value = VALUES(value)");
             }
         }
 
@@ -254,7 +270,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             throw new XunitException("All scores were not successfully processed");
         }
 
-        protected void WaitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken, object? param = null)
+        protected void WaitForDatabaseState<T>(string sql, T expected, CancellationToken cancellationToken, object? param = null, bool throwOnError = true)
         {
             using (var db = Processor.GetDatabaseConnection())
             {
@@ -273,7 +289,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     if ((expected == null && lastValue == null) || expected?.Equals(lastValue) == true)
                         return;
 
-                    firstError?.Rethrow();
+                    if (throwOnError)
+                        firstError?.Rethrow();
 
                     Thread.Sleep(50);
                 }
