@@ -217,9 +217,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             if (mod is ModRateAdjust rateAdjustMod && !rateAdjustMod.SpeedChange.IsDefault)
                 return true;
 
-            if (mod is OsuModTraceable)
-                return true;
-
             if (mod is OsuModMirror)
                 return true;
 
