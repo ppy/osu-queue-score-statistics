@@ -16,12 +16,9 @@ using osu.Framework.IO.Network;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets;
-using osu.Game.Rulesets.Catch.Mods;
 using osu.Game.Rulesets.Difficulty;
-using osu.Game.Rulesets.Mania.Mods;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu.Mods;
-using osu.Game.Rulesets.Taiko.Mods;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -143,7 +140,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             // if we want to support mods with non-default configurations (i.e non-1.5x rates on DT/NC)
             // or non-legacy mods which aren't populated into the database (with exception to CL)
             // then we must calculate difficulty attributes in real-time.
-            bool mustUseRealtimeDifficulty = mods.Any(m => !m.UsesDefaultConfiguration || (!IsRankedLegacyMod(m) && m is not ModClassic));
+            bool mustUseRealtimeDifficulty = mods.Any(modRequiresRealtime);
 
             if (always_use_realtime_difficulty_calculation || mustUseRealtimeDifficulty)
             {
@@ -207,37 +204,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             }))!;
         }
 
+        /// <summary>
+        /// Decides if a mod is grounds for real-time difficulty calculations.
+        /// This works on a whitelist basis such that mods should only require realtime if they actively affect difficulty.
+        /// </summary>
         /// <remarks>
-        /// This method attempts to create a simple solution to deciding if a <see cref="Mod"/> can be considered a ranked "legacy" mod.
-        /// Used by <see cref="GetDifficultyAttributesAsync"/> to decide if the current mod combination's difficulty attributes
-        /// can be fetched from the database.
+        /// This method does not care about if the mod is ranked or not.
         /// </remarks>
-        public static bool IsRankedLegacyMod(Mod mod) =>
-            mod is ModNoFail
-                or ModEasy
-                or ModPerfect
-                or ModSuddenDeath
-                or ModNightcore
-                or ModDoubleTime
-                or ModHalfTime
-                or ModFlashlight
-                or ModTouchDevice
-                or OsuModHardRock
-                or OsuModSpunOut
-                or OsuModHidden
-                or TaikoModHardRock
-                or TaikoModHidden
-                or CatchModHardRock
-                or CatchModHidden
-                or ManiaModKey4
-                or ManiaModKey5
-                or ManiaModKey6
-                or ManiaModKey7
-                or ManiaModKey8
-                or ManiaModKey9
-                or ManiaModMirror
-                or ManiaModHidden
-                or ManiaModFadeIn;
+        /// <param name="mod">The mod to check.</param>
+        private static bool modRequiresRealtime(Mod mod)
+        {
+            if (mod is ModRateAdjust rateAdjustMod && !rateAdjustMod.SpeedChange.IsDefault)
+                return true;
+
+            if (mod is OsuModTraceable)
+                return true;
+
+            if (mod is OsuModMirror)
+                return true;
+
+            return false;
+        }
 
         /// <remarks>
         /// This method attempts to choose the best possible set of <see cref="LegacyMods"/> to use for looking up stored difficulty attributes.
