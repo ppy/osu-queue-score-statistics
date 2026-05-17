@@ -87,7 +87,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     await processUser(db, userId, cancellationToken);
 
                     if (i > 0 && i % 1000 == 0)
-                        Console.WriteLine($"Processed {i:N0} of {userIds.Length:N0} users ({totalMarked:N0} marked)");
+                        Console.WriteLine($"Processed {totalUsersProcessed:N0} of {totalCount:N0} users ({totalMarked:N0} marked)");
 
                     lastUserId = userId;
 
