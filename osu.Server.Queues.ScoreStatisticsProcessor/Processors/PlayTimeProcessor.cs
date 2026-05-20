@@ -22,8 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
-            if (!score.IsValidForPlayTracking(out int lengthInSeconds) && previousVersion >= 10)
-                return;
+            int lengthInSeconds = PlayValidityHelper.GetPlayLength(score);
 
             if (previousVersion >= 6)
                 userStats.total_seconds_played -= lengthInSeconds;
@@ -31,8 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
-            if (!score.IsValidForPlayTracking(out int lengthInSeconds))
-                return;
+            int lengthInSeconds = PlayValidityHelper.GetPlayLength(score);
 
             userStats.total_seconds_played += lengthInSeconds;
         }

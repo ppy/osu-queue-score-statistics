@@ -204,6 +204,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         BeatmapSetId = score.beatmap.beatmapset_id
                     });
 
+                    if (!score.IsValidForPlayTracking())
+                        return;
+
                     using (var transaction = conn.BeginTransaction(IsolationLevel.ReadCommitted))
                     {
                         var userStats = DatabaseHelper.GetUserStatsAsync(score, conn, transaction).Result;

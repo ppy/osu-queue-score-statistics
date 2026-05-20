@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using osu.Game.Rulesets.Scoring;
@@ -41,6 +42,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 10, CancellationToken);
+        }
+
+        [Fact]
+        public void TestDoesNotIncreaseIfFailedAndPlayTooShort()
+        {
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var score = CreateTestScore();
+            score.Score.ended_at = score.Score.started_at!.Value + TimeSpan.FromSeconds(4);
+            score.Score.passed = false;
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
         }
 
         [Fact]
