@@ -26,14 +26,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             if (score.passed)
                 return true;
 
-            int lengthInSeconds = GetPlayLength(score);
+            // `started_at` is not populated for legacy scores... so calling `GetPlayLength` will fail.
+            // but legacy scores are only imported into the new table if they have already passed length validity checks so we can bypass this check.
+            // see https://github.com/peppy/osu-web-10/blob/6031aed7a7382b2b3b44cedde6c2f8a19f0bf378/www/web/osu-submit-20190809.php#L234-L235
+            if (!score.is_legacy_score && GetPlayLength(score) < 8)
+                return false;
 
             int totalObjectsJudged = score.ScoreData.Statistics.Where(kv => kv.Key.IsScorable()).Sum(kv => kv.Value);
             int totalObjects = score.ScoreData.MaximumStatistics.Where(kv => kv.Key.IsScorable()).Sum(kv => kv.Value);
 
-            return lengthInSeconds >= 8
-                   && score.total_score >= 5000
-                   && totalObjectsJudged >= Math.Min(0.1f * totalObjects, 20);
+            return score.total_score >= 5000 && totalObjectsJudged >= Math.Min(0.1f * totalObjects, 20);
         }
 
         /// <summary>
