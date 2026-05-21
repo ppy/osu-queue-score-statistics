@@ -204,9 +204,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                         BeatmapSetId = score.beatmap.beatmapset_id
                     });
 
-                    if (!score.IsValidForPlayTracking())
-                        return;
-
                     using (var transaction = conn.BeginTransaction(IsolationLevel.ReadCommitted))
                     {
                         var userStats = DatabaseHelper.GetUserStatsAsync(score, conn, transaction).Result;
@@ -219,43 +216,46 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                             return;
                         }
 
-                        // if required, we can rollback any previous version of processing then reapply with the latest.
-                        if (item.ProcessHistory != null)
+                        if (score.IsValidForPlayTracking())
                         {
-                            tags.Add("type:upgraded");
-                            byte version = item.ProcessHistory.processed_version;
-
-                            foreach (var p in enumerateValidProcessors(score))
-                                p.RevertFromUserStats(score, userStats, version, conn, transaction, postTransactionActions);
-                        }
-                        else
-                        {
-                            tags.Add("type:new");
-                        }
-
-                        item.Tags = tags.ToArray();
-
-                        foreach (IProcessor p in enumerateValidProcessors(score))
-                        {
-                            stopwatch.Restart();
-
-                            try
+                            // if required, we can rollback any previous version of processing then reapply with the latest.
+                            if (item.ProcessHistory != null)
                             {
-                                p.ApplyToUserStats(score, userStats, conn, transaction, postTransactionActions);
+                                tags.Add("type:upgraded");
+                                byte version = item.ProcessHistory.processed_version;
+
+                                foreach (var p in enumerateValidProcessors(score))
+                                    p.RevertFromUserStats(score, userStats, version, conn, transaction, postTransactionActions);
                             }
-                            catch (ProcessingAbortedException abortException)
+                            else
                             {
-                                Console.WriteLine($"Aborting processing of score {item.Score.id}: {abortException.Message}");
-                                tags.Add("type:aborted");
-                                transaction.Rollback();
-                                conn.Execute("UPDATE `scores` SET `ranked` = 0 WHERE `id` = @scoreId", new { scoreId = score.id });
-                                return;
+                                tags.Add("type:new");
                             }
 
-                            DogStatsd.Timer("apply_time_elapsed", stopwatch.ElapsedMilliseconds, tags: item.Tags.Append($"processor:{p.GetType().ReadableName()}").ToArray());
-                        }
+                            item.Tags = tags.ToArray();
 
-                        DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
+                            foreach (IProcessor p in enumerateValidProcessors(score))
+                            {
+                                stopwatch.Restart();
+
+                                try
+                                {
+                                    p.ApplyToUserStats(score, userStats, conn, transaction, postTransactionActions);
+                                }
+                                catch (ProcessingAbortedException abortException)
+                                {
+                                    Console.WriteLine($"Aborting processing of score {item.Score.id}: {abortException.Message}");
+                                    tags.Add("type:aborted");
+                                    transaction.Rollback();
+                                    conn.Execute("UPDATE `scores` SET `ranked` = 0 WHERE `id` = @scoreId", new { scoreId = score.id });
+                                    return;
+                                }
+
+                                DogStatsd.Timer("apply_time_elapsed", stopwatch.ElapsedMilliseconds, tags: item.Tags.Append($"processor:{p.GetType().ReadableName()}").ToArray());
+                            }
+
+                            DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
+                        }
 
                         updateHistoryEntry(item, conn, transaction);
 
