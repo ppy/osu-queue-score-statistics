@@ -256,6 +256,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                             DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
                         }
+                        else
+                        {
+                            tags.Add("type:too-short");
+                        }
 
                         updateHistoryEntry(item, conn, transaction);
 
