@@ -21,18 +21,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         /// <seealso cref="PlayCountProcessor"/>
         /// <seealso cref="PlayTimeProcessor"/>
         /// <param name="score">The score to check.</param>
-        /// <param name="lengthInSeconds">The total length of play in seconds in the supplied <paramref name="score"/>.</param>
-        public static bool IsValidForPlayTracking(this SoloScore score, out int lengthInSeconds)
+        public static bool IsValidForPlayTracking(this SoloScore score)
         {
-            lengthInSeconds = GetPlayLength(score);
+            if (score.passed)
+                return true;
+
+            int lengthInSeconds = GetPlayLength(score);
 
             int totalObjectsJudged = score.ScoreData.Statistics.Where(kv => kv.Key.IsScorable()).Sum(kv => kv.Value);
             int totalObjects = score.ScoreData.MaximumStatistics.Where(kv => kv.Key.IsScorable()).Sum(kv => kv.Value);
 
-            return score.passed
-                   || (lengthInSeconds >= 8
-                       && score.total_score >= 5000
-                       && totalObjectsJudged >= Math.Min(0.1f * totalObjects, 20));
+            return lengthInSeconds >= 8
+                   && score.total_score >= 5000
+                   && totalObjectsJudged >= Math.Min(0.1f * totalObjects, 20);
         }
 
         /// <summary>

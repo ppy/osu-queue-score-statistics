@@ -20,6 +20,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var secondDate = new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero);
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
+                s.Score.started_at = secondDate - TimeSpan.FromSeconds(20);
                 s.Score.ended_at = secondDate;
                 s.Score.passed = false;
             });
@@ -29,6 +30,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var thirdDate = new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero);
             SetScoreForBeatmap(beatmap.beatmap_id, s =>
             {
+                s.Score.started_at = thirdDate - TimeSpan.FromSeconds(20);
                 s.Score.ended_at = thirdDate;
                 s.Score.passed = false;
             });
