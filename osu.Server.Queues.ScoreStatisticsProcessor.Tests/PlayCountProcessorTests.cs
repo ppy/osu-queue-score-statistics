@@ -10,11 +10,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
     public class PlayCountProcessorTests : DatabaseTest
     {
-        private const int beatmap_length = 158;
-
         public PlayCountProcessorTests()
         {
-            AddBeatmap(b => b.total_length = beatmap_length);
+            AddBeatmap();
         }
 
         [Fact]

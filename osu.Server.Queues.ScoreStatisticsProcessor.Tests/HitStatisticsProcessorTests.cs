@@ -8,11 +8,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
     public class HitStatisticsProcessorTests : DatabaseTest
     {
+        public HitStatisticsProcessorTests()
+        {
+            AddBeatmap();
+        }
+
         [Fact]
         public void TestHitStatisticsIncrease()
         {
-            AddBeatmap();
-
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -25,8 +28,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestHitStatisticsReprocessOldVersionIncrease()
         {
-            AddBeatmap();
-
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
@@ -47,21 +48,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestDoesNotIncreaseIfFailedAndPlayTooShort()
         {
-            WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
-
             var score = CreateTestScore();
+
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, CancellationToken);
+
+            score = CreateTestScore();
             score.Score.ended_at = score.Score.started_at!.Value + TimeSpan.FromSeconds(4);
             score.Score.passed = false;
 
             PushToQueueAndWaitForProcess(score);
-            WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 0, CancellationToken);
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, CancellationToken);
         }
 
         [Fact]
         public void TestHitStatisticsReprocessDoesntIncrease()
         {
-            AddBeatmap();
-
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
@@ -79,8 +82,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestHitStatisticsIncreaseOnCatchTickHits()
         {
-            AddBeatmap();
-
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats_fruits WHERE user_id = 2", (int?)null, CancellationToken);
 
             var testScore = CreateTestScore(rulesetId: 2);
