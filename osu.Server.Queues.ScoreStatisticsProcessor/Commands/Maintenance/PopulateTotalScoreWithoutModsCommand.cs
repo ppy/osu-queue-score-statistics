@@ -81,7 +81,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 foreach (var score in scoresWithMissing)
                 {
-                    score.beatmap = beatmapsById[score.beatmap_id];
+                    if (!beatmapsById.TryGetValue(score.beatmap_id, out var beatmap))
+                    {
+                        Console.WriteLine($"Skipping score {score.id} (missing beatmap {score.beatmap_id})");
+                        continue;
+                    }
+
+                    score.beatmap = beatmap;
                     var scoreInfo = score.ToScoreInfo();
                     LegacyScoreDecoder.PopulateTotalScoreWithoutMods(scoreInfo);
 
