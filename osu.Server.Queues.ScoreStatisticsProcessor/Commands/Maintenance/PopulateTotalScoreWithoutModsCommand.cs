@@ -130,6 +130,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 Console.WriteLine();
                 Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
                 conn.Execute(sqlBuffer.ToString());
+                sqlBuffer.Clear();
             }
         }
     }
