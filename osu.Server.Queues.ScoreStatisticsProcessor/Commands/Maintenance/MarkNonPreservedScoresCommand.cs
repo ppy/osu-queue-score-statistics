@@ -113,6 +113,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 rulesetId = RulesetId,
             };
 
+            // TODO: clean up scores with missing beatmaps, probably.
+
             if (Verbose) Console.WriteLine("Fetching scores..");
 
             // We only care about beatmaps where the user has more than one score.
