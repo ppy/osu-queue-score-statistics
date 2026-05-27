@@ -24,7 +24,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.UserTo
 
         protected override async Task<int> ExecuteAsync(CancellationToken cancellationToken)
         {
-            using var db = DatabaseAccess.GetConnection();
+            using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             LegacyDatabaseHelper.RulesetDatabaseInfo databaseInfo = LegacyDatabaseHelper.GetRulesetSpecifics(RulesetId);
 

@@ -196,5 +196,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
             return result;
         }
+
+        /// <seealso href="https://github.com/ppy/osu-web/blob/1fbc73baa8e8be6759b1cc4f4ab509d8ae53a165/app/Models/User.php#L1099-L1102"><c>isBanned()</c> in osu-web</seealso>
+        /// <seealso href="https://github.com/ppy/osu-web/blob/1fbc73baa8e8be6759b1cc4f4ab509d8ae53a165/app/Models/User.php#L1109-L1112"><c>isRestricted()</c> in osu-web</seealso>
+        /// <seealso href="https://github.com/ppy/osu-server-beatmap-submission/blob/9486694b5e0859963047ad55ecc6302324f81540/osu.Server.BeatmapSubmission/DatabaseOperationExtensions.cs#L24-L37">
+        /// <c>IsUserRestrictedAsync</c> in osu-server-beatmap-submission
+        /// </seealso>
+        public static bool IsUserRestricted(MySqlConnection db, uint userId, MySqlTransaction? transaction = null)
+        {
+            var standing = db.QuerySingleOrDefault<(short user_type, short user_warnings)>(
+                @"SELECT `user_type`, `user_warnings` FROM `phpbb_users` WHERE `user_id` = @user_id",
+                new
+                {
+                    user_id = userId,
+                },
+                transaction);
+
+            return standing.user_type == 1 || standing.user_warnings > 0;
+        }
     }
 }

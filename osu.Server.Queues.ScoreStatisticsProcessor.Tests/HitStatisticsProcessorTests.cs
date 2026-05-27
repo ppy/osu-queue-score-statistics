@@ -1,15 +1,21 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using osu.Game.Rulesets.Scoring;
 using Xunit;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 {
     public class HitStatisticsProcessorTests : DatabaseTest
     {
+        public HitStatisticsProcessorTests()
+        {
+            AddBeatmap();
+        }
+
         [Fact]
         public void TestHitStatisticsIncrease()
         {
-            AddBeatmap();
-
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
 
             PushToQueueAndWaitForProcess(CreateTestScore());
@@ -22,8 +28,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         [Fact]
         public void TestHitStatisticsReprocessOldVersionIncrease()
         {
-            AddBeatmap();
-
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
@@ -42,10 +46,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public void TestDoesNotIncreaseIfFailedAndPlayTooShort()
+        {
+            var score = CreateTestScore();
+
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, CancellationToken);
+
+            score = CreateTestScore();
+            score.Score.ended_at = score.Score.started_at!.Value + TimeSpan.FromSeconds(4);
+            score.Score.passed = false;
+
+            PushToQueueAndWaitForProcess(score);
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, CancellationToken);
+        }
+
+        [Fact]
         public void TestHitStatisticsReprocessDoesntIncrease()
         {
-            AddBeatmap();
-
             var score = CreateTestScore();
 
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", (int?)null, CancellationToken);
@@ -58,6 +77,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             PushToQueueAndWaitForProcess(score);
             WaitForDatabaseState("SELECT count300 FROM osu_user_stats WHERE user_id = 2", 5, CancellationToken);
+        }
+
+        [Fact]
+        public void TestHitStatisticsIncreaseOnCatchTickHits()
+        {
+            WaitForDatabaseState("SELECT count300 FROM osu_user_stats_fruits WHERE user_id = 2", (int?)null, CancellationToken);
+
+            var testScore = CreateTestScore(rulesetId: 2);
+            testScore.Score.ScoreData.Statistics = new Dictionary<HitResult, int>
+            {
+                [HitResult.Great] = 100,
+                [HitResult.LargeTickHit] = 20,
+                [HitResult.SmallTickHit] = 40,
+                [HitResult.LargeTickMiss] = 1,
+                [HitResult.SmallTickMiss] = 2,
+            };
+
+            PushToQueueAndWaitForProcess(testScore);
+            WaitForDatabaseState("SELECT count300, count100, count50, countmiss FROM osu_user_stats_fruits WHERE user_id = 2", (100, 20, 40, 1), CancellationToken);
         }
     }
 }

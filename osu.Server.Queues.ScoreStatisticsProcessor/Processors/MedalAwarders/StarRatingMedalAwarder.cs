@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
@@ -17,6 +18,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     public class StarRatingMedalAwarder : IMedalAwarder
     {
         public bool RunOnFailedScores => false;
+
+        public bool RunOnLegacyScores => false; // Legacy scores are handled by web-10.
 
         public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
@@ -45,10 +48,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 yield break;
 
             // Get map star rating (including mods)
-            DifficultyAttributes? difficultyAttributes = await context.BeatmapStore.GetDifficultyAttributesAsync(beatmap, ruleset, mods, context.Connection, context.Transaction);
+            DifficultyAttributes? difficultyAttributes = await context.GetDifficultyAttributesAsync(beatmap, ruleset, mods);
 
+            // This should never happen - `MedalProcessor` already checks the approved state of the beatmap.
+            // Therefore, throw if it does, because it may indicate larger breakage.
             if (difficultyAttributes == null)
-                yield break;
+                throw new InvalidOperationException("Star rating medal awarder attempted to fetch star rating for non-ranked beatmap!");
 
             // Award pass medals
             foreach (var medal in medals)

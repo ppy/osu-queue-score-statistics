@@ -14,7 +14,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
     [Command("pump-all", Description = "Pumps all existing `scores` scores through the queue for reprocessing")]
     public class PumpAllScoresCommand
     {
-        [Option("--start_id")]
+        [Option("--start-id")]
         public long StartId { get; set; }
 
         [Option("--delay", Description = "Delay in milliseconds between queue operations")]
@@ -27,8 +27,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Queue
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using (var dbMainQuery = DatabaseAccess.GetConnection())
-            using (var db = DatabaseAccess.GetConnection())
+            using (var dbMainQuery = await DatabaseAccess.GetConnectionAsync(cancellationToken))
+            using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
             {
                 string query = "SELECT * FROM scores WHERE id >= @StartId";
 

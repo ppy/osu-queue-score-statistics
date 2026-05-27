@@ -4,12 +4,16 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Dapper;
 using McMaster.Extensions.CommandLineUtils;
+using MySqlConnector;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
+using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using osu.Server.Queues.ScoreStatisticsProcessor.Processors;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
@@ -18,6 +22,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
     {
         protected ScorePerformanceProcessor ScoreProcessor { get; private set; } = null!;
         protected UserTotalPerformanceProcessor TotalProcessor { get; private set; } = null!;
+        protected ManiaKeyModeUserStatsProcessor ManiaKeyModeProcessor { get; private set; } = null!;
 
         [Option(CommandOptionType.SingleValue, Template = "-r|--ruleset", Description = "The ruleset to process score for.")]
         public int RulesetId { get; set; }
@@ -25,10 +30,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
         [Option(Description = "Number of threads to use.")]
         public int Threads { get; set; } = 1;
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output verbose information on processing.")]
+        public bool Verbose { get; set; }
+
         public virtual async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            ScoreProcessor = new ScorePerformanceProcessor();
+            ScoreProcessor = new ScorePerformanceProcessor { Verbose = Verbose };
             TotalProcessor = new UserTotalPerformanceProcessor();
+            ManiaKeyModeProcessor = new ManiaKeyModeUserStatsProcessor();
             return await ExecuteAsync(cancellationToken);
         }
 
@@ -60,20 +69,57 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
             int processedCount = 0;
 
-            await ProcessPartitioned(userIds, async userId =>
+            await ProcessPartitioned(userIds, async (db, transaction, userId) =>
             {
-                using (var db = DatabaseAccess.GetConnection())
+                var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db, transaction);
+
+                if (userStats == null)
+                    return;
+
+                // Mania per-key ranking statistic updates.
+                if (RulesetId == 3)
                 {
-                    var userStats = await DatabaseHelper.GetUserStatsAsync(userId, RulesetId, db);
+                    await updateKeyStats(4);
+                    await updateKeyStats(7);
 
-                    if (userStats == null)
-                        return;
+                    async Task updateKeyStats(int keyCount)
+                    {
+                        string keyCountTableName = $"osu_user_stats_mania_{keyCount}k";
+                        var keyModeStats = db.QueryFirstOrDefault<UserStatsManiaKeyCount>($"SELECT * FROM {keyCountTableName} WHERE `user_id` = @user_id", userStats, transaction);
 
-                    await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, updateIndex: false);
-                    await DatabaseHelper.UpdateUserStatsAsync(userStats, db);
+                        if (keyModeStats != null)
+                        {
+                            double rankScoreBefore = keyModeStats.rank_score;
+                            double accBefore = keyModeStats.accuracy_new;
+
+                            await ManiaKeyModeProcessor.UpdateUserStatsAsync(keyModeStats, keyCount, db, transaction, updateIndex: false);
+
+                            if (Math.Abs(rankScoreBefore - keyModeStats.rank_score) > 0.1 ||
+                                Math.Abs(accBefore - keyModeStats.accuracy_new) > 0.1)
+                            {
+                                await db.ExecuteAsync(
+                                    $"UPDATE `{keyCountTableName}` "
+                                    + $"SET `rank_score` = @rank_score, `playcount` = @playcount, `rank_score_index` = @rank_score_index, `accuracy_new` = @accuracy_new, "
+                                    + $"`x_rank_count` = @x_rank_count, `xh_rank_count` = @xh_rank_count, `s_rank_count` = @s_rank_count, `sh_rank_count` = @sh_rank_count, `a_rank_count` = @a_rank_count "
+                                    + $"WHERE `user_id` = @user_id", keyModeStats, transaction);
+                            }
+                        }
+                    }
                 }
 
-                Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
+                double rankScoreBefore = userStats.rank_score;
+                double accBefore = userStats.accuracy_new;
+
+                await TotalProcessor.UpdateUserStatsAsync(userStats, RulesetId, db, transaction);
+
+                if (Math.Abs(rankScoreBefore - userStats.rank_score) > 0.1 ||
+                    Math.Abs(accBefore - userStats.accuracy_new) > 0.1)
+                {
+                    await DatabaseHelper.UpdateUserStatsAsync(userStats, db, transaction);
+                }
+
+                if (Interlocked.Increment(ref processedCount) % 1000 == 0)
+                    Console.WriteLine($"Processed {processedCount} of {userIds.Length} (current id {userStats.user_id})");
             }, cancellationToken);
         }
 
@@ -89,25 +135,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
 
             int processedCount = 0;
 
-            await ProcessPartitioned(userIds, async userId =>
+            await ProcessPartitioned(userIds, async (conn, transaction, userId) =>
             {
-                using (var db = DatabaseAccess.GetConnection())
-                    await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, db);
+                await ScoreProcessor.ProcessUserScoresAsync(userId, RulesetId, conn, transaction, cancellationToken: cancellationToken);
 
                 Console.WriteLine($"Processed {Interlocked.Increment(ref processedCount)} of {userIds.Length}");
             }, cancellationToken);
         }
 
-        protected async Task ProcessPartitioned<T>(IEnumerable<T> values, Func<T, Task> processFunc, CancellationToken cancellationToken)
+        protected async Task ProcessPartitioned<T>(IEnumerable<T> values, Func<MySqlConnection, MySqlTransaction, T, Task> processFunc, CancellationToken cancellationToken)
         {
+            const int max_transaction_size = 50;
+
             await Task.WhenAll(Partitioner
                                .Create(values)
                                .GetPartitions(Threads)
-                               .AsParallel()
                                .Select(processPartition));
 
             async Task processPartition(IEnumerator<T> partition)
             {
+                MySqlTransaction? transaction = null;
+                int transactionSize = 0;
+
+                using (var connection = await DatabaseAccess.GetConnectionAsync(cancellationToken))
                 using (partition)
                 {
                     while (partition.MoveNext())
@@ -115,8 +165,44 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance
                         if (cancellationToken.IsCancellationRequested)
                             return;
 
-                        await processFunc(partition.Current);
+                        if (transaction == null)
+                            await startTransaction(connection);
+
+                        try
+                        {
+                            await processFunc(connection, transaction!, partition.Current);
+                        }
+                        catch
+                        {
+                            Console.WriteLine($"Error encountered on {partition.Current}");
+                            throw;
+                        }
+
+                        if (++transactionSize >= max_transaction_size)
+                            await commit();
                     }
+
+                    await commit();
+                }
+
+                async Task commit()
+                {
+                    if (transaction == null)
+                        return;
+
+                    await transaction.CommitAsync(cancellationToken);
+                    await transaction.DisposeAsync();
+
+                    transaction = null;
+                }
+
+                async Task startTransaction(MySqlConnection connection)
+                {
+                    if (transaction != null)
+                        throw new InvalidOperationException("Previous transaction was not committed");
+
+                    transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadUncommitted, cancellationToken);
+                    transactionSize = 0;
                 }
             }
         }

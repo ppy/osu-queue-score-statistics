@@ -15,6 +15,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
     {
         public bool RunOnFailedScores => false;
 
+        public bool RunOnLegacyScores => true;
+
         public IEnumerable<Medal> Check(IEnumerable<Medal> medals, MedalAwarderContext context)
         {
             // Do a global check to see if this beatmapset is contained in *any* pack.
@@ -445,6 +447,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 // in love with a ghost beatmap pack
                 case 335:
                     return checkPack(3145);
+
+                // Project Loved: Best of 2024
+                case 350:
+                    return checkPack(3585) || checkPack(3586) || checkPack(3587) || checkPack(3588);
 
                 default:
                     return false;

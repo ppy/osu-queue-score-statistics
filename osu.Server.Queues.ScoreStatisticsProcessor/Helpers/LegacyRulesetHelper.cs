@@ -17,21 +17,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
     public static class LegacyRulesetHelper
     {
+        private static readonly Ruleset osu_ruleset = new OsuRuleset();
+        private static readonly Ruleset taiko_ruleset = new TaikoRuleset();
+        private static readonly Ruleset catch_ruleset = new CatchRuleset();
+        private static readonly Ruleset mania_ruleset = new ManiaRuleset();
+
         public static Ruleset GetRulesetFromLegacyId(int legacyId)
         {
             switch (legacyId)
             {
                 case 0:
-                    return new OsuRuleset();
+                    return osu_ruleset;
 
                 case 1:
-                    return new TaikoRuleset();
+                    return taiko_ruleset;
 
                 case 2:
-                    return new CatchRuleset();
+                    return catch_ruleset;
 
                 case 3:
-                    return new ManiaRuleset();
+                    return mania_ruleset;
 
                 default:
                     throw new ArgumentException($"Invalid ruleset ID: {legacyId}", nameof(legacyId));

@@ -77,6 +77,12 @@ Database name.
 
 Defaults to `osu`.
 
+### DB_NAME_DIFFICULTY
+
+Database name for reading difficulty attributes from (all `osu_beatmap_difficulty_attribs` table access).
+
+Defaults to same as `DB_NAME`.
+
 ### DB_USER
 
 Database username.
@@ -103,9 +109,19 @@ Defaults to `localhost`.
 
 Enables DataDog origin detection when running in a container. See [DataDog documentation](https://docs.datadoghq.com/developers/dogstatsd/?tab=kubernetes&code-lang=dotnet#origin-detection-over-udp).
 
+### SHARED_INTEROP_DOMAIN
+
+Root domain to which shared interop requests should be directed.
+
+- In Debug configuration, this parameter is not required; when missing, all requests are no-ops.
+- In Release configuration, this parameter is required; all requests will hard-fail with an exception if missing.
+
 ### SHARED_INTEROP_SECRET
 
-Secret key used to sign LegacyIO requests to osu-web. Required to award medals.
+Secret key used to sign shared interop requests to osu-web. Required to award medals.
+
+- In Debug configuration, this parameter is not required; when missing, all requests are no-ops.
+- In Release configuration, this parameter is required; all requests will hard-fail with an exception if missing.
 
 ### PROCESS_USER_MEDALS
 

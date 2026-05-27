@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Game.Beatmaps;
@@ -22,7 +23,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
             if (previousVersion < 2)
                 return;
@@ -43,7 +44,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             userStats.level = calculateLevel(userStats.total_score);
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
             long classicTotalScore = score.ToScoreInfo().GetDisplayScore(ScoringMode.Classic);
 
@@ -60,11 +61,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         private static bool shouldIncludePlayInTotalScore(SoloScore score, long classicScore)
         {
-            if (score.beatmap?.approved >= BeatmapOnlineStatus.Ranked)
+            if (score.beatmap?.approved == BeatmapOnlineStatus.Ranked || score.beatmap?.approved == BeatmapOnlineStatus.Approved)
                 return true;
 
-            int playLength = PlayValidityHelper.GetPlayLength(score);
-            return classicScore <= playLength * 500_000;
+            return classicScore <= PlayValidityHelper.GetPlayLength(score) * 500_000;
         }
 
         private static float calculateLevel(long totalScore)

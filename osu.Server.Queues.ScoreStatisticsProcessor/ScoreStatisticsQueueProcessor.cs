@@ -154,10 +154,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
             return instances.OrderBy(processor => processor.Order).ToList();
         }
 
-        protected override void ProcessResult(ScoreItem item)
+        /// <summary>
+        /// Process the provided score item.
+        /// </summary>
+        /// <param name="item">The score to process.</param>
+        /// <param name="force">Whether to process regardless of whether the attached process history implies it is already processed up-to-date.</param>
+        public void ProcessScore(ScoreItem item, bool force) => processScore(item, force);
+
+        protected override void ProcessResult(ScoreItem item) => processScore(item, false);
+
+        private void processScore(ScoreItem item, bool force = false)
         {
             var stopwatch = new Stopwatch();
             var tags = new List<string>();
+            var postTransactionActions = new List<Action>();
 
             try
             {
@@ -175,7 +185,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                 if (item.Score.legacy_score_id != null)
                     tags.Add("type:legacy");
 
-                if (item.ProcessHistory?.processed_version == VERSION)
+                if (item.ProcessHistory?.processed_version == VERSION && !force)
                 {
                     tags.Add("type:skipped");
                     return;
@@ -206,53 +216,82 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                             return;
                         }
 
-                        // if required, we can rollback any previous version of processing then reapply with the latest.
-                        if (item.ProcessHistory != null)
+                        if (score.IsValidForPlayTracking())
                         {
-                            tags.Add("type:upgraded");
-                            byte version = item.ProcessHistory.processed_version;
+                            // if required, we can rollback any previous version of processing then reapply with the latest.
+                            if (item.ProcessHistory != null)
+                            {
+                                tags.Add("type:upgraded");
+                                byte version = item.ProcessHistory.processed_version;
 
-                            foreach (var p in enumerateValidProcessors(score))
-                                p.RevertFromUserStats(score, userStats, version, conn, transaction);
+                                foreach (var p in enumerateValidProcessors(score))
+                                    p.RevertFromUserStats(score, userStats, version, conn, transaction, postTransactionActions);
+                            }
+                            else
+                            {
+                                tags.Add("type:new");
+                            }
+
+                            item.Tags = tags.ToArray();
+
+                            foreach (IProcessor p in enumerateValidProcessors(score))
+                            {
+                                stopwatch.Restart();
+
+                                try
+                                {
+                                    p.ApplyToUserStats(score, userStats, conn, transaction, postTransactionActions);
+                                }
+                                catch (ProcessingAbortedException abortException)
+                                {
+                                    Console.WriteLine($"Aborting processing of score {item.Score.id}: {abortException.Message}");
+                                    tags.Add("type:aborted");
+                                    transaction.Rollback();
+                                    conn.Execute("UPDATE `scores` SET `ranked` = 0 WHERE `id` = @scoreId", new { scoreId = score.id });
+                                    return;
+                                }
+
+                                DogStatsd.Timer("apply_time_elapsed", stopwatch.ElapsedMilliseconds, tags: item.Tags.Append($"processor:{p.GetType().ReadableName()}").ToArray());
+                            }
+
+                            DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
                         }
                         else
                         {
-                            tags.Add("type:new");
+                            tags.Add("type:too-short");
                         }
-
-                        item.Tags = tags.ToArray();
-
-                        foreach (IProcessor p in enumerateValidProcessors(score))
-                        {
-                            stopwatch.Restart();
-                            p.ApplyToUserStats(score, userStats, conn, transaction);
-                            DogStatsd.Timer($"apply-{p.GetType().ReadableName()}", stopwatch.ElapsedMilliseconds, tags: item.Tags);
-                        }
-
-                        DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
 
                         updateHistoryEntry(item, conn, transaction);
 
                         transaction.Commit();
                     }
 
-                    // TODO: this can be removed after https://github.com/ppy/osu-web/issues/10942 is closed out.
-                    // Intentionally not part of the transaction to avoid deadlocks.
-                    // See https://discord.com/channels/90072389919997952/983550677794050108/1199725169573380136
-                    if (score.passed)
+                    foreach (var action in postTransactionActions)
                     {
-                        // For now, just assume all passing scores are to be preserved.
-                        conn.Execute("UPDATE scores SET preserve = 1 WHERE id = @Id", new { Id = score.id });
+                        try
+                        {
+                            action.Invoke();
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"Post-transaction action failed: {e}");
+                        }
                     }
 
                     foreach (var p in enumerateValidProcessors(score))
                         p.ApplyGlobal(score, conn);
+
+                    if (score.passed && !score.preserve)
+                        Console.WriteLine($"Passed score {score.id} was processed but not preserved");
+
+                    conn.Execute("REPLACE INTO osu_counts (name, count) SELECT 'last_processed_score_id', MAX(score_id) FROM score_process_history");
                 }
 
                 elasticQueueProcessor.PushToQueue(new ElasticQueuePusher.ElasticScoreItem
                 {
                     ScoreId = (long)item.Score.id,
                 });
+
                 publishScoreProcessed(item);
             }
             catch (Exception e)

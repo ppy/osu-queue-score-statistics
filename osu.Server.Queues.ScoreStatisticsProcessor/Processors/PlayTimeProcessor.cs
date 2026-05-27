@@ -1,6 +1,8 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
+using System.Collections.Generic;
 using JetBrains.Annotations;
 using MySqlConnector;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
@@ -18,19 +20,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
-            if (!score.IsValidForPlayTracking(out int lengthInSeconds) && previousVersion >= 10)
-                return;
+            int lengthInSeconds = PlayValidityHelper.GetPlayLength(score);
 
             if (previousVersion >= 6)
                 userStats.total_seconds_played -= lengthInSeconds;
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
-            if (!score.IsValidForPlayTracking(out int lengthInSeconds))
-                return;
+            int lengthInSeconds = PlayValidityHelper.GetPlayLength(score);
 
             userStats.total_seconds_played += lengthInSeconds;
         }

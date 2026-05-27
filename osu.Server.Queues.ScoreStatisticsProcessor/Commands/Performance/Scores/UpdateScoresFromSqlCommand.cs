@@ -24,7 +24,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Performance.Scores
         {
             uint[] userIds;
 
-            using (var db = DatabaseAccess.GetConnection())
+            using (var db = await DatabaseAccess.GetConnectionAsync(cancellationToken))
                 userIds = (await db.QueryAsync<uint>(Statement)).ToArray();
 
             await ProcessUserScores(userIds, cancellationToken);

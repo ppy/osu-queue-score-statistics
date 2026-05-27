@@ -55,7 +55,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             Thread.Sleep(5000);
 
-            using (var conn = DatabaseAccess.GetConnection())
+            using (var conn = await DatabaseAccess.GetConnectionAsync(cancellationToken))
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {

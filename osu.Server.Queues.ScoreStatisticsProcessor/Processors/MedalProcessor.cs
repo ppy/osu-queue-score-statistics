@@ -12,7 +12,6 @@ using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
-using osu.Server.Queues.ScoreStatisticsProcessor.Stores;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -46,18 +45,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnFailedScores => true; // This is handled by each awarder.
 
-        public bool RunOnLegacyScores => false;
+        public bool RunOnLegacyScores => true; // This is handled by each awarder.
 
         // This processor needs to run after the play count and hit statistics have been applied, at very least.
-        public int Order => int.MaxValue;
+        public int Order => int.MaxValue - 1;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
         {
             if (score.beatmap!.approved <= 0)
+                return;
+
+            if (DatabaseHelper.IsUserRestricted(conn, userStats.user_id, transaction))
                 return;
 
             int[] alreadyAchieved = conn.Query<int>("SELECT achievement_id FROM osu_user_achievements WHERE user_id = @userId", new
@@ -70,17 +72,27 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                                          .Where(m => !alreadyAchieved.Contains(m.achievement_id))
                                          .ToArray();
 
-            var beatmapStore = BeatmapStore.CreateAsync(conn, transaction).Result;
-            var context = new MedalAwarderContext(score, userStats, beatmapStore, conn, transaction);
+            var dailyChallengeUserStats = conn.QuerySingleOrDefault<DailyChallengeUserStats>(
+                @"SELECT * FROM `daily_challenge_user_stats` WHERE `user_id` = @user_id",
+                new
+                {
+                    user_id = userStats.user_id
+                },
+                transaction) ?? new DailyChallengeUserStats();
+
+            var context = new MedalAwarderContext(score, userStats, dailyChallengeUserStats, conn, transaction);
 
             foreach (var awarder in medal_awarders)
             {
                 if (!score.passed && !awarder.RunOnFailedScores)
                     continue;
 
+                if (score.is_legacy_score && !awarder.RunOnLegacyScores)
+                    continue;
+
                 foreach (var awardedMedal in awarder.Check(availableMedalsForUser, context))
                 {
-                    awardMedal(score, awardedMedal);
+                    postTransactionActions.Add(() => awardMedal(score, awardedMedal));
                 }
             }
         }
@@ -90,11 +102,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             return availableMedals ??= conn.Query<Medal>("SELECT * FROM osu_achievements WHERE enabled = 1", transaction: transaction).ToImmutableArray();
         }
 
-        private void awardMedal(SoloScore score, Medal medal)
+        private static void awardMedal(SoloScore score, Medal medal)
         {
-            // Perform LIO request to award the medal.
             Console.WriteLine($"Awarding medal {medal.name} to user {score.user_id} (score {score.id})");
-            LegacyDatabaseHelper.RunLegacyIO($"user-achievement/{score.user_id}/{medal.achievement_id}/{score.beatmap_id}", "POST");
+            WebRequestHelper.RunSharedInteropCommand($"user-achievement/{score.user_id}/{medal.achievement_id}/{score.beatmap_id}", "POST");
             MedalAwarded?.Invoke(new AwardedMedal(medal, score));
         }
 

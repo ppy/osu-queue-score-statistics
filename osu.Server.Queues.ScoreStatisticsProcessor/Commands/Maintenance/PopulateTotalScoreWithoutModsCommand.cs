@@ -39,7 +39,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             ulong lastId = StartId ?? 0;
             ulong backfills = 0;
 
-            using var conn = DatabaseAccess.GetConnection();
+            using var conn = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             Console.WriteLine();
             Console.WriteLine($"Populating total score without mods on scores without it, starting from ID {lastId}");
@@ -81,7 +81,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 foreach (var score in scoresWithMissing)
                 {
-                    score.beatmap = beatmapsById[score.beatmap_id];
+                    if (!beatmapsById.TryGetValue(score.beatmap_id, out var beatmap))
+                    {
+                        Console.WriteLine($"Skipping score {score.id} (missing beatmap {score.beatmap_id})");
+                        continue;
+                    }
+
+                    score.beatmap = beatmap;
                     var scoreInfo = score.ToScoreInfo();
                     LegacyScoreDecoder.PopulateTotalScoreWithoutMods(scoreInfo);
 
@@ -124,6 +130,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 Console.WriteLine();
                 Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
                 conn.Execute(sqlBuffer.ToString());
+                sqlBuffer.Clear();
             }
         }
     }

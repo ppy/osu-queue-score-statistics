@@ -2,77 +2,229 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Amazon.S3;
+using Amazon.S3.Model;
 using Dapper;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
-    [Command("cleanup", Description = "Delete non-preserved scores which are stale enough.")]
+    [Command("delete-non-preserved", Description = "Delete non-preserved scores which are stale enough.")]
     public class DeleteNonPreservedScoresCommand
     {
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output when a score is preserved too.")]
+        public bool Verbose { get; set; }
+
         /// <summary>
-        /// How many hours non-preserved scores should be retained before being purged.
+        /// How many days non-preserved scores should be retained before being purged.
         /// </summary>
-        private const int preserve_hours = 48;
+        private const int preserve_days = 2;
+
+        private const string scores_table = "scores";
+        private const string scores_cleanup_table = $"{scores_table}_cleanup";
 
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
-            using (var readConnection = DatabaseAccess.GetConnection())
-            using (var deleteConnection = DatabaseAccess.GetConnection())
-            using (var deleteCommand = deleteConnection.CreateCommand())
-            using (var s3 = S3.GetClient())
+            DogStatsd.Configure(new StatsdConfig
             {
-                deleteCommand.CommandText = "DELETE FROM scores WHERE id = @id;";
+                Prefix = "osu.server.commands.mark_non_preserved",
+            });
 
-                MySqlParameter scoreId = deleteCommand.Parameters.Add("id", MySqlDbType.UInt64);
+            using var db = await DatabaseAccess.GetConnectionAsync(cancellationToken);
+            using var s3 = S3.GetClient();
 
-                await deleteCommand.PrepareAsync(cancellationToken);
+            if (db.ExecuteScalar<int>($"SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{scores_cleanup_table}' AND TABLE_SCHEMA = DATABASE()") > 0)
+            {
+                Console.WriteLine("Processing left-over cleanup table");
+                await processCleanupTable(db, s3, cancellationToken);
+            }
 
-                var scores = await readConnection.QueryAsync<SoloScore>(new CommandDefinition(
-                    $"SELECT * FROM `scores` WHERE `preserve` = 0 AND `unix_updated_at` < UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL {preserve_hours} HOUR))", flags: CommandFlags.None, cancellationToken: cancellationToken));
+            // Partitions are actually off-by-one, so we +1 here.
+            //
+            // For instance:
+            // PARTITION p20260219 VALUES LESS THAN (0,1771372800) ENGINE = InnoDB
+            // translates to p20260219 partition stores scores older than 2026-02-18 00:00:00 UTC+0
+            DateTime cutoffDate = DateTime.UtcNow.Date.AddDays(1 - preserve_days);
+            Console.WriteLine($"Processing partitions on {scores_table} starting from p{cutoffDate:yyyyMMdd}");
 
-                foreach (var score in scores)
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
+            List<string> partitions = await getEligiblePartitionsAsync(db, cutoffDate, cancellationToken);
 
-                    Console.WriteLine($"Deleting score {score.id}...");
-                    scoreId.Value = score.id;
-                    await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+            if (!partitions.Any())
+            {
+                Console.WriteLine("No eligible partitions found for deletion.");
+                return 0;
+            }
 
-                    // TODO: check pins
+            Console.WriteLine($"Found {partitions.Count} partition(s) to process: {string.Join(", ", partitions)}");
 
-                    if (score.has_replay)
-                    {
-                        Console.WriteLine("* Removing replay from S3...");
-                        var deleteResult = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+            foreach (string partition in partitions)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
 
-                        switch (deleteResult.HttpStatusCode)
-                        {
-                            case HttpStatusCode.NoContent:
-                                // below wording is intentionally very roundabout, because s3 does not actually really seem to produce the types of error you'd expect.
-                                // for instance, even if you request removal of a nonexistent object, it'll just throw a 204 No Content back
-                                // with no real way to determine whether it actually even did anything.
-                                Console.WriteLine("* Deletion request completed without error.");
-                                break;
+                Console.WriteLine();
+                Console.WriteLine($"Processing partition {partition}...");
 
-                            default:
-                                await Console.Error.WriteLineAsync($"* Received unexpected status code when attempting to delete replay: {deleteResult.HttpStatusCode}.");
-                                break;
-                        }
-                    }
-                }
+                await processPartitionAsync(db, s3, partition, cancellationToken);
+
+                Console.WriteLine($"Dropping partition {partition}...");
+                await db.ExecuteAsync(new CommandDefinition($"ALTER TABLE {scores_table} DROP PARTITION {partition}", cancellationToken: cancellationToken));
+                Console.WriteLine($"Partition {partition} dropped successfully!");
             }
 
             return 0;
+        }
+
+        private async Task<List<string>> getEligiblePartitionsAsync(MySqlConnection db, DateTime cutoffDate, CancellationToken cancellationToken)
+        {
+            IEnumerable<string> partitions = await db.QueryAsync<string>(new CommandDefinition(
+                $@"SELECT partition_name
+                FROM information_schema.partitions
+                WHERE table_schema = 'osu' AND table_name = '{scores_table}'
+                AND partition_name IS NOT NULL
+                ORDER BY partition_name",
+                cancellationToken: cancellationToken));
+
+            List<string> eligiblePartitions = new List<string>();
+
+            foreach (string partition in partitions)
+            {
+                if (partition == "p0catch" || partition == "p1")
+                    continue;
+
+                if (DateTime.TryParseExact(partition.Substring(1), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var partitionDate))
+                {
+                    if (partitionDate <= cutoffDate)
+                        eligiblePartitions.Add(partition);
+                }
+            }
+
+            return eligiblePartitions;
+        }
+
+        private async Task processPartitionAsync(MySqlConnection db, IAmazonS3 s3, string partitionName, CancellationToken cancellationToken)
+        {
+            await db.ExecuteAsync($"CREATE TABLE {scores_cleanup_table} LIKE {scores_table}");
+            await db.ExecuteAsync($"ALTER TABLE {scores_cleanup_table} REMOVE PARTITIONING");
+
+            Console.WriteLine("Moving partition contents to temporary table...");
+
+            // https://dev.mysql.com/doc/refman/8.4/en/partitioning-management-exchange.html
+            await db.ExecuteAsync($"ALTER TABLE {scores_table} EXCHANGE PARTITION {partitionName} WITH TABLE {scores_cleanup_table} WITHOUT VALIDATION");
+
+            await processCleanupTable(db, s3, cancellationToken);
+        }
+
+        private async Task processCleanupTable(MySqlConnection db, IAmazonS3 s3, CancellationToken cancellationToken)
+        {
+            int consecutiveS3Failures = 0;
+
+            long count = await db.QuerySingleAsync<long>(new CommandDefinition($"SELECT COUNT(id) FROM `{scores_cleanup_table}`", cancellationToken: cancellationToken));
+            long countWithReplay =
+                await db.QuerySingleAsync<long>(new CommandDefinition($"SELECT COUNT(id) FROM `{scores_cleanup_table}` WHERE `has_replay` = 1", cancellationToken: cancellationToken));
+            Console.WriteLine($"Partition contains {count:N0} scores ({countWithReplay:N0} with replays).");
+
+            DogStatsd.Increment("total_scores_deleted", (int)count);
+
+            ulong lastProcessedId = 0;
+
+            const int scores_per_batch = 10000;
+
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var scores = (await db.QueryAsync<SoloScore>(
+                    new CommandDefinition($"SELECT id, legacy_score_id FROM `{scores_cleanup_table}` WHERE `has_replay` = 1 AND id > @last_processed_id ORDER BY `id` LIMIT {scores_per_batch}", new
+                    {
+                        last_processed_id = lastProcessedId
+                    }, cancellationToken: cancellationToken))).ToArray();
+
+                if (scores.Length == 0)
+                    break;
+
+                int processedCount = 0;
+
+                if (Verbose)
+                    Console.WriteLine($"Processing next batch of {scores.Length} starting from {lastProcessedId}...");
+
+                foreach (var score in scores)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    if (Verbose)
+                        Console.WriteLine($"Deleting replay {score.id}...");
+
+                    if (score.is_legacy_score)
+                    {
+                        if (score.legacy_score_id < 1)
+                            throw new InvalidOperationException("Legacy score cleanup attempted without a valid score ID");
+
+                        var rulesetSpecifics = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
+
+                        if (Verbose)
+                            Console.WriteLine($"S3 purge s3://{rulesetSpecifics.ReplayBucket}/{score.id}...");
+
+                        var result = await s3.DeleteObjectAsync(rulesetSpecifics.ReplayBucket, score.legacy_score_id!.Value.ToString(CultureInfo.InvariantCulture), cancellationToken);
+
+                        bool success = await checkS3Success(result);
+                        DogStatsd.Increment("replays_deleted", tags: ["type:legacy", $"success:{success}"]);
+
+                        DogStatsd.Increment("legacy_table_scores_deleted");
+                        await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.ReplayTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
+                        await db.ExecuteAsync($"DELETE FROM {rulesetSpecifics.HighScoreTable} WHERE score_id = @scoreId", new { scoreId = score.legacy_score_id });
+                    }
+                    else
+                    {
+                        if (Verbose)
+                            Console.WriteLine($"S3 purge s3://{S3.REPLAYS_BUCKET}/{score.id.ToString(CultureInfo.InvariantCulture)}...");
+
+                        var result = await s3.DeleteObjectAsync(S3.REPLAYS_BUCKET, score.id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+                        bool success = await checkS3Success(result);
+                        DogStatsd.Increment("replays_deleted", tags: ["type:new", $"success:{success}"]);
+                    }
+
+                    if (consecutiveS3Failures > 10)
+                    {
+                        // Intentionally leave the temporary table in place for inspection.
+                        throw new Exception("Too many consecutive S3 failures");
+                    }
+
+                    if (processedCount++ % 100 == 0)
+                        Console.WriteLine($"Processed {processedCount} scores");
+
+                    lastProcessedId = score.id;
+                }
+            }
+
+            Console.WriteLine("Cleaning up temporary table...");
+            await db.ExecuteAsync($"DROP TABLE {scores_cleanup_table}");
+
+            async Task<bool> checkS3Success(DeleteObjectResponse result)
+            {
+                switch (result.HttpStatusCode)
+                {
+                    case HttpStatusCode.NoContent:
+                        consecutiveS3Failures = 0;
+                        return true;
+
+                    default:
+                        await Console.Error.WriteLineAsync($"* Received unexpected status code when attempting to delete replay: {result.HttpStatusCode}.");
+                        consecutiveS3Failures++;
+                        return false;
+                }
+            }
         }
     }
 }

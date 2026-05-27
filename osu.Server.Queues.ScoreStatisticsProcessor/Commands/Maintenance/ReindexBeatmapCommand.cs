@@ -27,7 +27,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         {
             Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
 
-            using var conn = DatabaseAccess.GetConnection();
+            using var conn = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
             var scores = (await conn.QueryAsync<SoloScore>("SELECT id FROM scores WHERE beatmap_id = @beatmapId AND preserve = 1", new
             {
