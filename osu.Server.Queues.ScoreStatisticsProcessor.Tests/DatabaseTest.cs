@@ -187,6 +187,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                     { HitResult.Great, 5 },
                     { HitResult.LargeBonus, 2 }
                 },
+                TotalScoreWithoutMods = 100000,
             };
 
             row.ScoreData = scoreData;
