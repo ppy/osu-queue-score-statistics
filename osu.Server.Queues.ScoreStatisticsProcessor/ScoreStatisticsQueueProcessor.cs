@@ -111,7 +111,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         {
             List<Type> enabledTypes = AppDomain.CurrentDomain
                                                .GetAssemblies()
-                                               .SelectMany(a => a.GetTypes())
+                                               .SelectMany(a => a.GetExportedTypes())
                                                .Where(t => !t.IsInterface && typeof(IProcessor).IsAssignableFrom(t))
                                                .ToList();
 
