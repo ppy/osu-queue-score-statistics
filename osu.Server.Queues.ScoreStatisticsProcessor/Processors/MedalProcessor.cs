@@ -33,7 +33,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             // add each processor automagically.
             foreach (var t in AppDomain.CurrentDomain
                                        .GetAssemblies()
-                                       .SelectMany(t => t.GetTypes())
+                                       .SelectMany(t => t.GetExportedTypes())
                                        .Where(t => !t.IsInterface && typeof(IMedalAwarder).IsAssignableFrom(t)))
             {
                 if (Activator.CreateInstance(t) is IMedalAwarder awarder)
