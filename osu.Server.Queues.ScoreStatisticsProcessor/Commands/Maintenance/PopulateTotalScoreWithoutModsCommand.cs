@@ -89,7 +89,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     score.beatmap = beatmap;
                     var scoreInfo = score.ToScoreInfo();
-                    LegacyScoreDecoder.PopulateTotalScoreWithoutMods(scoreInfo);
+                    var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(scoreInfo.RulesetID);
+
+                    var scoreMultiplierCalculator = ruleset.CreateScoreMultiplierCalculator(new ScoreMultiplierContext(beatmap.GetLegacyBeatmapConversionDifficultyInfo(), scoreInfo));
+                    double modMultiplier = scoreMultiplierCalculator.CalculateFor(scoreInfo.Mods);
+                    scoreInfo.TotalScoreWithoutMods = (long)Math.Round(scoreInfo.TotalScore / modMultiplier);
 
                     if (Verbose)
                         Console.WriteLine($"Updating score {score.id} to {scoreInfo.TotalScoreWithoutMods} (without mods) / {score.total_score} (with mods)");
