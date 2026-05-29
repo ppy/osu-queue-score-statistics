@@ -10,8 +10,9 @@ using Dapper;
 using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
-using osu.Game.Scoring.Legacy;
+using osu.Game.Rulesets.Scoring;
 using osu.Server.QueueProcessor;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
@@ -51,19 +52,35 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                var scoresWithMissing = (await conn.QueryAsync<SoloScore>(
-                    // WARNING: the query below MUST use `JSON_VALUE` because mysql is being weird with the standard arrow syntax.
+                var scoresToPopulate = (await conn.QueryAsync<SoloScore>(
+                    // conditions for backpopulation:
+                    // - score must not be legacy.
+                    //   the totals of legacy scores are already computed from `legacy_total_score` via `StandardisedScoreMigrationTools`,
+                    //   so populating `total_score_without_mods` is unnecessary in that case, `legacy_total_score` is sufficient for lossless mod multiplier changes.
+                    // - score must have mods.
+                    //   it is assumed that a score without mods cannot have any other score multiplier than 1.0x,
+                    //   and therefore it would hold that `total_score_without_mods` == `total_score`.
+                    // - score must not have total score without mods already populated.
+                    //
+                    // WARNING: the query below MUST use `JSON_VALUE` to read `total_score_without_mods` because mysql is being weird with the standard arrow syntax.
                     // if `data` does not have `total_score_without_mods` set at all, `data->'$.total_score_without_mods'` will return the typical SQL NULL,
                     // but if `data` has `{'total_score_without_mods': null}`, then `data->'$.total_score_without_mods'` will return `CAST('null' AS JSON)` which IS NOT NULL.
                     // We want to be matching both of these cases. Thus, we use `JSON_VALUE`, which bypasses this footgun.
-                    "SELECT * FROM scores WHERE `id` BETWEEN @lastId AND (@lastId + @batchSize - 1) AND JSON_VALUE(`data`, '$.total_score_without_mods') IS NULL ORDER BY `id`",
+                    """
+                    SELECT * FROM scores
+                    WHERE `id` BETWEEN @lastId AND (@lastId + @batchSize - 1)
+                        AND `legacy_score_id` IS NULL
+                        AND JSON_LENGTH(`data`, '$.mods') > 0
+                        AND JSON_VALUE(`data`, '$.total_score_without_mods') IS NULL
+                    ORDER BY `id`
+                    """,
                     new
                     {
                         lastId,
                         batchSize = BatchSize,
                     })).ToArray();
 
-                if (scoresWithMissing.Length == 0)
+                if (scoresToPopulate.Length == 0)
                 {
                     if (lastId > await conn.QuerySingleAsync<ulong>("SELECT MAX(id) FROM scores"))
                     {
@@ -75,11 +92,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     continue;
                 }
 
-                uint[] beatmapIds = scoresWithMissing.Select(score => score.beatmap_id).Distinct().ToArray();
+                uint[] beatmapIds = scoresToPopulate.Select(score => score.beatmap_id).Distinct().ToArray();
                 var beatmapsById = (await conn.QueryAsync<Beatmap>(@"SELECT * FROM `osu_beatmaps` WHERE `beatmap_id` IN @ids", new { ids = beatmapIds }))
                     .ToDictionary(beatmap => beatmap.beatmap_id);
 
-                foreach (var score in scoresWithMissing)
+                foreach (var score in scoresToPopulate)
                 {
                     if (!beatmapsById.TryGetValue(score.beatmap_id, out var beatmap))
                     {
