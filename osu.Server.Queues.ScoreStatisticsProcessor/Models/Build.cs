@@ -13,6 +13,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Models
     public class Build
     {
         public int build_id { get; set; }
+        public string version { get; set; } = string.Empty;
         public bool allow_ranking { get; set; }
         public bool allow_performance { get; set; }
     }

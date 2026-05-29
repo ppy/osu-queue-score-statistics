@@ -92,9 +92,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     continue;
                 }
 
-                uint[] beatmapIds = scoresToPopulate.Select(score => score.beatmap_id).Distinct().ToArray();
+                var beatmapIds = scoresToPopulate.Select(score => score.beatmap_id).ToHashSet();
                 var beatmapsById = (await conn.QueryAsync<Beatmap>(@"SELECT * FROM `osu_beatmaps` WHERE `beatmap_id` IN @ids", new { ids = beatmapIds }))
                     .ToDictionary(beatmap => beatmap.beatmap_id);
+
+                var buildIds = scoresToPopulate.Select(score => score.build_id).Where(id => id != null).Cast<ushort>().ToHashSet();
+                var buildsById = (await conn.QueryAsync<Build>(@"SELECT * FROM `osu_builds` WHERE `build_id` IN @ids", new { ids = buildIds }))
+                    .ToDictionary(build => build.build_id);
 
                 foreach (var score in scoresToPopulate)
                 {
@@ -106,6 +110,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     score.beatmap = beatmap;
                     var scoreInfo = score.ToScoreInfo();
+                    if (score.build_id != null && buildsById.TryGetValue(score.build_id.Value, out var build))
+                        scoreInfo.ClientVersion = build.version;
                     var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(scoreInfo.RulesetID);
 
                     var scoreMultiplierCalculator = ruleset.CreateScoreMultiplierCalculator(new ScoreMultiplierContext(beatmap.GetLegacyBeatmapConversionDifficultyInfo(), scoreInfo));
