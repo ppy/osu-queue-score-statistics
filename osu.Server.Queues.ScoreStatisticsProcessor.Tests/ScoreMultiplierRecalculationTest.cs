@@ -513,6 +513,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 build_id = 7596,
             };
 
+            await conn.ExecuteAsync(@"INSERT INTO `osu_builds` (`build_id`, `version`, `stream_id`) VALUES (7596, '2024.625.2-lazer-windows', NULL)");
+
             InsertScore(conn, new ScoreItem(score, new ProcessHistory()));
 
             var populateCommand = new PopulateTotalScoreWithoutModsCommand { StartId = score.id };
@@ -813,6 +815,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 build_id = 7596,
             };
 
+            await conn.ExecuteAsync(@"INSERT INTO `osu_builds` (`build_id`, `version`, `stream_id`) VALUES (7596, '2024.625.2-lazer-windows', NULL)");
+
             InsertScore(conn, new ScoreItem(score, new ProcessHistory()));
 
             var populateCommand = new PopulateTotalScoreWithoutModsCommand { StartId = score.id };
@@ -903,6 +907,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 ended_at = new DateTimeOffset(2024, 3, 13, 15, 12, 10, TimeSpan.Zero),
                 build_id = 7478,
             };
+
+            await conn.ExecuteAsync(@"INSERT INTO `osu_builds` (`build_id`, `version`, `stream_id`) VALUES (7478, '2024.312.1-lazer-windows', NULL)");
 
             InsertScore(conn, new ScoreItem(score, new ProcessHistory()));
 
@@ -1091,7 +1097,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 build_id = 8066,
             };
 
-            await conn.ExecuteAsync(@"INSERT INTO `osu_builds` (`build_id`, `version`) VALUES (8066, '2025.710.0-lazer-windows')");
+            await conn.ExecuteAsync(@"INSERT INTO `osu_builds` (`build_id`, `version`, `stream_id`) VALUES (8066, '2025.710.0-lazer-windows', NULL)");
 
             InsertScore(conn, new ScoreItem(score, new ProcessHistory()));
 

@@ -110,8 +110,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     score.beatmap = beatmap;
                     var scoreInfo = score.ToScoreInfo();
-                    if (score.build_id != null && buildsById.TryGetValue(score.build_id.Value, out var build))
-                        scoreInfo.ClientVersion = build.version;
+
+                    if (score.build_id == null || !buildsById.TryGetValue(score.build_id.Value, out Build? build))
+                        throw new InvalidOperationException($"Aborting: score {score.id} has missing or invalid build ID of {score.build_id}!");
+
+                    scoreInfo.ClientVersion = build.version;
+
                     var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(scoreInfo.RulesetID);
 
                     var scoreMultiplierCalculator = ruleset.CreateScoreMultiplierCalculator(new ScoreMultiplierContext(beatmap.GetLegacyBeatmapConversionDifficultyInfo(), scoreInfo));
