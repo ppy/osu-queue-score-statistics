@@ -989,7 +989,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                         [HitResult.Perfect] = 1171,
                         [HitResult.IgnoreHit] = 772,
                     },
-                    TotalScoreWithoutMods = 990511,
+                    TotalScoreWithoutMods = 987248,
                 },
                 pp = 49.8456,
                 legacy_score_id = null,
@@ -1004,16 +1004,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var populateCommand = new PopulateTotalScoreWithoutModsCommand { StartId = score.id };
             await populateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT JSON_VALUE(`data`, '$.total_score_without_mods') FROM `scores` WHERE `id` = @id", 990511, CancellationToken, score);
+            WaitForDatabaseState(@"SELECT JSON_VALUE(`data`, '$.total_score_without_mods') FROM `scores` WHERE `id` = @id", 987248, CancellationToken, score);
 
             var recalculateCommand = new RecalculateModMultipliersCommand { StartId = score.id };
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 891460, CancellationToken, score);
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 888523, CancellationToken, score);
 
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 891460, CancellationToken, score);
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 888523, CancellationToken, score);
         }
 
         /// <summary>
