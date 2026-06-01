@@ -11,7 +11,10 @@ using Dapper;
 using JetBrains.Annotations;
 using McMaster.Extensions.CommandLineUtils;
 using MySqlConnector;
+using osu.Game.Database;
+using osu.Game.Rulesets.Scoring;
 using osu.Server.QueueProcessor;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
@@ -37,7 +40,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             ulong lastId = StartId ?? 0;
-            ulong updatedScores = 0;
+
+            ulong skipped = 0;
+            ulong updated = 0;
 
             using var conn = await DatabaseAccess.GetConnectionAsync(cancellationToken);
 
@@ -78,36 +83,66 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 foreach (var score in scoresWithMods)
                 {
-                    score.beatmap = beatmapsById[score.beatmap_id];
-                    var scoreInfo = score.ToScoreInfo();
+                    string source = score.is_legacy_score ? "stable" : "lazer ";
 
-                    if (scoreInfo.TotalScoreWithoutMods == 0 && scoreInfo.TotalScore != 0)
+                    if (!beatmapsById.TryGetValue(score.beatmap_id, out var beatmap))
                     {
-                        throw new InvalidOperationException($"Score with ID {score.id} has {scoreInfo.TotalScore} total score but {scoreInfo.TotalScoreWithoutMods} total score without mods. "
-                                                            + $"This is likely to indicate that {nameof(scoreInfo.TotalScoreWithoutMods)} was not correctly backpopulated on all scores "
-                                                            + "(or there is a process pushing new scores that was not updated to populate the field).");
+                        Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing beatmap");
+                        skipped++;
+                        continue;
                     }
 
-                    double multiplier = 1;
+                    score.beatmap = beatmap;
+                    var scoreInfo = score.ToScoreInfo();
+                    var difficultyInfo = beatmap.GetLegacyBeatmapConversionDifficultyInfo();
+                    var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(score.ruleset_id);
 
-                    foreach (var mod in scoreInfo.Mods)
-                        multiplier *= mod.ScoreMultiplier;
+                    long oldTotalScore = score.total_score;
+                    long newTotalScore;
 
-                    long newTotalScore = (long)Math.Round(scoreInfo.TotalScoreWithoutMods * multiplier);
+                    if (score.is_legacy_score)
+                    {
+                        var scoringAttributes = getScoringAttributesFor(score, conn)?.ToAttributes();
 
-                    if (newTotalScore == scoreInfo.TotalScore)
+                        if (scoringAttributes == null)
+                        {
+                            Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing scoring attributes");
+                            continue;
+                        }
+
+                        StandardisedScoreMigrationTools.UpdateFromLegacy(scoreInfo, ruleset, difficultyInfo, scoringAttributes.Value);
+                        newTotalScore = scoreInfo.TotalScore;
+                    }
+                    else
+                    {
+                        if (scoreInfo.TotalScoreWithoutMods == 0 && scoreInfo.TotalScore != 0)
+                        {
+                            Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing total score without mods");
+                            continue;
+                        }
+
+                        var multiplierCalculator = ruleset.CreateScoreMultiplierCalculator(new ScoreMultiplierContext(scoreInfo.BeatmapInfo!.Difficulty));
+                        double multiplier = multiplierCalculator.CalculateFor(scoreInfo.Mods);
+
+                        newTotalScore = (long)Math.Round(scoreInfo.TotalScoreWithoutMods * multiplier);
+                    }
+
+                    if (newTotalScore == oldTotalScore)
+                    {
+                        Console.WriteLine($"[{score.id,11} {source}] Skipped due to no change in score");
                         continue;
+                    }
 
-                    Console.WriteLine($"Updating score {score.id}. Without mods: {scoreInfo.TotalScoreWithoutMods}. With mods: {scoreInfo.TotalScore} (old) -> {newTotalScore} (new)");
+                    Console.WriteLine($"[{score.id,11} {source}] Updating score: {oldTotalScore,8} (old) -> {newTotalScore,8} (new)");
 
                     sqlBuffer.Append($@"UPDATE `scores` SET `total_score` = {newTotalScore} WHERE `id` = {score.id};");
                     elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
-                    updatedScores++;
+                    updated++;
                 }
 
                 lastId += (ulong)BatchSize;
 
-                Console.WriteLine($"Processed up to {lastId - 1} ({updatedScores} updated)");
+                Console.WriteLine($"Processed up to {lastId - 1} ({updated} updated, {skipped} skipped)");
 
                 flush(conn);
             }
@@ -115,6 +150,18 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             flush(conn, true);
 
             return 0;
+        }
+
+        private static BeatmapScoringAttributes? getScoringAttributesFor(SoloScore score, MySqlConnection conn)
+        {
+            BeatmapScoringAttributes? scoreAttributes = conn.QuerySingleOrDefault<BeatmapScoringAttributes>(
+                "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
+                {
+                    BeatmapId = score.beatmap_id,
+                    RulesetId = score.ruleset_id,
+                });
+
+            return scoreAttributes;
         }
 
         private void flush(MySqlConnection conn, bool force = false)
