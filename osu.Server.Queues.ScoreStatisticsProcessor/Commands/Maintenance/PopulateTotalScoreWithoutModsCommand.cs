@@ -50,6 +50,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             await Task.Delay(5000, cancellationToken);
 
+            // prefetch a mapping of lazer / tachyon build IDs to string versions for later use.
+            // note that `osu_builds` has two kinds of rows for builds: "main" rows (with `stream_id` set),
+            // and "platform-specific" rows (with platform suffixes in `version`, as well as null `stream_id`).
+            // `scores.build_id` points at the *platform-specific* rows, so filtering by stream ID cannot be easily done here.
+            var lazerBuildVersionsById = (await conn.QueryAsync<Build>(@"SELECT `build_id`, `version` FROM `osu_builds`"))
+                .ToDictionary(build => build.build_id, build => build.version);
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 var scoresToPopulate = (await conn.QueryAsync<SoloScore>(
@@ -96,10 +103,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 var beatmapsById = (await conn.QueryAsync<Beatmap>(@"SELECT * FROM `osu_beatmaps` WHERE `beatmap_id` IN @ids", new { ids = beatmapIds }))
                     .ToDictionary(beatmap => beatmap.beatmap_id);
 
-                var buildIds = scoresToPopulate.Select(score => score.build_id).Where(id => id != null).Cast<ushort>().ToHashSet();
-                var buildsById = (await conn.QueryAsync<Build>(@"SELECT * FROM `osu_builds` WHERE `build_id` IN @ids", new { ids = buildIds }))
-                    .ToDictionary(build => build.build_id);
-
                 foreach (var score in scoresToPopulate)
                 {
                     if (!beatmapsById.TryGetValue(score.beatmap_id, out var beatmap))
@@ -111,10 +114,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     score.beatmap = beatmap;
                     var scoreInfo = score.ToScoreInfo();
 
-                    if (score.build_id == null || !buildsById.TryGetValue(score.build_id.Value, out Build? build))
+                    if (score.build_id == null || !lazerBuildVersionsById.TryGetValue(score.build_id.Value, out string? buildVersion))
                         throw new InvalidOperationException($"Aborting: score {score.id} has missing or invalid build ID of {score.build_id}!");
 
-                    scoreInfo.ClientVersion = build.version;
+                    scoreInfo.ClientVersion = buildVersion;
 
                     var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(scoreInfo.RulesetID);
 
