@@ -1221,5 +1221,166 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 100000, CancellationToken, score.Score);
         }
+
+        [Fact]
+        public async Task TestPopulateTotalScoreWithoutModsCommandDoesNothingWhenDryRun()
+        {
+            using var conn = Processor.GetDatabaseConnection();
+
+            var beatmap = AddBeatmap(b =>
+            {
+                b.beatmap_id = 2834369;
+                b.total_length = 309;
+                b.hit_length = 298;
+                b.countTotal = 2109;
+                b.countNormal = 1568;
+                b.countSlider = 266;
+                b.countSpinner = 3;
+                b.diff_drain = 4.5f;
+                b.diff_size = 5.4f;
+                b.diff_overall = 9;
+                b.diff_approach = 8.5f;
+                b.playmode = 0;
+                b.approved = BeatmapOnlineStatus.Ranked;
+                b.difficultyrating = 5.50778f;
+            });
+
+            var score = new SoloScore
+            {
+                // https://osu.ppy.sh/scores/3176143420
+                id = 3176143420,
+                user_id = 5182050,
+                ruleset_id = 0,
+                beatmap_id = beatmap.beatmap_id,
+                has_replay = true,
+                preserve = true,
+                ranked = true,
+                rank = ScoreRank.B,
+                passed = true,
+                accuracy = 0.859511,
+                max_combo = 617,
+                total_score = 200732,
+                ScoreData = new SoloScoreData
+                {
+                    Mods = [new APIMod(new OsuModNoFail()), new APIMod(new OsuModDoubleTime())],
+                    Statistics =
+                    {
+                        [HitResult.Ok] = 292,
+                        [HitResult.Meh] = 53,
+                        [HitResult.Miss] = 36,
+                        [HitResult.Great] = 1456,
+                        [HitResult.IgnoreHit] = 264,
+                        [HitResult.IgnoreMiss] = 22,
+                        [HitResult.LargeBonus] = 2,
+                        [HitResult.SmallBonus] = 21,
+                        [HitResult.LargeTickHit] = 189,
+                        [HitResult.LargeTickMiss] = 1,
+                        [HitResult.SliderTailHit] = 257,
+                    },
+                    MaximumStatistics =
+                    {
+                        [HitResult.Great] = 1837,
+                        [HitResult.IgnoreHit] = 266,
+                        [HitResult.LargeBonus] = 12,
+                        [HitResult.SmallBonus] = 22,
+                        [HitResult.LargeTickHit] = 190,
+                        [HitResult.SliderTailHit] = 266,
+                    },
+                },
+                pp = 171.482f,
+                legacy_score_id = null,
+                legacy_total_score = 0,
+                started_at = new DateTimeOffset(2024, 7, 17, 21, 39, 37, TimeSpan.Zero),
+                ended_at = new DateTimeOffset(2024, 7, 17, 21, 43, 5, TimeSpan.Zero),
+                build_id = 7596,
+            };
+
+            await conn.ExecuteAsync(@"INSERT INTO `osu_builds` (`build_id`, `version`, `stream_id`) VALUES (7596, '2024.625.2-lazer-windows', NULL)");
+
+            InsertScore(conn, new ScoreItem(score, new ProcessHistory()));
+
+            var populateCommand = new PopulateTotalScoreWithoutModsCommand
+            {
+                StartId = score.id,
+                DryRun = true,
+            };
+            await populateCommand.OnExecuteAsync(CancellationToken);
+
+            WaitForDatabaseState(@"SELECT JSON_VALUE(`data`, '$.total_score_without_mods') FROM `scores` WHERE `id` = @id", (int?)null, CancellationToken, score);
+        }
+
+        [Fact]
+        public async Task TestRecalculateModMultipliersCommandDoesNothingWhenDryRun()
+        {
+            using var conn = Processor.GetDatabaseConnection();
+
+            var beatmap = AddBeatmap(b =>
+            {
+                b.beatmap_id = 846105;
+                b.total_length = 144;
+                b.hit_length = 124;
+                b.countTotal = 850;
+                b.countNormal = 283;
+                b.countSlider = 279;
+                b.countSpinner = 3;
+                b.diff_drain = 7;
+                b.diff_size = 4.3f;
+                b.diff_overall = 9.3f;
+                b.diff_approach = 9.6f;
+                b.playmode = 0;
+                b.approved = BeatmapOnlineStatus.Ranked;
+                b.difficultyrating = 6.16647f;
+            });
+
+            var score = new SoloScore
+            {
+                // https://osu.ppy.sh/scores/5034698668
+                id = 5034698668,
+                user_id = 37777925,
+                beatmap_id = beatmap.beatmap_id,
+                ruleset_id = 3,
+                has_replay = true,
+                preserve = true,
+                ranked = true,
+                rank = ScoreRank.S,
+                accuracy = 0.996248f,
+                max_combo = 1171,
+                total_score = 987248,
+                ScoreData = new SoloScoreData
+                {
+                    Mods = [new APIMod(new ManiaModKey4())],
+                    Statistics =
+                    {
+                        [HitResult.Good] = 2,
+                        [HitResult.Great] = 226,
+                        [HitResult.Perfect] = 943,
+                        [HitResult.IgnoreHit] = 772,
+                    },
+                    MaximumStatistics =
+                    {
+                        [HitResult.Perfect] = 1171,
+                        [HitResult.IgnoreHit] = 772,
+                    },
+                    TotalScoreWithoutMods = 987248,
+                },
+                pp = 49.8456,
+                legacy_score_id = null,
+                legacy_total_score = 0,
+                started_at = new DateTimeOffset(2025, 6, 21, 5, 58, 31, TimeSpan.Zero),
+                ended_at = new DateTimeOffset(2025, 6, 21, 6, 0, 54, TimeSpan.Zero),
+                build_id = 8011,
+            };
+
+            InsertScore(conn, new ScoreItem(score, new ProcessHistory()));
+
+            var recalculateCommand = new RecalculateModMultipliersCommand
+            {
+                StartId = score.id,
+                DryRun = true,
+            };
+            await recalculateCommand.OnExecuteAsync(CancellationToken);
+
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 987248, CancellationToken, score);
+        }
     }
 }
