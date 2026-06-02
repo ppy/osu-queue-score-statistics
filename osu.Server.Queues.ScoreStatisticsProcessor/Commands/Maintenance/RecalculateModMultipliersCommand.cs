@@ -31,6 +31,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
         public bool DryRun { get; set; }
 
+        [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output verbose information on processing.")]
+        public bool Verbose { get; set; }
+
         private readonly StringBuilder sqlBuffer = new StringBuilder();
 
         private readonly ElasticQueuePusher elasticQueuePusher = new ElasticQueuePusher();
@@ -87,7 +90,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (!beatmapsById.TryGetValue(score.beatmap_id, out var beatmap))
                     {
-                        Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing beatmap");
+                        if (Verbose)
+                            Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing beatmap");
                         skipped++;
                         continue;
                     }
@@ -106,7 +110,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                         if (scoringAttributes == null)
                         {
-                            Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing scoring attributes");
+                            if (Verbose)
+                                Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing scoring attributes");
                             skipped++;
                             continue;
                         }
@@ -118,7 +123,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     {
                         if (scoreInfo.TotalScoreWithoutMods == 0 && scoreInfo.TotalScore != 0)
                         {
-                            Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing total score without mods");
+                            if (Verbose)
+                                Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing total score without mods");
                             skipped++;
                             continue;
                         }
@@ -131,12 +137,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (newTotalScore == oldTotalScore)
                     {
-                        Console.WriteLine($"[{score.id,11} {source}] Skipped due to no change in score");
+                        if (Verbose)
+                            Console.WriteLine($"[{score.id,11} {source}] Skipped due to no change in score");
                         skipped++;
                         continue;
                     }
 
-                    Console.WriteLine($"[{score.id,11} {source}] Updating score: {oldTotalScore,8} (old) -> {newTotalScore,8} (new)");
+                    if (Verbose)
+                        Console.WriteLine($"[{score.id,11} {source}] Updating score: {oldTotalScore,8} (old) -> {newTotalScore,8} (new)");
 
                     sqlBuffer.Append($@"UPDATE `scores` SET `total_score` = {newTotalScore} WHERE `id` = {score.id};");
                     elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
