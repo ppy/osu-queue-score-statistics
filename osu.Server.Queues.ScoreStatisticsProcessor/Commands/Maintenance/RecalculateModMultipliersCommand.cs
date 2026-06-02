@@ -107,6 +107,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         if (scoringAttributes == null)
                         {
                             Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing scoring attributes");
+                            skipped++;
                             continue;
                         }
 
@@ -118,6 +119,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         if (scoreInfo.TotalScoreWithoutMods == 0 && scoreInfo.TotalScore != 0)
                         {
                             Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing total score without mods");
+                            skipped++;
                             continue;
                         }
 
@@ -130,6 +132,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     if (newTotalScore == oldTotalScore)
                     {
                         Console.WriteLine($"[{score.id,11} {source}] Skipped due to no change in score");
+                        skipped++;
                         continue;
                     }
 
