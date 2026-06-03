@@ -654,7 +654,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         {
             public override string Name => "Invalid";
             public override LocalisableString Description => "Invalid";
-            public override double ScoreMultiplier => 1;
             public override string Acronym => "INVALID";
         }
     }
