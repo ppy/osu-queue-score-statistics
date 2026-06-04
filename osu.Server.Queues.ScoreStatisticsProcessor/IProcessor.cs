@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor
 {
@@ -39,7 +40,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <param name="conn">Database connection to use when executing queries and commands.</param>
         /// <param name="transaction">Ongoing database transactions.</param>
         /// <param name="postTransactionActions">Queue of relevant actions to execute after the transaction ends.</param>
-        void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions);
+        /// <param name="dogStatsd">Instance of <see cref="DogStatsdService"/> to use for collecting metrics.</param>
+        void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions,
+                                 DogStatsdService dogStatsd);
 
         /// <summary>
         /// Applies the effect of <paramref name="score"/> to all relevant statistics.
@@ -49,7 +52,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// <param name="conn">Database connection to use when executing queries and commands.</param>
         /// <param name="transaction">Ongoing database transactions.</param>
         /// <param name="postTransactionActions">Queue of relevant actions to execute after the transaction ends.</param>
-        void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions);
+        /// <param name="dogStatsd">Instance of <see cref="DogStatsdService"/> to use for collecting metrics.</param>
+        void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions, DogStatsdService dogStatsd);
 
         /// <summary>
         /// Adjust any global statistics outside of the user transaction.

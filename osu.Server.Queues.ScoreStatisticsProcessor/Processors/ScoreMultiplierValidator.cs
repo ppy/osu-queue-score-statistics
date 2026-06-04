@@ -10,6 +10,7 @@ using MySqlConnector;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -22,11 +23,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         // Must run before any processor that reads total score.
         public int Order => int.MinValue;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions,
+                                        DogStatsdService dogStatsd)
         {
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions, DogStatsdService dogStatsd)
         {
             if (score.ScoreData.TotalScoreWithoutMods is not long totalScoreWithoutMods)
             {
