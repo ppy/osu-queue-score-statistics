@@ -31,10 +31,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public int BatchSize { get; set; } = 5000;
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
+        [MemberNotNullWhen(false, nameof(elasticQueuePusher))]
         public bool DryRun { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output verbose information on processing.")]
-        [MemberNotNullWhen(false, nameof(elasticQueuePusher))]
         public bool Verbose { get; set; }
 
         private readonly StringBuilder sqlBuffer = new StringBuilder();
@@ -188,7 +188,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (elasticItems.Count > 0)
                     {
-                        elasticQueuePusher!.PushToQueue(elasticItems.ToList());
+                        elasticQueuePusher.PushToQueue(elasticItems.ToList());
                         Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                     }
                 }
