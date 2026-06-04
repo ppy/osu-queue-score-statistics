@@ -136,11 +136,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var recalculateCommand = new RecalculateModMultipliersCommand { StartId = score.id };
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 1001683, CancellationToken, score);
+            // `StandardisedScoreMigrationTools.UpdateFromLegacy()` calculates `TotalScoreWithoutMods` as 894871
+            // 894871 * 1.23 (DT) * 1.09 (HR) * 0.985 (CL) = 1181757.2464545 ≈ 1181757
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 1181757, CancellationToken, score);
 
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 1001683, CancellationToken, score);
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 1181757, CancellationToken, score);
         }
 
         /// <summary>
@@ -237,11 +239,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var recalculateCommand = new RecalculateModMultipliersCommand { StartId = score.id };
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 239050, CancellationToken, score);
+            // 452747 * 1.23 (DT) * 0.8 (EZ) * 0.985 (CL) = 438820.50228 ≈ 438821
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 438821, CancellationToken, score);
 
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 239050, CancellationToken, score);
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 438821, CancellationToken, score);
         }
 
         /// <summary>
@@ -327,7 +330,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var recalculateCommand = new RecalculateModMultipliersCommand { StartId = score.id };
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 417278, CancellationToken, score);
+            // `StandardisedScoreMigrationTools.UpdateFromLegacy()` calculates `TotalScoreWithoutMods` as 434665
+            // 434665 * 0.985 (CL) = 428145.025 ≈ 428145
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 428145, CancellationToken, score);
         }
 
         /// <summary>
@@ -525,11 +530,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var recalculateCommand = new RecalculateModMultipliersCommand { StartId = score.id };
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 200732, CancellationToken, score);
+            // 364967 * 0.5 (NF) * 1.23 (DT) = 224454.705 ≈ 224455
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 224455, CancellationToken, score);
 
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 200732, CancellationToken, score);
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 224455, CancellationToken, score);
         }
 
         /// <summary>
@@ -724,11 +730,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var recalculateCommand = new RecalculateModMultipliersCommand { StartId = score.id };
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 468585, CancellationToken, score);
+            // 379126 * 1.09 (HR) * 1.23 (NC) * 1.04 (HD) = 528625.997328 ≈ 528626
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 528626, CancellationToken, score);
 
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 468585, CancellationToken, score);
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 528626, CancellationToken, score);
         }
 
         /// <summary>
@@ -827,11 +834,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var recalculateCommand = new RecalculateModMultipliersCommand { StartId = score.id };
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 84678, CancellationToken, score);
+            // 156811 * 1.174 (NC 1.49x) * 0.65 (DA, AR portion) * 0.75 (DA, OD portion) = 89746.855575 ≈ 89747
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 89747, CancellationToken, score);
 
             await recalculateCommand.OnExecuteAsync(CancellationToken);
 
-            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 84678, CancellationToken, score);
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 89747, CancellationToken, score);
         }
 
         /// <summary>
