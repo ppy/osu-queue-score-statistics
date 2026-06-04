@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -32,11 +33,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public bool DryRun { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output verbose information on processing.")]
+        [MemberNotNullWhen(false, nameof(elasticQueuePusher))]
         public bool Verbose { get; set; }
 
         private readonly StringBuilder sqlBuffer = new StringBuilder();
 
-        private readonly ElasticQueuePusher elasticQueuePusher = new ElasticQueuePusher();
+        private ElasticQueuePusher? elasticQueuePusher;
+
         private readonly List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
 
         [UsedImplicitly]
@@ -51,10 +54,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             Console.WriteLine();
             Console.WriteLine($"Recalculating total score in line with new mod multipliers, starting from ID {lastId}");
-            Console.WriteLine($"Indexing to elastic queue(s) {elasticQueuePusher.ActiveQueues}");
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
+            else
+            {
+                elasticQueuePusher = new ElasticQueuePusher();
+                Console.WriteLine($"Indexing to elastic queue(s) {elasticQueuePusher.ActiveQueues}");
+            }
 
             await Task.Delay(5000, cancellationToken);
 
@@ -192,7 +199,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (elasticItems.Count > 0)
                     {
-                        elasticQueuePusher.PushToQueue(elasticItems.ToList());
+                        elasticQueuePusher!.PushToQueue(elasticItems.ToList());
                         Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                     }
                 }
