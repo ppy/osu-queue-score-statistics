@@ -17,6 +17,7 @@ using osu.Game.Rulesets.Scoring;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using BeatmapStore = osu.Server.Queues.ScoreStatisticsProcessor.Stores.BeatmapStore;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -41,6 +42,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         private ElasticQueuePusher? elasticQueuePusher;
 
         private readonly List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
+
+        private Dictionary<uint, Beatmap> beatmapsById = new Dictionary<uint, Beatmap>();
 
         [UsedImplicitly]
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
@@ -87,15 +90,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     continue;
                 }
 
-                uint[] beatmapIds = scoresWithMods.Select(score => score.beatmap_id).Distinct().ToArray();
-                var beatmapsById = (await conn.QueryAsync<Beatmap>(@"SELECT * FROM `osu_beatmaps` WHERE `beatmap_id` IN @ids", new { ids = beatmapIds }))
-                    .ToDictionary(beatmap => beatmap.beatmap_id);
-
                 foreach (var score in scoresWithMods)
                 {
                     string source = score.is_legacy_score ? "stable" : "lazer ";
 
-                    if (!beatmapsById.TryGetValue(score.beatmap_id, out var beatmap))
+                    var beatmap = await BeatmapStore.GetBeatmapAsync(score.beatmap_id, conn);
+
+                    if (beatmap == null)
                     {
                         if (Verbose)
                             Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing beatmap");
