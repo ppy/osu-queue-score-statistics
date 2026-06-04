@@ -43,8 +43,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private readonly List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
 
-        private Dictionary<uint, Beatmap> beatmapsById = new Dictionary<uint, Beatmap>();
-
         [UsedImplicitly]
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
