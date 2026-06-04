@@ -17,6 +17,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
     [UsedImplicitly]
     public class ScoreMultiplierValidator : IProcessor
     {
+        private const string scores_modified_metric = $@"{nameof(ScoreMultiplierValidator)}.scores_modified";
+
         public bool RunOnFailedScores => true;
         public bool RunOnLegacyScores => true;
 
@@ -32,7 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         {
             if (score.ScoreData.TotalScoreWithoutMods is not long totalScoreWithoutMods)
             {
-                // TODO: probably add some visibility measure to track how often this is happening
+                dogStatsd.Increment(scores_modified_metric, tags: ["unranked"]);
                 throw new ProcessingAbortedException("Score is missing total score without mods.");
             }
 
@@ -42,13 +44,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             if (expectedTotalScore != score.total_score)
             {
-                // TODO: probably add some visibility measure to track how often this is happening
                 score.total_score = expectedTotalScore;
                 conn.Execute(@"UPDATE `scores` SET `total_score` = @expectedTotal WHERE `id` = @id", new
                 {
                     expectedTotal = expectedTotalScore,
                     id = score.id,
                 }, transaction);
+                dogStatsd.Increment(scores_modified_metric, tags: ["total_score_corrected"]);
             }
         }
 
