@@ -350,8 +350,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
         public static BeatmapScoringAttributes? GetCachedScoringAttributes(BeatmapLookup lookup)
         {
+            if (scoring_attributes_cache.TryGetValue(lookup, out var existing))
+                return existing;
+
             using (var conn = DatabaseAccess.GetConnection())
-                return GetCachedScoringAttributes(lookup, conn);
+            {
+                BeatmapScoringAttributes? scoreAttributes = conn.QuerySingleOrDefault<BeatmapScoringAttributes>(
+                    "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
+                    {
+                        BeatmapId = lookup.BeatmapId,
+                        RulesetId = lookup.RulesetId,
+                    });
+
+                return scoring_attributes_cache[lookup] = scoreAttributes;
+            }
         }
 
         public static BeatmapScoringAttributes? GetCachedScoringAttributes(BeatmapLookup lookup, MySqlConnection conn)
