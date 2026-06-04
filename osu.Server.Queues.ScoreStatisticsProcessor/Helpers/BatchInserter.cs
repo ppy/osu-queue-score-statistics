@@ -294,7 +294,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             // A special hit result is used to pad out the combo value to match, based on the max combo from the beatmap attributes.
             int maxComboFromStatistics = scoreInfo.MaximumStatistics.Where(kvp => kvp.Key.AffectsCombo()).Select(kvp => kvp.Value).DefaultIfEmpty(0).Sum();
 
-            var scoreAttributes = getScoringAttributes(new BeatmapLookup(highScore.beatmap_id, rulesetId));
+            var scoreAttributes = GetCachedScoringAttributes(new BeatmapLookup(highScore.beatmap_id, rulesetId));
 
             if (scoreAttributes == null)
             {
@@ -348,14 +348,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         private static readonly ConcurrentDictionary<BeatmapLookup, BeatmapScoringAttributes?> scoring_attributes_cache =
             new ConcurrentDictionary<BeatmapLookup, BeatmapScoringAttributes?>();
 
-        private static BeatmapScoringAttributes? getScoringAttributes(BeatmapLookup lookup)
+        public static BeatmapScoringAttributes? GetCachedScoringAttributes(BeatmapLookup lookup)
         {
             if (scoring_attributes_cache.TryGetValue(lookup, out var existing))
                 return existing;
 
-            using (var connection = DatabaseAccess.GetConnection())
+            using (var conn = DatabaseAccess.GetConnection())
             {
-                BeatmapScoringAttributes? scoreAttributes = connection.QuerySingleOrDefault<BeatmapScoringAttributes>(
+                BeatmapScoringAttributes? scoreAttributes = conn.QuerySingleOrDefault<BeatmapScoringAttributes>(
                     "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
                     {
                         BeatmapId = lookup.BeatmapId,
@@ -364,6 +364,21 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
                 return scoring_attributes_cache[lookup] = scoreAttributes;
             }
+        }
+
+        public static BeatmapScoringAttributes? GetCachedScoringAttributes(BeatmapLookup lookup, MySqlConnection conn)
+        {
+            if (scoring_attributes_cache.TryGetValue(lookup, out var existing))
+                return existing;
+
+            BeatmapScoringAttributes? scoreAttributes = conn.QuerySingleOrDefault<BeatmapScoringAttributes>(
+                "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
+                {
+                    BeatmapId = lookup.BeatmapId,
+                    RulesetId = lookup.RulesetId,
+                });
+
+            return scoring_attributes_cache[lookup] = scoreAttributes;
         }
 
         private static readonly ConcurrentDictionary<int, LegacyBeatmapConversionDifficultyInfo> difficulty_info_cache =
@@ -432,7 +447,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 
         private record RulesetCache(Ruleset Ruleset, HitResult MaxBasicResult, Mod ClassicMod);
 
-        private record BeatmapLookup(int BeatmapId, int RulesetId)
+        public record BeatmapLookup(int BeatmapId, int RulesetId)
         {
             public override string ToString()
             {

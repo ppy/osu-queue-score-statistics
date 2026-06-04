@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -16,6 +17,7 @@ using osu.Game.Rulesets.Scoring;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using BeatmapStore = osu.Server.Queues.ScoreStatisticsProcessor.Stores.BeatmapStore;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 {
@@ -29,6 +31,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public int BatchSize { get; set; } = 5000;
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
+        [MemberNotNullWhen(false, nameof(elasticQueuePusher))]
         public bool DryRun { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output verbose information on processing.")]
@@ -36,7 +39,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private readonly StringBuilder sqlBuffer = new StringBuilder();
 
-        private readonly ElasticQueuePusher elasticQueuePusher = new ElasticQueuePusher();
+        private ElasticQueuePusher? elasticQueuePusher;
+
         private readonly List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
 
         [UsedImplicitly]
@@ -51,10 +55,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             Console.WriteLine();
             Console.WriteLine($"Recalculating total score in line with new mod multipliers, starting from ID {lastId}");
-            Console.WriteLine($"Indexing to elastic queue(s) {elasticQueuePusher.ActiveQueues}");
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
+            else
+            {
+                elasticQueuePusher = new ElasticQueuePusher();
+                Console.WriteLine($"Indexing to elastic queue(s) {elasticQueuePusher.ActiveQueues}");
+            }
 
             await Task.Delay(5000, cancellationToken);
 
@@ -80,15 +88,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     continue;
                 }
 
-                uint[] beatmapIds = scoresWithMods.Select(score => score.beatmap_id).Distinct().ToArray();
-                var beatmapsById = (await conn.QueryAsync<Beatmap>(@"SELECT * FROM `osu_beatmaps` WHERE `beatmap_id` IN @ids", new { ids = beatmapIds }))
-                    .ToDictionary(beatmap => beatmap.beatmap_id);
-
                 foreach (var score in scoresWithMods)
                 {
                     string source = score.is_legacy_score ? "stable" : "lazer ";
 
-                    if (!beatmapsById.TryGetValue(score.beatmap_id, out var beatmap))
+                    var beatmap = await BeatmapStore.GetBeatmapAsync(score.beatmap_id, conn);
+
+                    if (beatmap == null)
                     {
                         if (Verbose)
                             Console.WriteLine($"[{score.id,11} {source}] Skipped due to missing beatmap");
@@ -106,7 +112,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (score.is_legacy_score)
                     {
-                        var scoringAttributes = getScoringAttributesFor(score, conn)?.ToAttributes();
+                        var scoringAttributes = BatchInserter.GetCachedScoringAttributes(new BatchInserter.BeatmapLookup((int)score.beatmap_id, score.ruleset_id), conn)?.ToAttributes();
 
                         if (scoringAttributes == null)
                         {
@@ -161,18 +167,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             flush(conn, true);
 
             return 0;
-        }
-
-        private static BeatmapScoringAttributes? getScoringAttributesFor(SoloScore score, MySqlConnection conn)
-        {
-            BeatmapScoringAttributes? scoreAttributes = conn.QuerySingleOrDefault<BeatmapScoringAttributes>(
-                "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
-                {
-                    BeatmapId = score.beatmap_id,
-                    RulesetId = score.ruleset_id,
-                });
-
-            return scoreAttributes;
         }
 
         private void flush(MySqlConnection conn, bool force = false)
