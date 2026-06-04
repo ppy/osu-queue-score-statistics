@@ -163,7 +163,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 [HitResult.LargeBonus] = int.MaxValue
             };
-            score.Score.total_score = 5_000_010;
+            score.Score.ScoreData.TotalScoreWithoutMods = score.Score.total_score = 5_000_010;
             score.Score.started_at = DateTimeOffset.Now;
             score.Score.ended_at = score.Score.started_at.Value.AddSeconds(1);
 
@@ -193,7 +193,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             {
                 [HitResult.LargeBonus] = int.MaxValue
             };
-            score.Score.total_score = 5_000_010;
+            score.Score.ScoreData.TotalScoreWithoutMods = score.Score.total_score = 5_000_010;
             score.Score.started_at = DateTimeOffset.Now;
             score.Score.ended_at = score.Score.started_at.Value.AddSeconds(1);
 

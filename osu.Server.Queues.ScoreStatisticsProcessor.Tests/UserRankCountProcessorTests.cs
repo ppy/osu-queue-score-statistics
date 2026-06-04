@@ -178,7 +178,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
                 item.Score.rank = ScoreRank.A;
-                item.Score.total_score = 600_000;
+                item.Score.ScoreData.TotalScoreWithoutMods = item.Score.total_score = 600_000;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -188,7 +188,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
                 item.Score.rank = ScoreRank.X;
-                item.Score.total_score = 500_000;
+                item.Score.ScoreData.TotalScoreWithoutMods = item.Score.total_score = 500_000;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -348,7 +348,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
                 item.Score.rank = ScoreRank.A;
-                item.Score.total_score = 700_000;
+                item.Score.ScoreData.TotalScoreWithoutMods = item.Score.total_score = 700_000;
             });
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>
             {
@@ -358,7 +358,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             var secondScore = SetScoreForBeatmap(TEST_BEATMAP_ID, item =>
             {
                 item.Score.rank = ScoreRank.X;
-                item.Score.total_score = 600_000;
+                item.Score.ScoreData.TotalScoreWithoutMods = item.Score.total_score = 600_000;
             });
 
             waitForRankCounts("osu_user_stats", new Dictionary<ScoreRank, int>

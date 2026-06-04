@@ -174,7 +174,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
             {
                 s.Score.ranked = s.Score.preserve = true;
-                s.Score.total_score = 500_000;
+                s.Score.ScoreData.TotalScoreWithoutMods = s.Score.total_score = 500_000;
                 s.Score.rank = ScoreRank.A;
                 s.Score.ruleset_id = 3;
             });
@@ -184,7 +184,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
             {
                 s.Score.ranked = s.Score.preserve = true;
-                s.Score.total_score = 300_000; // same map and keymode as above, lower score => should not count
+                s.Score.ScoreData.TotalScoreWithoutMods = s.Score.total_score = 300_000; // same map and keymode as above, lower score => should not count
                 s.Score.rank = ScoreRank.S;
                 s.Score.ruleset_id = 3;
             });
@@ -194,7 +194,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
             {
                 s.Score.ranked = s.Score.preserve = true;
-                s.Score.total_score = 700_000; // same map and keymode as above, higher score => should count
+                s.Score.ScoreData.TotalScoreWithoutMods = s.Score.total_score = 700_000; // same map and keymode as above, higher score => should count
                 s.Score.rank = ScoreRank.S;
                 s.Score.ruleset_id = 3;
             });
@@ -204,7 +204,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(beatmap7K.beatmap_id, s =>
             {
                 s.Score.ranked = s.Score.preserve = true;
-                s.Score.total_score = 200_000;
+                s.Score.ScoreData.TotalScoreWithoutMods = s.Score.total_score = 200_000;
                 s.Score.ruleset_id = 3;
                 s.Score.rank = ScoreRank.A;
             });
@@ -235,7 +235,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
             {
                 s.Score.ranked = s.Score.preserve = true;
-                s.Score.total_score = 500_000;
+                s.Score.ScoreData.TotalScoreWithoutMods = s.Score.total_score = 500_000;
                 s.Score.rank = ScoreRank.A;
                 s.Score.ruleset_id = 3;
             });
@@ -245,7 +245,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
             {
                 s.Score.ranked = s.Score.preserve = true;
-                s.Score.total_score = 300_000; // same map and keymode as above, lower score => should not count
+                s.Score.ScoreData.TotalScoreWithoutMods = s.Score.total_score = 300_000; // same map and keymode as above, lower score => should not count
                 s.Score.rank = ScoreRank.S;
                 s.Score.ruleset_id = 3;
             });
@@ -255,7 +255,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(beatmap4K.beatmap_id, s =>
             {
                 s.Score.ranked = s.Score.preserve = true;
-                s.Score.total_score = 700_000; // same map and keymode as above, higher score => should count
+                s.Score.ScoreData.TotalScoreWithoutMods = s.Score.total_score = 700_000; // same map and keymode as above, higher score => should count
                 s.Score.rank = ScoreRank.S;
                 s.Score.ruleset_id = 3;
             });
