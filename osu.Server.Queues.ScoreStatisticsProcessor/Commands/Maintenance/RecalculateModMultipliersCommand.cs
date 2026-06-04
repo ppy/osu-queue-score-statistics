@@ -113,7 +113,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (score.is_legacy_score)
                     {
-                        var scoringAttributes = getScoringAttributesFor(score, conn)?.ToAttributes();
+                        var scoringAttributes = BatchInserter.GetCachedScoringAttributes(new BatchInserter.BeatmapLookup((int)score.beatmap_id, score.ruleset_id), conn)?.ToAttributes();
 
                         if (scoringAttributes == null)
                         {
@@ -168,18 +168,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             flush(conn, true);
 
             return 0;
-        }
-
-        private static BeatmapScoringAttributes? getScoringAttributesFor(SoloScore score, MySqlConnection conn)
-        {
-            BeatmapScoringAttributes? scoreAttributes = conn.QuerySingleOrDefault<BeatmapScoringAttributes>(
-                "SELECT * FROM osu_beatmap_scoring_attribs WHERE beatmap_id = @BeatmapId AND mode = @RulesetId", new
-                {
-                    BeatmapId = score.beatmap_id,
-                    RulesetId = score.ruleset_id,
-                });
-
-            return scoreAttributes;
         }
 
         private void flush(MySqlConnection conn, bool force = false)
