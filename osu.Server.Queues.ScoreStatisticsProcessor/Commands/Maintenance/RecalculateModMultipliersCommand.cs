@@ -37,6 +37,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output verbose information on processing.")]
         public bool Verbose { get; set; }
 
+        /// <summary>
+        /// Whether to push changed scores to the ES indexing queue.
+        /// </summary>
+        [Option(CommandOptionType.SingleOrNoValue, Template = "--run-indexing")]
+        [MemberNotNullWhen(true, nameof(elasticQueuePusher))]
+        public bool RunIndexing { get; set; }
+
         private readonly StringBuilder sqlBuffer = new StringBuilder();
 
         private ElasticQueuePusher? elasticQueuePusher;
@@ -58,7 +65,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
-            else
+            else if (RunIndexing)
             {
                 elasticQueuePusher = new ElasticQueuePusher();
                 Console.WriteLine($"Indexing to elastic queue(s) {elasticQueuePusher.ActiveQueues}");
@@ -153,7 +160,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         Console.WriteLine($"[{score.id,11} {source}] Updating score: {oldTotalScore,8} (old) -> {newTotalScore,8} (new)");
 
                     sqlBuffer.Append($@"UPDATE `scores` SET `total_score` = {newTotalScore} WHERE `id` = {score.id};");
-                    elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
+                    if (RunIndexing)
+                        elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
                     updated++;
                 }
 
@@ -184,7 +192,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
                     conn.Execute(sqlBuffer.ToString());
 
-                    if (elasticItems.Count > 0)
+                    if (RunIndexing && elasticItems.Count > 0)
                     {
                         elasticQueuePusher.PushToQueue(elasticItems.ToList());
                         Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
