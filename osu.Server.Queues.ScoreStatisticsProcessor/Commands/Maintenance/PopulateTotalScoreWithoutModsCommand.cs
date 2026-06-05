@@ -118,6 +118,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         throw new InvalidOperationException($"Aborting: score {score.id} has missing or invalid build ID of {score.build_id}!");
 
                     scoreInfo.ClientVersion = buildVersion;
+                    // This is hardcoding the total score version preceding the first (and simultaneously last, at time of writing) mod multiplier rebalance.
+                    // This information cannot be easily populated using the `scores` table alone, as it's only in replays,
+                    // and so the simplest thing to do is to hardcode it.
+                    // This command should hopefully be never needed again at the time of writing (as it has already been run on production),
+                    // but if it is, this hardcoding should be HEAVILY scrutinised in terms of its correctness.
+                    scoreInfo.TotalScoreVersion = 30000016;
 
                     var ruleset = LegacyRulesetHelper.GetRulesetFromLegacyId(scoreInfo.RulesetID);
 
