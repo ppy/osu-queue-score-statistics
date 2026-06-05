@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -31,7 +30,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public int BatchSize { get; set; } = 5000;
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
-        [MemberNotNullWhen(false, nameof(elasticQueuePusher))]
         public bool DryRun { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "-v|--verbose", Description = "Output verbose information on processing.")]
@@ -41,7 +39,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         /// Whether to push changed scores to the ES indexing queue.
         /// </summary>
         [Option(CommandOptionType.SingleOrNoValue, Template = "--run-indexing")]
-        [MemberNotNullWhen(true, nameof(elasticQueuePusher))]
         public bool RunIndexing { get; set; }
 
         private readonly StringBuilder sqlBuffer = new StringBuilder();
@@ -194,7 +191,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (RunIndexing && elasticItems.Count > 0)
                     {
-                        elasticQueuePusher.PushToQueue(elasticItems.ToList());
+                        elasticQueuePusher!.PushToQueue(elasticItems.ToList());
                         Console.WriteLine($"Queued {elasticItems.Count} items for indexing");
                     }
                 }
