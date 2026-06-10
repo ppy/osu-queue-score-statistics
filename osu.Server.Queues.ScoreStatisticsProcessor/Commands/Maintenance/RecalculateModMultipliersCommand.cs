@@ -29,6 +29,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleValue, Template = "--batch-size")]
         public int BatchSize { get; set; } = 5000;
 
+        [Option(CommandOptionType.SingleValue, Template = "--flush-size")]
+        public int FlushSize { get; set; } = 1000;
+
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
         public bool DryRun { get; set; }
 
@@ -41,11 +44,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         [Option(CommandOptionType.SingleOrNoValue, Template = "--run-indexing")]
         public bool RunIndexing { get; set; }
 
-        private readonly StringBuilder sqlBuffer = new StringBuilder();
-
         private ElasticQueuePusher? elasticQueuePusher;
 
         private readonly List<ElasticQueuePusher.ElasticScoreItem> elasticItems = new List<ElasticQueuePusher.ElasticScoreItem>();
+
+        private readonly List<(ulong id, long newTotalScore)> pendingUpdates = new List<(ulong id, long newTotalScore)>();
 
         [UsedImplicitly]
         public async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
@@ -94,6 +97,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                 foreach (var score in scoresWithMods)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     string source = score.is_legacy_score ? "stable" : "lazer ";
 
                     var beatmap = await BeatmapStore.GetBeatmapAsync(score.beatmap_id, conn);
@@ -156,10 +161,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                     if (Verbose)
                         Console.WriteLine($"[{score.id,11} {source}] Updating score: {oldTotalScore,8} (old) -> {newTotalScore,8} (new)");
 
-                    sqlBuffer.Append($@"UPDATE `scores` SET `total_score` = {newTotalScore} WHERE `id` = {score.id};");
+                    pendingUpdates.Add((score.id, newTotalScore));
                     if (RunIndexing)
                         elasticItems.Add(new ElasticQueuePusher.ElasticScoreItem { ScoreId = (long?)score.id });
                     updated++;
+
+                    flush(conn);
                 }
 
                 lastId += (ulong)BatchSize;
@@ -174,20 +181,28 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             return 0;
         }
 
+        private readonly StringBuilder statementBuilder = new StringBuilder();
+
         private void flush(MySqlConnection conn, bool force = false)
         {
-            int bufferLength = sqlBuffer.Length;
-
-            if (bufferLength == 0)
-                return;
-
-            if (bufferLength > 1024 || force)
+            if (pendingUpdates.Count > FlushSize || force)
             {
                 if (!DryRun)
                 {
                     Console.WriteLine();
-                    Console.WriteLine($"Flushing sql batch ({bufferLength:N0} bytes)");
-                    conn.Execute(sqlBuffer.ToString());
+                    Console.WriteLine($"Flushing sql updates ({pendingUpdates.Count:N0} rows)");
+
+                    statementBuilder.Clear();
+                    statementBuilder.AppendLine("UPDATE `scores` SET `total_score` = CASE `id`");
+
+                    foreach (var row in pendingUpdates)
+                        statementBuilder.AppendLine($"WHEN {row.id} THEN {row.newTotalScore}");
+
+                    statementBuilder.AppendLine("END WHERE `id` IN (");
+                    statementBuilder.AppendLine(string.Join(',', pendingUpdates.Select(u => u.id)));
+                    statementBuilder.AppendLine(")");
+
+                    conn.Execute(statementBuilder.ToString());
 
                     if (RunIndexing && elasticItems.Count > 0)
                     {
@@ -197,7 +212,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 }
 
                 elasticItems.Clear();
-                sqlBuffer.Clear();
+                statementBuilder.Clear();
+                pendingUpdates.Clear();
             }
         }
     }
