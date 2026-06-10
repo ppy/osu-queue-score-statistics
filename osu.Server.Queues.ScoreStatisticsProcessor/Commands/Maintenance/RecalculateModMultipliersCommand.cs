@@ -189,20 +189,23 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             {
                 if (!DryRun)
                 {
-                    Console.WriteLine();
-                    Console.WriteLine($"Flushing sql updates ({pendingUpdates.Count:N0} rows)");
+                    if (pendingUpdates.Count > 0)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine($"Flushing sql updates ({pendingUpdates.Count:N0} rows)");
 
-                    statementBuilder.Clear();
-                    statementBuilder.AppendLine("UPDATE `scores` SET `total_score` = CASE `id`");
+                        statementBuilder.Clear();
+                        statementBuilder.AppendLine("UPDATE `scores` SET `total_score` = CASE `id`");
 
-                    foreach (var row in pendingUpdates)
-                        statementBuilder.AppendLine($"WHEN {row.id} THEN {row.newTotalScore}");
+                        foreach (var row in pendingUpdates)
+                            statementBuilder.AppendLine($"WHEN {row.id} THEN {row.newTotalScore}");
 
-                    statementBuilder.AppendLine("END WHERE `id` IN (");
-                    statementBuilder.AppendLine(string.Join(',', pendingUpdates.Select(u => u.id)));
-                    statementBuilder.AppendLine(")");
+                        statementBuilder.AppendLine("END WHERE `id` IN (");
+                        statementBuilder.AppendLine(string.Join(',', pendingUpdates.Select(u => u.id)));
+                        statementBuilder.AppendLine(")");
 
-                    conn.Execute(statementBuilder.ToString());
+                        conn.Execute(statementBuilder.ToString());
+                    }
 
                     if (RunIndexing && elasticItems.Count > 0)
                     {
