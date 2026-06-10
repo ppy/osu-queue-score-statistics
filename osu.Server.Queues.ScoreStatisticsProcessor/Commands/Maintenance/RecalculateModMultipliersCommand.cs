@@ -191,7 +191,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 {
                     if (pendingUpdates.Count > 0)
                     {
-                        Console.WriteLine();
                         Console.WriteLine($"Flushing sql updates ({pendingUpdates.Count:N0} rows)");
 
                         statementBuilder.Clear();
