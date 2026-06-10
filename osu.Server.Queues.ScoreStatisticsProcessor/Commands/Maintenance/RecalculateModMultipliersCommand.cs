@@ -185,7 +185,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
         private void flush(MySqlConnection conn, bool force = false)
         {
-            if (pendingUpdates.Count > FlushSize || force)
+            if (pendingUpdates.Count >= FlushSize || force)
             {
                 if (!DryRun)
                 {
