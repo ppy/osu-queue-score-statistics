@@ -452,6 +452,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 case 350:
                     return checkPack(3585) || checkPack(3586) || checkPack(3587) || checkPack(3588);
 
+                // Project Loved: Best of 2025
+                case 359:
+                    return checkPack(4452) || checkPack(4453) || checkPack(4454) || checkPack(4455);
+
+                // Chroma pack
+                case 360:
+                    return checkPack(4448);
+
+                // Mili pack
+                case 361:
+                    return checkPack(4449);
+
+                // 4K Globetrotter pack
+                case 362:
+                    return checkPack(4450);
+
+                // 7K World Cup Anthology pack
+                case 363:
+                    return checkPack(4451);
+
                 default:
                     return false;
             }
