@@ -1231,6 +1231,32 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
+        public async Task TestRecalculationSkippedWithoutCrashWhenTotalScoreTooHigh()
+        {
+            using var conn = Processor.GetDatabaseConnection();
+
+            var beatmap = AddBeatmap(b =>
+            {
+                b.beatmap_id = 5245944;
+            });
+
+            var score = CreateTestScore();
+            score.Score.beatmap_id = beatmap.beatmap_id;
+            score.Score.ScoreData.Mods = [new APIMod(new OsuModDoubleTime())];
+            score.Score.ScoreData.TotalScoreWithoutMods = uint.MaxValue;
+            score.Score.total_score = uint.MaxValue;
+            InsertScore(conn, score);
+
+            var populateCommand = new PopulateTotalScoreWithoutModsCommand { StartId = score.Score.id };
+            await populateCommand.OnExecuteAsync(CancellationToken);
+
+            var recalculateCommand = new RecalculateModMultipliersCommand { StartId = score.Score.id };
+            await recalculateCommand.OnExecuteAsync(CancellationToken);
+
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", uint.MaxValue, CancellationToken, score.Score);
+        }
+
+        [Fact]
         public async Task TestPopulateTotalScoreWithoutModsCommandDoesNothingWhenDryRun()
         {
             using var conn = Processor.GetDatabaseConnection();
