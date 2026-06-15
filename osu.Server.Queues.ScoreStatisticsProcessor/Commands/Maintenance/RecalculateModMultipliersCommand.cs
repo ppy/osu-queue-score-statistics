@@ -158,6 +158,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                         continue;
                     }
 
+                    if (newTotalScore > 5_000_000)
+                    {
+                        if (Verbose)
+                            Console.WriteLine($"[{score.id,11} {source}] Skipped due to suspiciously high score");
+                        skipped++;
+                        continue;
+                    }
+
                     if (Verbose)
                         Console.WriteLine($"[{score.id,11} {source}] Updating score: {oldTotalScore,8} (old) -> {newTotalScore,8} (new)");
 
