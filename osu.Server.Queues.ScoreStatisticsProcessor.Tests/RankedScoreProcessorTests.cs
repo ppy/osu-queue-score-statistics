@@ -78,7 +78,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.ranked = false);
             waitForRankedScore("osu_user_stats", 0);
 
-            SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.total_score = 50000);
+            SetScoreForBeatmap(TEST_BEATMAP_ID, s => s.Score.ScoreData.TotalScoreWithoutMods = s.Score.total_score = 50000);
             waitForRankedScore("osu_user_stats", 5041);
         }
 
@@ -139,7 +139,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                score.Score.total_score = 50000;
+                score.Score.ScoreData.TotalScoreWithoutMods = score.Score.total_score = 50000;
                 score.Score.ScoreData.Statistics[HitResult.Perfect] = 0;
                 score.Score.ScoreData.Statistics[HitResult.Ok] = 5;
             });
@@ -175,7 +175,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                score.Score.total_score = 50000;
+                score.Score.ScoreData.TotalScoreWithoutMods = score.Score.total_score = 50000;
                 score.Score.ScoreData.Statistics[HitResult.Perfect] = 0;
                 score.Score.ScoreData.Statistics[HitResult.Ok] = 5;
             });
@@ -206,7 +206,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             var secondScore = SetScoreForBeatmap(TEST_BEATMAP_ID, score =>
             {
-                score.Score.total_score = 50000;
+                score.Score.ScoreData.TotalScoreWithoutMods = score.Score.total_score = 50000;
                 score.Score.ScoreData.Statistics[HitResult.Perfect] = 0;
                 score.Score.ScoreData.Statistics[HitResult.Ok] = 5;
             });

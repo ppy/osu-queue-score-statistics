@@ -12,6 +12,7 @@ using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -50,11 +51,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         // This processor needs to run after the play count and hit statistics have been applied, at very least.
         public int Order => int.MaxValue - 1;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions,
+                                        DogStatsdService dogStatsd)
         {
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions, DogStatsdService dogStatsd)
         {
             if (score.beatmap!.approved <= 0)
                 return;

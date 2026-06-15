@@ -15,6 +15,7 @@ using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -26,11 +27,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         public bool RunOnFailedScores => false;
         public bool RunOnLegacyScores => true;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions,
+                                        DogStatsdService dogStatsd)
         {
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats fullRulesetStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void ApplyToUserStats(SoloScore score, UserStats fullRulesetStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions, DogStatsdService dogStatsd)
         {
             if (score.ruleset_id != 3)
                 return;

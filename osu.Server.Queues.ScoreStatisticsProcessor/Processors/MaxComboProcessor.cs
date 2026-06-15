@@ -10,6 +10,7 @@ using osu.Game.Beatmaps;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -23,12 +24,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions,
+                                        DogStatsdService dogStatsd)
         {
             // TODO: this will require access to stable scores to be implemented correctly.
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions, DogStatsdService dogStatsd)
         {
             Ruleset ruleset = ScoreStatisticsQueueProcessor.AVAILABLE_RULESETS.Single(r => r.RulesetInfo.OnlineID == score.ruleset_id);
 

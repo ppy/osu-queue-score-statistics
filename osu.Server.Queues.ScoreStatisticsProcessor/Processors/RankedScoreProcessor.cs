@@ -10,6 +10,7 @@ using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -20,7 +21,8 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnLegacyScores => false;
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions,
+                                        DogStatsdService dogStatsd)
         {
             if (!score.BeatmapValidForRankedCounts())
                 return;
@@ -45,7 +47,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             }
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions, DogStatsdService dogStatsd)
         {
             if (!score.BeatmapValidForRankedCounts())
                 return;
