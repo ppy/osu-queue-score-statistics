@@ -11,6 +11,7 @@ using Microsoft.Extensions.Caching.Memory;
 using MySqlConnector;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 {
@@ -30,11 +31,12 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private readonly ConcurrentDictionary<int, MemoryCache> rankScoreIndexPartitionCache =
             new ConcurrentDictionary<int, MemoryCache>();
 
-        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void RevertFromUserStats(SoloScore score, UserStats userStats, int previousVersion, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions,
+                                        DogStatsdService dogStatsd)
         {
         }
 
-        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions)
+        public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions, DogStatsdService dogStatsd)
         {
             var dbInfo = LegacyDatabaseHelper.GetRulesetSpecifics(score.ruleset_id);
 

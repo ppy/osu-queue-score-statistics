@@ -225,7 +225,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                                 byte version = item.ProcessHistory.processed_version;
 
                                 foreach (var p in enumerateValidProcessors(score))
-                                    p.RevertFromUserStats(score, userStats, version, conn, transaction, postTransactionActions);
+                                    p.RevertFromUserStats(score, userStats, version, conn, transaction, postTransactionActions, DogStatsd);
                             }
                             else
                             {
@@ -240,7 +240,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
                                 try
                                 {
-                                    p.ApplyToUserStats(score, userStats, conn, transaction, postTransactionActions);
+                                    p.ApplyToUserStats(score, userStats, conn, transaction, postTransactionActions, DogStatsd);
                                 }
                                 catch (ProcessingAbortedException abortException)
                                 {
