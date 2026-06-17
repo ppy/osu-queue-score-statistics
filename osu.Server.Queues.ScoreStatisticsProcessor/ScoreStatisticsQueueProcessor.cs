@@ -216,50 +216,43 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
                             return;
                         }
 
-                        if (score.IsValidForPlayTracking())
+                        // if required, we can rollback any previous version of processing then reapply with the latest.
+                        if (item.ProcessHistory != null)
                         {
-                            // if required, we can rollback any previous version of processing then reapply with the latest.
-                            if (item.ProcessHistory != null)
-                            {
-                                tags.Add("type:upgraded");
-                                byte version = item.ProcessHistory.processed_version;
+                            tags.Add("type:upgraded");
+                            byte version = item.ProcessHistory.processed_version;
 
-                                foreach (var p in enumerateValidProcessors(score))
-                                    p.RevertFromUserStats(score, userStats, version, conn, transaction, postTransactionActions, DogStatsd);
-                            }
-                            else
-                            {
-                                tags.Add("type:new");
-                            }
-
-                            item.Tags = tags.ToArray();
-
-                            foreach (IProcessor p in enumerateValidProcessors(score))
-                            {
-                                stopwatch.Restart();
-
-                                try
-                                {
-                                    p.ApplyToUserStats(score, userStats, conn, transaction, postTransactionActions, DogStatsd);
-                                }
-                                catch (ProcessingAbortedException abortException)
-                                {
-                                    Console.WriteLine($"Aborting processing of score {item.Score.id}: {abortException.Message}");
-                                    tags.Add("type:aborted");
-                                    transaction.Rollback();
-                                    conn.Execute("UPDATE `scores` SET `ranked` = 0 WHERE `id` = @scoreId", new { scoreId = score.id });
-                                    return;
-                                }
-
-                                DogStatsd.Timer("apply_time_elapsed", stopwatch.ElapsedMilliseconds, tags: item.Tags.Append($"processor:{p.GetType().ReadableName()}").ToArray());
-                            }
-
-                            DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
+                            foreach (var p in enumerateValidProcessors(score))
+                                p.RevertFromUserStats(score, userStats, version, conn, transaction, postTransactionActions, DogStatsd);
                         }
                         else
                         {
-                            tags.Add("type:too-short");
+                            tags.Add("type:new");
                         }
+
+                        item.Tags = tags.ToArray();
+
+                        foreach (IProcessor p in enumerateValidProcessors(score))
+                        {
+                            stopwatch.Restart();
+
+                            try
+                            {
+                                p.ApplyToUserStats(score, userStats, conn, transaction, postTransactionActions, DogStatsd);
+                            }
+                            catch (ProcessingAbortedException abortException)
+                            {
+                                Console.WriteLine($"Aborting processing of score {item.Score.id}: {abortException.Message}");
+                                tags.Add("type:aborted");
+                                transaction.Rollback();
+                                conn.Execute("UPDATE `scores` SET `ranked` = 0 WHERE `id` = @scoreId", new { scoreId = score.id });
+                                return;
+                            }
+
+                            DogStatsd.Timer("apply_time_elapsed", stopwatch.ElapsedMilliseconds, tags: item.Tags.Append($"processor:{p.GetType().ReadableName()}").ToArray());
+                        }
+
+                        DatabaseHelper.UpdateUserStatsAsync(userStats, conn, transaction).Wait();
 
                         updateHistoryEntry(item, conn, transaction);
 
@@ -314,6 +307,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
 
             if (score.is_legacy_score)
                 result = result.Where(p => p.RunOnLegacyScores);
+
+            if (!score.IsValidForPlayTracking())
+                result = result.Where(p => p.RunOnVeryShortPlays);
 
             return result;
         }
