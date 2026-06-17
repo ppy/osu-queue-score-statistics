@@ -126,7 +126,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                         highScore.date = DateTimeOffset.UnixEpoch;
                     }
 
-                    ScoreInfo referenceScore = CreateReferenceScore(ruleset.RulesetInfo.OnlineID, highScore);
+                    ScoreInfo referenceScore = CreateReferenceScore(rulesetId, highScore);
                     string serialisedScore = SerialiseScoreData(referenceScore);
 
                     Interlocked.Increment(ref insertCount);
