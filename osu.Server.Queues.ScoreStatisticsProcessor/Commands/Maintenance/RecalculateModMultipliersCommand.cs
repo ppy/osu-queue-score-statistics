@@ -121,6 +121,19 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
 
                     if (score.is_legacy_score)
                     {
+                        // this guard is designed to catch scenarios such as:
+                        // https://github.com/ppy/osu-queue-score-statistics/blob/c538ae9523b5e15145483f72a903b8a88f33733f/osu.Server.Queues.ScoreStatisticsProcessor/Helpers/BatchInserter.cs#L340-L345
+                        // https://github.com/ppy/osu-queue-score-statistics/blob/c538ae9523b5e15145483f72a903b8a88f33733f/osu.Server.Queues.ScoreStatisticsProcessor/Helpers/BatchInserter.cs#L364-L369
+                        // in particular the guards below get hit when importing non-high stable scores, which will have `legacy_score_id == 0` from
+                        // https://github.com/ppy/osu-queue-score-statistics/blob/c538ae9523b5e15145483f72a903b8a88f33733f/osu.Server.Queues.ScoreStatisticsProcessor/Helpers/BatchInserter.cs#L187-L190
+                        if (score.legacy_score_id == 0 && !score.preserve && score.total_score == 0)
+                        {
+                            if (Verbose)
+                                Console.WriteLine($"[{score.id,11} {source}] Skipped due to being broken non-preserved imported score");
+                            skipped++;
+                            continue;
+                        }
+
                         var scoringAttributes = BatchInserter.GetCachedScoringAttributes(new BatchInserter.BeatmapLookup((int)score.beatmap_id, score.ruleset_id), conn)?.ToAttributes();
 
                         if (scoringAttributes == null)

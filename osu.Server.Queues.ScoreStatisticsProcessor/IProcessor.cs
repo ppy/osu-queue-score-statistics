@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using MySqlConnector;
 using osu.Framework.Extensions.TypeExtensions;
+using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using StatsdClient;
 
@@ -30,6 +31,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor
         /// Whether this processor should be run on imported legacy scores.
         /// </summary>
         bool RunOnLegacyScores { get; }
+
+        /// <summary>
+        /// Whether this processor should be run on very short gameplay sessions (see <see cref="PlayValidityHelper.IsValidForPlayTracking"/>).
+        /// </summary>
+        bool RunOnVeryShortPlays => false;
 
         /// <summary>
         /// Reverts the effect of <paramref name="score"/> from all relevant statistics.

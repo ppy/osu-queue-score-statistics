@@ -21,6 +21,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public bool RunOnFailedScores => true;
         public bool RunOnLegacyScores => true;
+        public bool RunOnVeryShortPlays => true;
 
         // Must run before any processor that reads total score.
         public int Order => int.MinValue;

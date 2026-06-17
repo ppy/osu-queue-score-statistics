@@ -1416,5 +1416,83 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 987248, CancellationToken, score);
         }
+
+        [Fact]
+        public async Task TestStableScoreImportedInBrokenStateIsLeftAlone()
+        {
+            using var conn = Processor.GetDatabaseConnection();
+
+            var beatmap = AddBeatmap(b =>
+            {
+                b.beatmap_id = 4451949;
+                b.total_length = 287;
+                b.hit_length = 266;
+                b.countTotal = 6151;
+                b.countNormal = 6151;
+                b.countSlider = 0;
+                b.countSpinner = 0;
+                b.diff_drain = 8;
+                b.diff_size = 4;
+                b.diff_overall = 8;
+                b.diff_approach = 5;
+                b.playmode = 3;
+                b.approved = BeatmapOnlineStatus.Graveyard;
+                b.difficultyrating = 6.57933f;
+            });
+            await conn.ExecuteAsync(
+                """
+                INSERT INTO `osu_beatmap_scoring_attribs`
+                    (`beatmap_id`, `mode`, `legacy_accuracy_score`, `legacy_combo_score`, `legacy_bonus_score_ratio`, `legacy_bonus_score`, `max_combo`)
+                VALUES
+                    (4451949, 3, 0, 1000000, 0, 0, 0)
+                """);
+
+            var score = new SoloScore
+            {
+                // https://osu.ppy.sh/scores/3901512042
+                id = 6895750096,
+                user_id = 31502117,
+                ruleset_id = 3,
+                beatmap_id = beatmap.beatmap_id,
+                has_replay = false,
+                preserve = false,
+                ranked = false,
+                rank = ScoreRank.D,
+                passed = true,
+                accuracy = 0,
+                max_combo = 643,
+                total_score = 0,
+                ScoreData = new SoloScoreData
+                {
+                    Mods = [new APIMod(new ManiaModClassic())],
+                    Statistics =
+                    {
+                        [HitResult.Ok] = 112,
+                        [HitResult.Meh] = 10,
+                        [HitResult.Good] = 573,
+                        [HitResult.Miss] = 146,
+                        [HitResult.Great] = 2126,
+                        [HitResult.Perfect] = 3184,
+                    },
+                    MaximumStatistics =
+                    {
+                        [HitResult.Perfect] = 6151,
+                    },
+                },
+                pp = null,
+                legacy_score_id = 0,
+                legacy_total_score = 741164,
+                started_at = null,
+                ended_at = new DateTimeOffset(2026, 6, 17, 6, 41, 16, TimeSpan.Zero),
+                build_id = null,
+            };
+
+            InsertScore(conn, new ScoreItem(score, new ProcessHistory()));
+
+            var recalculateCommand = new RecalculateModMultipliersCommand { StartId = score.id };
+            await recalculateCommand.OnExecuteAsync(CancellationToken);
+
+            WaitForDatabaseState(@"SELECT `total_score` FROM `scores` WHERE `id` = @id", 0, CancellationToken, score);
+        }
     }
 }
