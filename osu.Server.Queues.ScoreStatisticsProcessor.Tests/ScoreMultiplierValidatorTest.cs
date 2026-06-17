@@ -1,9 +1,11 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Collections.Generic;
 using osu.Game.Online.API;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
+using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Xunit;
 
@@ -107,6 +109,26 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             WaitForDatabaseState("SELECT `total_score` FROM `scores` WHERE `id` = @id", 675_000, CancellationToken, new { score.Score.id });
             // classic score = round(100814.25 * standardised score / 1000000)
             WaitForDatabaseState("SELECT `total_score` FROM `osu_user_stats` WHERE user_id = 2", 68050, CancellationToken);
+        }
+
+        [Fact]
+        public void TestVeryShortScore()
+        {
+            using var conn = Processor.GetDatabaseConnection();
+            var score = CreateTestScore(0, beatmap.beatmap_id);
+            score.Score.ScoreData.TotalScoreWithoutMods = 100;
+            score.Score.ScoreData.Mods = [new APIMod(new OsuModDoubleTime())];
+            score.Score.ScoreData.Statistics = new Dictionary<HitResult, int> { [HitResult.Great] = 3 };
+            score.Score.ScoreData.MaximumStatistics = new Dictionary<HitResult, int> { [HitResult.Great] = 3000 };
+            score.Score.total_score = 110;
+            score.Score.ended_at = score.Score.started_at!.Value.AddSeconds(5);
+            score.Score.passed = false;
+            InsertScore(conn, score);
+
+            Processor.PushToQueue(score);
+            WaitForDatabaseState("SELECT `total_score` FROM `scores` WHERE `id` = @id", 123, CancellationToken, new { score.Score.id });
+            // classic score is not updated as score is too short
+            WaitForDatabaseState("SELECT `total_score` FROM `osu_user_stats` WHERE user_id = 2", 0, CancellationToken);
         }
     }
 }
