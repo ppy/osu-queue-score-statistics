@@ -28,11 +28,48 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
         }
 
         [Fact]
-        public void TestScoreWhereTotalScoreWithoutModsIsMissingIsRejected()
+        public void TestStableScoreWhereTotalScoreWithoutModsIsMissingIsAccepted()
         {
             using var conn = Processor.GetDatabaseConnection();
             var score = CreateTestScore(0, beatmap.beatmap_id);
             score.Score.ScoreData.TotalScoreWithoutMods = null;
+            score.Score.legacy_score_id = 12345678;
+            score.Score.legacy_total_score = 123_123_123;
+            score.Score.total_score = 245_000;
+            InsertScore(conn, score);
+
+            Processor.PushToQueue(score);
+            WaitForDatabaseState("SELECT `ranked` FROM `scores` WHERE `id` = @id", 1, CancellationToken, new { score.Score.id });
+            WaitForDatabaseState("SELECT `total_score` FROM `scores` WHERE `id` = @id", 245_000, CancellationToken, new { score.Score.id });
+            // total score processor does not run for stable scores, so use rank count instead as a stopgap for covering that other processors still run for this score
+            WaitForDatabaseState("SELECT `s_rank_count` FROM `osu_user_stats` WHERE user_id = 2", 1, CancellationToken);
+        }
+
+        [Fact]
+        public void TestLazerScoreWithoutModsWhereTotalScoreWithoutModsIsMissingIsAccepted()
+        {
+            using var conn = Processor.GetDatabaseConnection();
+            var score = CreateTestScore(0, beatmap.beatmap_id);
+            score.Score.ScoreData.TotalScoreWithoutMods = null;
+            score.Score.ScoreData.Mods = [];
+            score.Score.total_score = 990_000;
+            InsertScore(conn, score);
+
+            Processor.PushToQueue(score);
+            WaitForDatabaseState("SELECT `ranked` FROM `scores` WHERE `id` = @id", 1, CancellationToken, new { score.Score.id });
+            WaitForDatabaseState("SELECT `total_score` FROM `scores` WHERE `id` = @id", 990_000, CancellationToken, new { score.Score.id });
+            // classic score = round(100814.25 * standardised score / 1000000)
+            WaitForDatabaseState("SELECT `total_score` FROM `osu_user_stats` WHERE user_id = 2", 99_806, CancellationToken);
+        }
+
+        [Fact]
+        public void TestLazerScoreWithModsWhereTotalScoreWithoutModsIsMissingIsRejected()
+        {
+            using var conn = Processor.GetDatabaseConnection();
+            var score = CreateTestScore(0, beatmap.beatmap_id);
+            score.Score.ScoreData.TotalScoreWithoutMods = null;
+            score.Score.ScoreData.Mods = [new APIMod(new OsuModDoubleTime())];
+            score.Score.total_score = 1_230_000;
             InsertScore(conn, score);
 
             Processor.PushToQueue(score);
