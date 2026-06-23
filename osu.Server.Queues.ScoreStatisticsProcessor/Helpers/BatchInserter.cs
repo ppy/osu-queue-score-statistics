@@ -221,7 +221,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
                 Mods = referenceScore.Mods.Select(m => new APIMod(m)).ToArray(),
                 Statistics = referenceScore.Statistics,
                 MaximumStatistics = referenceScore.MaximumStatistics,
-                TotalScoreWithoutMods = referenceScore.TotalScoreWithoutMods,
+                // TotalScoreWithoutMods is intentionally skipped as storing it is redundant
+                // (both it and `total_score` are wholly derived from `legacy_total_score` and legacy beatmap scoring attributes,
+                // see `StandardisedScoreMigrationTools.UpdateFromLegacy()` call lower down)
             }, new JsonSerializerSettings
             {
                 DefaultValueHandling = DefaultValueHandling.Ignore
