@@ -7,6 +7,7 @@ using System.Linq;
 using Dapper;
 using JetBrains.Annotations;
 using MySqlConnector;
+using osu.Game.Database;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
@@ -20,7 +21,20 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
         private const string scores_modified_metric = $@"{nameof(ScoreMultiplierValidator)}.scores_modified";
 
         public bool RunOnFailedScores => true;
-        public bool RunOnLegacyScores => true;
+
+        /// <summary>
+        /// Legacy scores are excluded from validation for two reasons:
+        /// <list type="bullet">
+        /// <item>They are imported via a server-side process, so there is no room for user tampering or version mismatches there.</item>
+        /// <item>
+        /// In the case of legacy scores, both <see cref="SoloScore.total_score"/> and <see cref="SoloScoreData.TotalScoreWithoutMods"/>
+        /// are derived wholly from <see cref="SoloScore.legacy_total_score"/> through the estimated score conversion process
+        /// (see <see cref="StandardisedScoreMigrationTools"/>).
+        /// </item>
+        /// </list>
+        /// </summary>
+        public bool RunOnLegacyScores => false;
+
         public bool RunOnVeryShortPlays => true;
 
         // Must run before any processor that reads total score.
@@ -33,6 +47,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
         public void ApplyToUserStats(SoloScore score, UserStats userStats, MySqlConnection conn, MySqlTransaction transaction, List<Action> postTransactionActions, DogStatsdService dogStatsd)
         {
+            if (score.ScoreData.Mods.Length == 0)
+                return;
+
             if (score.ScoreData.TotalScoreWithoutMods is not long totalScoreWithoutMods)
             {
                 dogStatsd.Increment(scores_modified_metric, tags: ["unranked"]);
