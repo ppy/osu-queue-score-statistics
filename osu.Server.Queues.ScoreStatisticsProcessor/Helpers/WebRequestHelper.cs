@@ -14,6 +14,7 @@ using System.Threading;
 using Newtonsoft.Json;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using Sentry;
+using StatsdClient;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
 {
@@ -26,6 +27,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         private static readonly string? api_client_secret = Environment.GetEnvironmentVariable("API_CLIENT_SECRET");
         private static string? accessToken;
         private static DateTimeOffset? accessTokenExpiry;
+
+        private static readonly string? rank_lookup_cache_url = Environment.GetEnvironmentVariable("RANK_LOOKUP_CACHE_URL");
+
+        private static readonly decimal rank_lookup_cache_traffic_ratio =
+            decimal.TryParse(Environment.GetEnvironmentVariable("RANK_LOOKUP_CACHE_TRAFFIC_RATIO"), out decimal ratio) ? decimal.Clamp(ratio, 0, 1) : 0.05M;
 
         private static readonly HttpClient http = new HttpClient
         {
@@ -118,6 +124,25 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
             }
         }
 
+        private static long scoreRankRequestsServicedCounter;
+
+        public static int? GetScoreRankOnBeatmapLeaderboard(SoloScore score)
+        {
+            try
+            {
+                return rank_lookup_cache_traffic_ratio > 0 && Interlocked.Increment(ref scoreRankRequestsServicedCounter) % (int)(1 / rank_lookup_cache_traffic_ratio) == 0
+                    ? getScoreRankOnBeatmapLeaderboardFromCache(score)
+                    : getScoreRankOnBeatmapLeaderboardFromWeb(score);
+            }
+            catch (Exception e)
+            {
+                SentrySdk.CaptureException(e, scope => scope.Level = SentryLevel.Warning);
+                return null;
+            }
+        }
+
+        #region Web lookup (to be replaced)
+
         /// <remarks>
         /// <para>
         /// Anyone reading this without context is probably thinking "what sort of abomination is this? isn't this all wrong???"
@@ -136,43 +161,29 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         /// Add a 1 to that number and you get this score's rank.
         /// </para>
         /// <para>
-        /// At this point there are two options: either hit ES directly from here, or hit <c>osu-web</c> which already does the same trick to retrieve global rank of a score in the beatmap leaderboard.
-        /// The first approach was deemed undesirable, because it is preferred that there is a single connection point to ES in the infrastructure.
-        /// Therefore, the <c>GET /scores/{id}</c> API endpoint should do the trick for the second approach.
-        /// If this ever becomes a problem the proposition is to move the ES lookup logic to https://github.com/ppy/osu-global-rank-lookup-cache and have both web and this call into that component.
-        /// </para>
-        /// <para>
         /// Note that this working correctly also relies on the fact that <c>osu-web</c> API has lazer mode turned forcefully on with no way to toggle it off
         /// (see https://github.com/ppy/osu-web/blob/f46806bb81eb0d3b0807c70bf8e3dc13f0783ec9/app/Libraries/Search/ScoreSearchParams.php#L86-L88).
         /// </para>
         /// </remarks>
-        public static int? GetScoreRankOnBeatmapLeaderboard(SoloScore score)
+        private static int? getScoreRankOnBeatmapLeaderboardFromWeb(SoloScore score)
         {
-            try
+            string? token = retrieveAccessToken();
+            if (token == null)
+                return null;
+
+            var requestMsg = new HttpRequestMessage(HttpMethod.Get, $"{shared_interop_domain}/api/v2/scores/{score.id}");
+            requestMsg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            requestMsg.Headers.Add("x-api-version", "20250804");
+            var responseMsg = http.Send(requestMsg);
+
+            if (!responseMsg.IsSuccessStatusCode || responseMsg.Content.ReadFromJsonAsync<ScoreResponse>().Result is not ScoreResponse scoreResponse)
             {
-                string? token = retrieveAccessToken();
-                if (token == null)
-                    return null;
-
-                var requestMsg = new HttpRequestMessage(HttpMethod.Get, $"{shared_interop_domain}/api/v2/scores/{score.id}");
-                requestMsg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                requestMsg.Headers.Add("x-api-version", "20250804");
-                var responseMsg = http.Send(requestMsg);
-
-                if (!responseMsg.IsSuccessStatusCode || responseMsg.Content.ReadFromJsonAsync<ScoreResponse>().Result is not ScoreResponse scoreResponse)
-                {
-                    SentrySdk.CaptureMessage($"Failed to retrieve score rank from API: received status code {responseMsg.StatusCode}, content: {responseMsg.Content.ReadAsStringAsync().Result}",
-                        SentryLevel.Warning);
-                    return null;
-                }
-
-                return scoreResponse.rank_global;
-            }
-            catch (Exception e)
-            {
-                SentrySdk.CaptureException(e, scope => scope.Level = SentryLevel.Warning);
+                SentrySdk.CaptureMessage($"Failed to retrieve score rank from API: received status code {responseMsg.StatusCode}, content: {responseMsg.Content.ReadAsStringAsync().Result}",
+                    SentryLevel.Warning);
                 return null;
             }
+
+            return scoreResponse.rank_global;
         }
 
         private static string? retrieveAccessToken()
@@ -222,5 +233,61 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Helpers
         {
             public int rank_global { get; set; }
         }
+
+        #endregion
+
+        #region Dedicated cache lookup
+
+        private static int? getScoreRankOnBeatmapLeaderboardFromCache(SoloScore score)
+        {
+            if (string.IsNullOrEmpty(rank_lookup_cache_url))
+            {
+#if !DEBUG
+                throw new InvalidOperationException($"Attempted rank cache lookup without URL set!");
+#endif
+                return null;
+            }
+
+            // 1 is subtracted from the score to compensate for multiple scores with the same total
+            // (the lookup cache will return the position of the first score with the total score given).
+            var response = http.GetAsync($@"{rank_lookup_cache_url}/ranklookup?beatmapId={score.beatmap_id}&score={score.total_score - 1}&rulesetId={score.ruleset_id}").Result;
+            var responseContent = response.Content.ReadAsStringAsync().Result;
+
+            if (!response.IsSuccessStatusCode)
+            {
+                SentrySdk.CaptureMessage($"Failed to retrieve score rank from lookup cache: received status code {response.StatusCode}, content: {responseContent}",
+                    SentryLevel.Warning);
+                DogStatsd.Increment("osu.user_rank_cached_lookup", 1, tags: ["type:scores", "result:fail"]);
+                return null;
+            }
+
+            if (!int.TryParse(responseContent.Split(',').First(), out var rank))
+            {
+                SentrySdk.CaptureMessage($"Received unrecognisable response format from lookup cache: {responseContent}",
+                    SentryLevel.Warning);
+                DogStatsd.Increment("osu.user_rank_cached_lookup", 1, tags: ["type:scores", "result:fail"]);
+                return null;
+            }
+
+            // remember that we're outside transactions here; the `scores` row *is already in the table*.
+            // while `osu-global-rank-lookup-cache` returns a *zero-indexed* rank,
+            // above we subtracted 1 from the total of the score we're fetching the rank for (in order to properly handle total score ties),
+            // which means that effectively the resulting index returned by `osu-global-rank-lookup-cache` will be bigger by at least 1.
+            // therefore, we can use the result from `osu-global-rank-lookup-cache` directly without adding 1 to it.
+
+            // due to the above, this should never be triggered, but just for safety...
+            if (rank <= 0)
+            {
+                SentrySdk.CaptureMessage($"Received unexpected rank: {responseContent}",
+                    SentryLevel.Warning);
+                DogStatsd.Increment("osu.user_rank_cached_lookup", 1, tags: ["type:scores", "result:fail"]);
+                return null;
+            }
+
+            DogStatsd.Increment("osu.user_rank_cached_lookup", 1, tags: ["type:scores", "result:success"]);
+            return rank;
+        }
+
+        #endregion
     }
 }
