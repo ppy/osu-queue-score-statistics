@@ -315,7 +315,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             });
         }
 
-        [Fact(Skip = "ScorePerformanceProcessor is disabled for legacy scores for now: https://github.com/ppy/osu-queue-score-statistics/pull/212#issuecomment-2011297448.")]
+        [Fact]
         public void LegacyScoreIsProcessedAndPpIsWrittenBackToLegacyTables()
         {
             AddBeatmap();
@@ -332,14 +332,14 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 score.Score.preserve = true;
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NULL AND ranked = 1 AND preserve = 1", 1, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM scores WHERE id = @ScoreId AND pp IS NOT NULL AND ranked = 1 AND preserve = 1", 1, CancellationToken, new
             {
                 ScoreId = score.Score.id
             });
 
-            WaitForDatabaseState("SELECT COUNT(*) FROM osu_scores_high WHERE score_id = 1 AND pp IS NOT NULL", 1, CancellationToken, new
+            WaitForDatabaseState("SELECT COUNT(*) FROM osu_scores_high WHERE score_id = @LegacyScoreId AND pp IS NOT NULL", 1, CancellationToken, new
             {
-                ScoreId = score.Score.id
+                LegacyScoreId = score.Score.legacy_score_id
             });
         }
 
