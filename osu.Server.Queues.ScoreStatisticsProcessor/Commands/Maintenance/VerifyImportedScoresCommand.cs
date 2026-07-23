@@ -48,12 +48,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
         public int BatchSize { get; set; } = 5000;
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "--dry-run")]
+        [MemberNotNullWhen(false, nameof(elasticQueueProcessor))]
         public bool DryRun { get; set; }
 
         [Option(CommandOptionType.SingleOrNoValue, Template = "--delete-only")]
         public bool DeleteOnly { get; set; }
 
-        private readonly ElasticQueuePusher elasticQueueProcessor = new ElasticQueuePusher();
+        private ElasticQueuePusher? elasticQueueProcessor;
 
         private readonly StringBuilder sqlBuffer = new StringBuilder();
 
@@ -74,10 +75,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
             Console.WriteLine();
             Console.WriteLine($"Verifying scores starting from {lastId} for ruleset {RulesetId}");
 
-            Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
-
             if (DryRun)
                 Console.WriteLine("RUNNING IN DRY RUN MODE.");
+            else
+            {
+                elasticQueueProcessor = new ElasticQueuePusher();
+                Console.WriteLine($"Indexing to elasticsearch queue(s) {elasticQueueProcessor.ActiveQueues}");
+            }
 
             while (!cancellationToken.IsCancellationRequested)
             {
