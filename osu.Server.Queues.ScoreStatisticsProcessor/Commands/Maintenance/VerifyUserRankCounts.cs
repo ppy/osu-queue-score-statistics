@@ -79,7 +79,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                 };
 
                 IEnumerable<SoloScore> scores = await db.QueryAsync<SoloScore>(new CommandDefinition(
-                    "SELECT * FROM scores WHERE preserve = 1 AND ranked = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
+                    "SELECT id, beatmap_id, total_score, `rank` FROM scores WHERE preserve = 1 AND ranked = 1 AND user_id = @userId AND ruleset_id = @rulesetId",
                     parameters, cancellationToken: cancellationToken, transaction: transaction));
 
                 var counts = new Dictionary<ScoreRank, int>
