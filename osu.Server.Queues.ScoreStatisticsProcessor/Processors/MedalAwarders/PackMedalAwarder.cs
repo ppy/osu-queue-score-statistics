@@ -472,6 +472,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 case 363:
                     return checkPack(4451);
 
+                // Beatmap Spotlights: Autumn 2026
+                case 364:
+                    return checkPack(4644) || checkPack(4645) || checkPack(4646) || checkPack(4647);
+
                 default:
                     return false;
             }
