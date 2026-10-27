@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -17,9 +18,11 @@ using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Mods;
 using osu.Server.QueueProcessor;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
+using StatsdClient;
 using Beatmap = osu.Server.Queues.ScoreStatisticsProcessor.Models.Beatmap;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
@@ -31,7 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
     {
         public static readonly string? DIFF_ATTRIB_DATABASE = Environment.GetEnvironmentVariable("DB_NAME_DIFFICULTY") ?? Environment.GetEnvironmentVariable("DB_NAME") ?? "osu";
 
-        private static readonly bool use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("REALTIME_DIFFICULTY") != "0";
+        private static readonly bool always_use_realtime_difficulty_calculation = Environment.GetEnvironmentVariable("ALWAYS_USE_REALTIME_DIFFICULTY") != "0";
         private static readonly string beatmap_download_path = Environment.GetEnvironmentVariable("BEATMAP_DOWNLOAD_PATH") ?? "https://osu.ppy.sh/osu/{0}";
         private static readonly uint memory_cache_size_limit = uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SIZE_LIMIT") ?? "128000000");
         private static readonly TimeSpan memory_cache_sliding_expiration = TimeSpan.FromSeconds(uint.Parse(Environment.GetEnvironmentVariable("MEMORY_CACHE_SLIDING_EXPIRATION_SECONDS") ?? "3600"));
@@ -133,8 +136,16 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
         /// <exception cref="Exception">If realtime difficulty attributes couldn't be computed.</exception>
         public static async Task<DifficultyAttributes> GetDifficultyAttributesAsync(Beatmap beatmap, Ruleset ruleset, Mod[] mods, MySqlConnection connection, MySqlTransaction? transaction = null)
         {
-            if (use_realtime_difficulty_calculation)
+            // database attributes are stored using the default mod configurations
+            // if we want to support mods with non-default configurations (i.e non-1.5x rates on DT/NC)
+            // or non-legacy mods which aren't populated into the database (with exception to CL)
+            // then we must calculate difficulty attributes in real-time.
+            bool mustUseRealtimeDifficulty = mods.Any(modRequiresRealtime);
+
+            if (always_use_realtime_difficulty_calculation || mustUseRealtimeDifficulty)
             {
+                var stopwatch = Stopwatch.StartNew();
+
                 using var req = new WebRequest(string.Format(beatmap_download_path, beatmap.beatmap_id));
 
                 req.AllowInsecureRequests = true;
@@ -147,7 +158,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
                 var workingBeatmap = new StreamedWorkingBeatmap(req.ResponseStream);
                 var calculator = ruleset.CreateDifficultyCalculator(workingBeatmap);
 
-                return calculator.Calculate(mods);
+                var attributes = calculator.Calculate(mods);
+
+                string[] tags =
+                {
+                    $"ruleset:{ruleset.RulesetInfo.OnlineID}",
+                    $"mods:{string.Join("", mods.Select(x => x.Acronym))}"
+                };
+
+                DogStatsd.Timer("calculate-realtime-difficulty-attributes", stopwatch.ElapsedMilliseconds, tags: tags);
+
+                return attributes;
             }
 
             DifficultyAttributeKey key = new DifficultyAttributeKey(beatmap.beatmap_id, (uint)ruleset.RulesetInfo.OnlineID, (uint)getLegacyModsForAttributeLookup(beatmap, ruleset, mods));
@@ -183,12 +204,31 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Stores
             }))!;
         }
 
+        /// <summary>
+        /// Decides if a mod is grounds for real-time difficulty calculations.
+        /// This works on a whitelist basis such that mods should only require realtime if they actively affect difficulty.
+        /// </summary>
+        /// <remarks>
+        /// This method does not care about if the mod is ranked or not.
+        /// </remarks>
+        /// <param name="mod">The mod to check.</param>
+        private static bool modRequiresRealtime(Mod mod)
+        {
+            if (mod is ModRateAdjust rateAdjustMod && !rateAdjustMod.SpeedChange.IsDefault)
+                return true;
+
+            if (mod is OsuModMirror)
+                return true;
+
+            return false;
+        }
+
         /// <remarks>
         /// This method attempts to choose the best possible set of <see cref="LegacyMods"/> to use for looking up stored difficulty attributes.
         /// The match is not always exact; for some mods that award pp but do not exist in stable
         /// (such as <see cref="ModHalfTime"/>) the closest available approximation is used.
         /// Moreover, the set of <see cref="LegacyMods"/> returned is constrained to mods that actually affect difficulty in the legacy sense.
-        /// The entirety of this workaround is not used / unnecessary if <see cref="use_realtime_difficulty_calculation"/> is <see langword="true"/>.
+        /// The entirety of this workaround is not used / unnecessary if <see cref="always_use_realtime_difficulty_calculation"/> is <see langword="true"/>.
         /// </remarks>
         private static LegacyMods getLegacyModsForAttributeLookup(Beatmap beatmap, Ruleset ruleset, Mod[] mods)
         {
