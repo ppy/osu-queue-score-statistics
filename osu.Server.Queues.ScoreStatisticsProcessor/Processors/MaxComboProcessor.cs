@@ -9,6 +9,7 @@ using MySqlConnector;
 using osu.Game.Beatmaps;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using StatsdClient;
 

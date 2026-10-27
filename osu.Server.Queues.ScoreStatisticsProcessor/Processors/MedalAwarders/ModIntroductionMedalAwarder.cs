@@ -5,6 +5,7 @@ using osu.Game.Rulesets.Osu.Mods;
 using osu.Server.Queues.ScoreStatisticsProcessor.Helpers;
 using System.Collections.Generic;
 using System.Linq;
+using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 
 namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders

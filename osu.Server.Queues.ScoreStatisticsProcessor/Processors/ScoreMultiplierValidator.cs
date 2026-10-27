@@ -10,6 +10,7 @@ using MySqlConnector;
 using osu.Game.Database;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Scoring;
 using osu.Server.Queues.ScoreStatisticsProcessor.Models;
 using StatsdClient;
 
