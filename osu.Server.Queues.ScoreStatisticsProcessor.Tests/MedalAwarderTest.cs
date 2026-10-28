@@ -95,16 +95,17 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
             }
         }
 
-        protected ulong CreateMultiplayerRoom(string roomName, string roomType, string roomCategory = "normal")
+        protected ulong CreateMultiplayerRoom(string roomName, string roomType, string roomCategory = "normal", uint userId = 1)
         {
             using var conn = Processor.GetDatabaseConnection();
             return conn.QuerySingle<ulong>(
-                "INSERT INTO `multiplayer_rooms` (`name`, `type`, `category`) VALUES (@name, @type, @category); SELECT LAST_INSERT_ID();",
+                "INSERT INTO `multiplayer_rooms` (`name`, `type`, `category`, `user_id`) VALUES (@name, @type, @category, @userId); SELECT LAST_INSERT_ID();",
                 new
                 {
                     name = roomName,
                     type = roomType,
                     category = roomCategory,
+                    userId,
                 });
         }
 
