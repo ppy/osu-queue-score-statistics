@@ -34,7 +34,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 AssertNoMedalsAwarded();
             }
 
-            SetMultiplayerScoreForBeatmap(beatmaps[beatmaps.Length - 1].beatmap_id, items[items.Count - 1]);
+            SetMultiplayerScoreForBeatmap(beatmaps[^1].beatmap_id, items[^1]);
             AssertSingleMedalAwarded(368);
         }
 
@@ -100,7 +100,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
 
             AssertNoMedalsAwarded();
 
-            SetMultiplayerScoreForBeatmap(beatmaps[beatmaps.Length - 1].beatmap_id, items[items.Count - 1]);
+            SetMultiplayerScoreForBeatmap(beatmaps[^1].beatmap_id, items[^1]);
             AssertSingleMedalAwarded(368);
         }
 
@@ -115,7 +115,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 AssertNoMedalsAwarded();
             }
 
-            SetMultiplayerScoreForBeatmap(beatmaps[0].beatmap_id, items[items.Count - 1]);
+            SetMultiplayerScoreForBeatmap(beatmaps[0].beatmap_id, items[^1]);
             AssertSingleMedalAwarded(368);
         }
 
