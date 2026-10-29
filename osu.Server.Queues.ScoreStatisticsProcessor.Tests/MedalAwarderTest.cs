@@ -16,6 +16,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
     public abstract class MedalAwarderTest : DatabaseTest
     {
         private readonly List<MedalProcessor.AwardedMedal> awardedMedals = new List<MedalProcessor.AwardedMedal>();
+        private readonly HashSet<(uint userId, ulong playlistItemId)> passedPlaylistItems = new HashSet<(uint, ulong)>();
 
         protected MedalAwarderTest(AssemblyName[]? externalProcessorAssemblies = null)
             : base(externalProcessorAssemblies)
@@ -35,6 +36,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                 db.Execute("TRUNCATE TABLE multiplayer_score_links");
                 db.Execute("TRUNCATE TABLE multiplayer_playlist_items");
                 db.Execute("TRUNCATE TABLE multiplayer_rooms");
+                db.Execute("TRUNCATE TABLE multiplayer_rooms_high");
             }
         }
 
@@ -138,6 +140,24 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Tests
                         playlist_item_id = playlistItemId,
                         score_id = score.Score.id,
                     });
+
+                if (score.Score.passed && passedPlaylistItems.Add((score.Score.user_id, playlistItemId)))
+                {
+                    conn.Execute(
+                        """
+                        INSERT INTO `multiplayer_rooms_high` (`room_id`, `user_id`, `completed`)
+                        SELECT `room_id`, @user_id, 1
+                        FROM `multiplayer_playlist_items`
+                        WHERE `id` = @playlist_item_id
+                        ON DUPLICATE KEY UPDATE `completed` = `completed` + 1
+                        """,
+                        new
+                        {
+                            user_id = score.Score.user_id,
+                            playlist_item_id = playlistItemId,
+                        });
+                }
+
                 PushToQueueAndWaitForProcess(score);
 
                 return score;
