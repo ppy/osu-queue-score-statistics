@@ -61,16 +61,13 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
             if (room.type != "playlists" || room.creatorId == context.Score.user_id || room.itemCount < 10)
                 return false;
 
-            // distinct playlist items this user has passed in that room
-            int passedItems = context.Connection.QuerySingle<int>(
+            // number of playlist items this user has passed in that room
+            int completedItems = context.Connection.QuerySingleOrDefault<int>(
                 """
-                SELECT COUNT(DISTINCT `score_links`.`playlist_item_id`)
-                FROM `multiplayer_playlist_items` `room_items`
-                JOIN `multiplayer_score_links` `score_links` ON `score_links`.`playlist_item_id` = `room_items`.`id`
-                JOIN `scores` ON `scores`.`id` = `score_links`.`score_id`
-                WHERE `room_items`.`room_id` = @room_id
-                AND `score_links`.`user_id` = @user_id
-                AND `scores`.`passed` = 1
+                SELECT `completed`
+                FROM `multiplayer_rooms_high`
+                WHERE `room_id` = @room_id
+                AND `user_id` = @user_id
                 """,
                 new
                 {
@@ -79,7 +76,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors.MedalAwarders
                 },
                 transaction: context.Transaction);
 
-            return passedItems >= room.itemCount;
+            return completedItems >= room.itemCount;
         }
     }
 }
