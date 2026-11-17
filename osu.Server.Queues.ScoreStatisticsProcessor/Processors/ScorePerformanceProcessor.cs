@@ -7,7 +7,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
 using MySqlConnector;
-using osu.Framework.Extensions;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
@@ -51,7 +50,11 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
 
             try
             {
-                if (ProcessScoreAsync(score, conn, transaction).GetResultSafely())
+                // WARNING: DO NOT USE `.GetResultSafely()` HERE
+                // this processor can run in manual command contexts wherein the top-level processing loop is in an async context,
+                // which will make `.GetResultSafely()` immediately fail and fall back to the `catch` clause below
+                // while using `.Result` raw does mean that there is a chance of deadlock here, that is taken as acceptable risk
+                if (ProcessScoreAsync(score, conn, transaction).Result)
                 {
                     if (score.is_legacy_score && write_legacy_score_pp)
                     {
