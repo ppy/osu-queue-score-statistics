@@ -48,8 +48,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             if (DatabaseHelper.IsUserRestricted(conn, userStats.user_id, transaction))
                 return;
 
+            float rankScoreBefore = userStats.rank_score;
             UpdateUserStatsAsync(userStats, score.ruleset_id, conn, transaction).Wait();
-            updateGlobalRank(userStats, conn, transaction, dbInfo).Wait();
+            updateGlobalRank(rankScoreBefore, userStats, conn, transaction, dbInfo).Wait();
         }
 
         public void ApplyGlobal(SoloScore score, MySqlConnection conn)
@@ -84,10 +85,10 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             (userStats.rank_score, userStats.accuracy_new) = UserTotalPerformanceAggregateHelper.CalculateUserTotalPerformanceAggregates(userStats.user_id, scores);
         }
 
-        private async Task updateGlobalRank(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
+        private async Task updateGlobalRank(float rankScoreBefore, UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
         {
             // User's current global rank.
-            userStats.rank_score_index = await getUserRankScoreIndex(userStats, connection, transaction, dbInfo);
+            userStats.rank_score_index = await getUserRankScoreIndex(rankScoreBefore, userStats, connection, transaction, dbInfo);
 
             // User's historical best rank (ever).
             int userHistoricalHighestRank = await connection.QuerySingleOrDefaultAsync<int?>("SELECT `rank` FROM `osu_user_performance_rank_highest` WHERE `user_id` = @userId AND `mode` = @mode",
@@ -128,7 +129,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                 }, transaction);
         }
 
-        private async Task<int> getUserRankScoreIndex(UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
+        private async Task<int> getUserRankScoreIndex(float rankScoreBefore, UserStats userStats, MySqlConnection connection, MySqlTransaction? transaction, LegacyDatabaseHelper.RulesetDatabaseInfo dbInfo)
         {
             var rulesetCache = rankScoreIndexPartitionCache.GetOrAdd(dbInfo.RulesetId, _ => new MemoryCache(new MemoryCacheOptions()));
 
@@ -159,6 +160,9 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
                     rankScoreCutoff = userStats.rank_score,
                     partitionCutoff
                 }, transaction: transaction);
+
+            if (rankScoreBefore > userStats.rank_score && rankScoreBefore <= partitionCutoff)
+                remainingCount--;
 
             return partitionCount + remainingCount + 1;
         }
