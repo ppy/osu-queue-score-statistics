@@ -152,7 +152,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Processors
             });
 
             int remainingCount = await connection.QuerySingleAsync<int>(
-                $"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > @rankScoreCutoff AND rank_score <= @partitionCutoff AND user_id != @userId",
+                $"SELECT COUNT(*) FROM {dbInfo.UserStatsTable} WHERE rank_score > @rankScoreCutoff AND rank_score <= @partitionCutoff",
                 new
                 {
                     userId = userStats.user_id,
