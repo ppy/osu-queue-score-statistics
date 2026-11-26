@@ -172,7 +172,7 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands.Maintenance
                                 if (countPinned > 0)
                                     continue;
 
-                                sqlBuffer.Append($"UPDATE scores SET preserve = 0 WHERE id = {importedScore.id};");
+                                sqlBuffer.Append($"UPDATE scores SET preserve = 0, unix_updated_at = UNIX_TIMESTAMP() WHERE id = {importedScore.id};");
 
                                 Interlocked.Increment(ref deleted);
                                 requiresIndexing = true;
