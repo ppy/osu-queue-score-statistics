@@ -15,7 +15,6 @@ namespace osu.Server.Queues.ScoreStatisticsProcessor.Commands
     [Subcommand(typeof(VerifyScoreRanksCommand))]
     [Subcommand(typeof(ReorderIncorrectlyImportedTiedScoresCommand))]
     [Subcommand(typeof(ReindexBeatmapCommand))]
-    [Subcommand(typeof(DeleteImportedHighScoresCommand))]
     [Subcommand(typeof(VerifyReplaysExistCommand))]
     [Subcommand(typeof(VerifyUserRankCounts))]
     [Subcommand(typeof(VerifyUserRankedScore))]
